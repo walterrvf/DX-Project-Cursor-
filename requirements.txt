@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Interface gráfica
 PyQt5==5.15.9
 PyQt5-Qt5==5.15.2
@@ -16,3 +17,23 @@ numpy==1.24.3
 
 # Utilitários
 pathlib2==2.3.7
+=======
+# Interface gráfica
+PyQt5==5.15.9
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.12.2
+
+# Interface moderna (ttkbootstrap)
+ttkbootstrap==1.10.1
+
+# Processamento de imagem e visão computacional
+opencv-python==4.8.1.78
+Pillow==10.0.1
+numpy==1.24.3
+
+# Banco de dados
+# sqlite3 já vem incluído no Python padrão
+
+# Utilitários
+pathlib2==2.3.7
+>>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd

@@ -210,6 +210,7 @@ Para adicionar um novo módulo:
 3. Adicione uma função `main()` para execução independente
 4. O módulo será automaticamente detectado pelo dashboard
 
+<<<<<<< HEAD
 ## Portabilidade do Sistema
 
 O sistema foi projetado para ser portátil entre diferentes computadores. Todos os caminhos de arquivo são armazenados de forma relativa à raiz do projeto, permitindo que você copie a pasta do projeto para outro computador e execute-o sem problemas.
@@ -256,6 +257,8 @@ Este script irá:
 2. Adicionar a coluna se necessário, com valor padrão de 70%
 3. Preparar o sistema para usar o novo parâmetro de aceitação
 
+=======
+>>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 ### Exemplo de Módulo
 ```python
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel

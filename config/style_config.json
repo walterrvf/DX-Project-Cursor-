@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
     "slot_font_size": 10,
     "result_font_size": 10,
@@ -11,4 +12,15 @@
     "hud_position": "top-right",
     "show_fps": true,
     "show_timestamp": true
+=======
+{
+    "background_color": "#1E1E1E",
+    "text_color": "#FFFFFF",
+    "button_color": "#4CAF50",
+    "ng_color": "#F38BA8",
+    "ok_color": "#95E1D3",
+    "ng_font": "Arial 12 bold",
+    "ok_font": "Arial 12 bold",
+    "selection_color": "#FFE66D"
+>>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 }
