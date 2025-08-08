@@ -243,148 +243,6 @@ CV_Score = (1/k) · Σ(Accuracy_i)
 
 ---
 
-## 📊 Diagramas e Fluxogramas
-
-### 🔄 **Fluxo de Processamento Principal**
-
-```mermaid
-flowchart TD
-    A[📷 Captura de Imagem] --> B{🔍 Pré-processamento}
-    B --> C[📐 Template Matching]
-    B --> D[🎯 Feature Detection]
-    B --> E[📊 Análise de Histograma]
-    
-    C --> F{🎯 Threshold OK?}
-    D --> G{🔗 Matches Suficientes?}
-    E --> H{📈 Similaridade OK?}
-    
-    F -->|Sim| I[✅ Componente OK]
-    F -->|Não| J[❌ Componente NG]
-    G -->|Sim| I
-    G -->|Não| J
-    H -->|Sim| I
-    H -->|Não| J
-    
-    I --> K[🤖 ML Validation]
-    J --> K
-    K --> L[📋 Resultado Final]
-    L --> M[💾 Salvar Log]
-    M --> N[📊 Atualizar Dashboard]
-```
-
-### 🧠 **Pipeline de Machine Learning**
-
-```mermaid
-flowchart LR
-    A[📸 Amostras OK/NG] --> B[🔧 Feature Extraction]
-    B --> C[📊 Normalização]
-    C --> D{🌳 Algoritmo}
-    
-    D -->|Random Forest| E[🌲 RF Classifier]
-    D -->|SVM| F[🎯 SVM Classifier]
-    
-    E --> G[📈 Cross Validation]
-    F --> G
-    G --> H[🎯 Otimização Hiperparâmetros]
-    H --> I[💾 Modelo Treinado]
-    I --> J[🔍 Predição]
-    J --> K[📊 Métricas]
-```
-
-### 🎯 **Arquitetura do Sistema de Detecção**
-
-```mermaid
-graph TB
-    subgraph "🖥️ Interface Principal"
-        A[Dashboard] --> B[Seletor de Modelos]
-        B --> C[Configurações]
-    end
-    
-    subgraph "📷 Módulo de Captura"
-        D[Camera Manager] --> E[Image Preprocessor]
-        E --> F[Quality Check]
-    end
-    
-    subgraph "🔍 Módulo de Detecção"
-        G[Template Matching] --> J[Fusion Engine]
-        H[ORB + RANSAC] --> J
-        I[Histogram Analysis] --> J
-        J --> K[ML Classifier]
-    end
-    
-    subgraph "💾 Persistência"
-        L[(SQLite DB)] --> M[Model Storage]
-        M --> N[Training Data]
-    end
-    
-    F --> G
-    F --> H
-    F --> I
-    K --> L
-    C --> L
-```
-
-### 📈 **Processo de Treinamento**
-
-```mermaid
-sequenceDiagram
-    participant U as 👤 Usuário
-    participant UI as 🖥️ Interface
-    participant ML as 🤖 ML Engine
-    participant DB as 💾 Database
-    
-    U->>UI: Selecionar Slot
-    UI->>ML: Inicializar Treinamento
-    
-    loop Coleta de Amostras
-        U->>UI: Capturar/Carregar Imagem
-        UI->>U: Classificar OK/NG
-        UI->>DB: Salvar Amostra
-    end
-    
-    U->>UI: Iniciar Treinamento
-    UI->>ML: Processar Amostras
-    ML->>ML: Feature Extraction
-    ML->>ML: Cross Validation
-    ML->>UI: Retornar Métricas
-    UI->>U: Exibir Resultados
-    
-    alt Modelo Aprovado
-        U->>UI: Salvar Modelo
-        UI->>DB: Persistir Modelo
-        DB->>UI: Confirmação
-    else Retreinar
-        U->>UI: Ajustar Parâmetros
-        Note over UI,ML: Repetir Processo
-    end
-```
-
-### 🔧 **Configuração de Parâmetros**
-
-```mermaid
-mindmap
-  root((⚙️ Configurações))
-    🎯 Template Matching
-      Threshold (0.7-0.95)
-      Método (CCOEFF_NORMED)
-      Multi-scale
-    🔍 ORB Features
-      nFeatures (500)
-      scaleFactor (1.2)
-      nLevels (8)
-      edgeThreshold (31)
-    🤖 Machine Learning
-      Algoritmo (RF/SVM)
-      Cross Validation (5-fold)
-      Hiperparâmetros
-    📊 Métricas
-      Acurácia Mínima (85%)
-      Precisão/Recall
-      F1-Score
-```
-
----
-
 ## ⚙️ Requisitos do Sistema
 
 - **Python**: 3.8 ou superior
@@ -404,8 +262,8 @@ python --version
 
 ### 2. Clone ou Baixe o Projeto
 ```bash
-git clone https://github.com/walterrvf/DX-Project.git
-cd DX-Project
+git clone [URL_DO_REPOSITORIO]
+cd sistema-visao-computacional
 ```
 
 ### 3. Crie um Ambiente Virtual (Recomendado)
@@ -435,21 +293,6 @@ pip install -r requirements.txt
 ```bash
 python -c "import cv2, PyQt5, ttkbootstrap; print('Instalação bem-sucedida!')"
 ```
-
-### 🔗 **Status do Repositório**
-
-✅ **Repositório Atualizado**: Janeiro 2025  
-🚀 **Versão Atual**: 2.0 - Documentação Técnica Completa  
-📊 **Tamanho**: 111.59 MB (216 arquivos)  
-
-**🆕 Novidades Incluídas:**
-- 📚 Documentação técnica detalhada com fundamentos matemáticos
-- 🤖 Sistema de Machine Learning integrado (Random Forest + SVM)
-- 🔧 Otimizações específicas para Raspberry Pi
-- 📈 Métricas avançadas de performance e validação
-- 🎨 Interface moderna com PyQt5 e ttkbootstrap
-- 🔍 Algoritmos de visão computacional otimizados
-- 📋 Relatórios automáticos e análise de dados
 
 ## Executando o Sistema
 

@@ -79,6 +79,17 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE slots ADD COLUMN ok_threshold INTEGER DEFAULT 70")
             except sqlite3.OperationalError:
                 pass  # Coluna já existe
+                
+            # Adiciona colunas ML se não existirem (para compatibilidade)
+            try:
+                cursor.execute("ALTER TABLE slots ADD COLUMN use_ml INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # Coluna já existe
+                
+            try:
+                cursor.execute("ALTER TABLE slots ADD COLUMN ml_model_path TEXT")
+            except sqlite3.OperationalError:
+                pass  # Coluna já existe
             
             # Índices para melhor performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_slots_modelo_id ON slots(modelo_id)")
@@ -225,7 +236,8 @@ class DatabaseManager:
                        h_tolerance, s_tolerance, v_tolerance,
                        detection_threshold, correlation_threshold,
                        template_method, scale_tolerance, template_path,
-                       detection_method, shape, rotation, ok_threshold
+                       detection_method, shape, rotation, ok_threshold,
+                       use_ml, ml_model_path
                 FROM slots WHERE modelo_id = ?
                 ORDER BY slot_id
             """, (modelo_id,))
@@ -236,6 +248,11 @@ class DatabaseManager:
                 template_path = row[16]
                 if template_path:
                     template_path = self._convert_to_absolute_path(template_path)
+                
+                # Converte caminho do modelo ML para absoluto se existir
+                ml_model_path = row[22] if len(row) > 22 and row[22] else None
+                if ml_model_path:
+                    ml_model_path = self._convert_to_absolute_path(ml_model_path)
                 
                 slot = {
                     'id': row[0],
@@ -256,7 +273,9 @@ class DatabaseManager:
                     'detection_method': row[17],
                     'shape': row[18] if len(row) > 18 and row[18] else 'rectangle',
                     'rotation': row[19] if len(row) > 19 and row[19] is not None else 0,
-                    'ok_threshold': row[20] if len(row) > 20 and row[20] is not None else 70
+                    'ok_threshold': row[20] if len(row) > 20 and row[20] is not None else 70,
+                    'use_ml': bool(row[21]) if len(row) > 21 and row[21] is not None else False,
+                    'ml_model_path': ml_model_path
                 }
                 slots.append(slot)
             
@@ -601,6 +620,11 @@ class DatabaseManager:
         template_path = slot_data.get('template_path')
         if template_path:
             template_path = self._convert_to_relative_path(template_path)
+            
+        # Converte caminho do modelo ML para relativo se existir
+        ml_model_path = slot_data.get('ml_model_path')
+        if ml_model_path:
+            ml_model_path = self._convert_to_relative_path(ml_model_path)
         
         cursor.execute("""
             INSERT INTO slots (
@@ -609,8 +633,9 @@ class DatabaseManager:
                 h_tolerance, s_tolerance, v_tolerance,
                 detection_threshold, correlation_threshold,
                 template_method, scale_tolerance, template_path,
-                detection_method, shape, rotation, ok_threshold
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                detection_method, shape, rotation, ok_threshold,
+                use_ml, ml_model_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             modelo_id,
             slot_data['id'],
@@ -631,12 +656,24 @@ class DatabaseManager:
             slot_data.get('detection_method', 'template_matching'),
             slot_data.get('shape', 'rectangle'),
             slot_data.get('rotation', 0),
-            slot_data.get('ok_threshold', 70)
+            slot_data.get('ok_threshold', 70),
+            1 if slot_data.get('use_ml', False) else 0,
+            ml_model_path
         ))
     
     def _update_slot_data(self, cursor, modelo_id: int, slot_data: Dict):
         """Atualiza dados de um slot existente."""
         cor = slot_data.get('cor', [0, 0, 255])
+        
+        # Converte caminho do template para relativo se existir
+        template_path = slot_data.get('template_path')
+        if template_path:
+            template_path = self._convert_to_relative_path(template_path)
+            
+        # Converte caminho do modelo ML para relativo se existir
+        ml_model_path = slot_data.get('ml_model_path')
+        if ml_model_path:
+            ml_model_path = self._convert_to_relative_path(ml_model_path)
         
         cursor.execute("""
             UPDATE slots SET
@@ -645,7 +682,8 @@ class DatabaseManager:
                 h_tolerance = ?, s_tolerance = ?, v_tolerance = ?,
                 detection_threshold = ?, correlation_threshold = ?,
                 template_method = ?, scale_tolerance = ?, template_path = ?,
-                detection_method = ?, shape = ?, rotation = ?, ok_threshold = ?
+                detection_method = ?, shape = ?, rotation = ?, ok_threshold = ?,
+                use_ml = ?, ml_model_path = ?
             WHERE modelo_id = ? AND slot_id = ?
         """, (
             slot_data['tipo'],
@@ -661,11 +699,13 @@ class DatabaseManager:
             slot_data.get('correlation_threshold', 0.5),
             slot_data.get('template_method', 'TM_CCOEFF_NORMED'),
             slot_data.get('scale_tolerance', 0.1),
-            slot_data.get('template_path'),
+            template_path,
             slot_data.get('detection_method', 'template_matching'),
             slot_data.get('shape', 'rectangle'),
             slot_data.get('rotation', 0),
             slot_data.get('ok_threshold', 70),
+            1 if slot_data.get('use_ml', False) else 0,
+            ml_model_path,
             modelo_id,
             slot_data['id']
         ))
