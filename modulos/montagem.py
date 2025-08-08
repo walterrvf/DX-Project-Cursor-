@@ -2,8 +2,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 import ttkbootstrap as ttk
-<<<<<<< HEAD
-from ttkbootstrap.constants import (LEFT, BOTH, DISABLED, NORMAL, X, Y, BOTTOM, RIGHT, HORIZONTAL, VERTICAL, NW)
+from ttkbootstrap.constants import (LEFT, BOTH, DISABLED, NORMAL, X, Y, BOTTOM, RIGHT, HORIZONTAL, VERTICAL, NW, CENTER)
 from tkinter import (Canvas, filedialog, messagebox, simpledialog, Toplevel, StringVar, Text,
                      colorchooser, DoubleVar)
 from tkinter.ttk import Combobox
@@ -11,37 +10,27 @@ from PIL import Image, ImageTk
 from datetime import datetime
 import os
 import time
-=======
-from ttkbootstrap.constants import (LEFT, BOTH, YES, DISABLED, NORMAL, END, TOP, X, Y, BOTTOM, RIGHT,
-                                    HORIZONTAL, VERTICAL, NW)
-from tkinter import (Canvas, filedialog, messagebox, simpledialog, Toplevel, Label, StringVar,
-                     PhotoImage as tkPhotoImage, Text, scrolledtext, colorchooser)
-from tkinter.ttk import Combobox
-from PIL import Image, ImageTk
-from datetime import datetime
-import sys
-import os
-import json
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 # Importa módulos do sistema de banco de dados
 try:
     # Quando importado como módulo
     from .database_manager import DatabaseManager
     from .model_selector import ModelSelectorDialog, SaveModelDialog
-<<<<<<< HEAD
     from .utils import load_style_config, save_style_config, apply_style_config, get_style_config_path
+    from .ml_classifier import MLSlotClassifier
 except ImportError:
     # Quando executado diretamente
     try:
         from database_manager import DatabaseManager
         from model_selector import ModelSelectorDialog, SaveModelDialog
         from utils import load_style_config, save_style_config, apply_style_config, get_style_config_path
+        from ml_classifier import MLSlotClassifier
     except ImportError:
         # Quando executado a partir do diretório raiz
         from modulos.database_manager import DatabaseManager
         from modulos.model_selector import ModelSelectorDialog, SaveModelDialog
         from modulos.utils import load_style_config, save_style_config, apply_style_config, get_style_config_path
+        from modulos.ml_classifier import MLSlotClassifier
 
 # ---------- parâmetros globais ------------------------------------------------
 # Caminho para a pasta de modelos na raiz do projeto
@@ -62,35 +51,23 @@ def get_template_dir():
     template_dir.mkdir(exist_ok=True)
     return template_dir
 
+def get_model_template_dir(model_name, model_id):
+    """Retorna o caminho para o diretório de templates de um modelo específico."""
+    template_dir = get_project_root() / f"modelos/{model_name}_{model_id}/templates"
+    template_dir.mkdir(parents=True, exist_ok=True)
+    return template_dir
+
 # Define as variáveis globais como funções para obter os caminhos atualizados
 MODEL_DIR = get_model_dir()
 TEMPLATE_DIR = get_template_dir()
-=======
-except ImportError:
-    # Quando executado diretamente
-    from database_manager import DatabaseManager
-    from model_selector import ModelSelectorDialog, SaveModelDialog
-
-# ---------- parâmetros globais ------------------------------------------------
-# Caminho absoluto para a pasta de modelos na raiz do projeto
-MODEL_DIR = Path(__file__).parent.parent / "modelos"
-MODEL_DIR.mkdir(exist_ok=True)
-TEMPLATE_DIR = MODEL_DIR / "_templates"
-TEMPLATE_DIR.mkdir(exist_ok=True)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 # Limiares de inspeção
 THR_CORR = 0.1  # Limiar para template matching (clips)
 MIN_PX = 10      # Contagem mínima de pixels para template matching (clips)
 
 # Parâmetros do Canvas e Preview
-<<<<<<< HEAD
 PREVIEW_W = 1200  # Largura máxima do canvas para exibição inicial (aumentada)
 PREVIEW_H = 900  # Altura máxima do canvas para exibição inicial (aumentada)
-=======
-PREVIEW_W = 800  # Largura máxima do canvas para exibição inicial
-PREVIEW_H = 600  # Altura máxima do canvas para exibição inicial
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 # Parâmetros ORB para registro de imagem
 ORB_FEATURES = 5000
@@ -107,7 +84,6 @@ COLOR_PASS = "#95E1D3"  # Verde menta
 COLOR_FAIL = "#F38BA8"  # Rosa
 COLOR_ALIGN_FAIL = "#FECA57"  # Laranja claro
 
-<<<<<<< HEAD
 # Caminho para o arquivo de configurações de estilo
 STYLE_CONFIG_PATH = get_style_config_path()
 
@@ -115,85 +91,14 @@ STYLE_CONFIG_PATH = get_style_config_path()
 # ---------- utilidades --------------------------------------------------------
 
 def detect_cameras(max_cameras=5, callback=None):
-=======
-# Configurações de estilo padrão
-DEFAULT_STYLES = {
-    "background_color": "#1E1E1E",  # Cor de fundo dos diálogos
-    "text_color": "#FFFFFF",       # Cor do texto
-    "button_color": "#4CAF50",     # Cor dos botões
-    "ng_color": "#F38BA8",         # Cor do texto NG
-    "ok_color": "#95E1D3",         # Cor do texto OK
-    "ng_font": "Arial 12 bold",    # Fonte do texto NG
-    "ok_font": "Arial 12 bold",    # Fonte do texto OK
-    "selection_color": "#FFE66D",  # Cor do quadro de seleção
-}
-
-# Caminho para o arquivo de configurações de estilo
-STYLE_CONFIG_PATH = Path(__file__).parent.parent / "config" / "style_config.json"
-
-
-# ---------- utilidades --------------------------------------------------------
-def load_style_config():
-    """
-    Carrega as configurações de estilo do arquivo JSON.
-    Se o arquivo não existir, cria um novo com as configurações padrão.
-    """
-    try:
-        # Cria o diretório de configuração se não existir
-        config_dir = STYLE_CONFIG_PATH.parent
-        config_dir.mkdir(exist_ok=True)
-        
-        # Se o arquivo não existir, cria com as configurações padrão
-        if not STYLE_CONFIG_PATH.exists():
-            save_style_config(DEFAULT_STYLES)
-            return DEFAULT_STYLES.copy()
-        
-        # Carrega as configurações do arquivo
-        with open(STYLE_CONFIG_PATH, 'r') as f:
-            config = json.load(f)
-        
-        # Verifica se todas as chaves necessárias estão presentes
-        for key in DEFAULT_STYLES.keys():
-            if key not in config:
-                config[key] = DEFAULT_STYLES[key]
-        
-        return config
-    except Exception as e:
-        print(f"Erro ao carregar configurações de estilo: {e}")
-        return DEFAULT_STYLES.copy()
-
-def save_style_config(config):
-    """
-    Salva as configurações de estilo em um arquivo JSON.
-    """
-    try:
-        # Cria o diretório de configuração se não existir
-        config_dir = STYLE_CONFIG_PATH.parent
-        config_dir.mkdir(exist_ok=True)
-        
-        # Salva as configurações no arquivo
-        with open(STYLE_CONFIG_PATH, 'w') as f:
-            json.dump(config, f, indent=4)
-        
-        print(f"Configurações de estilo salvas em {STYLE_CONFIG_PATH}")
-        return True
-    except Exception as e:
-        print(f"Erro ao salvar configurações de estilo: {e}")
-        return False
-
-def detect_cameras(max_cameras=5):
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     """
     Detecta webcams disponíveis no sistema.
     Retorna lista de índices de câmeras funcionais.
     Compatível com Windows e Raspberry Pi.
-<<<<<<< HEAD
     
     Args:
         max_cameras: Número máximo de câmeras para testar
         callback: Função opcional a ser chamada após detecção com a lista de câmeras
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     """
     available_cameras = []
     
@@ -210,8 +115,8 @@ def detect_cameras(max_cameras=5):
             else:
                 cap = cv2.VideoCapture(i)
                 
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
             
             if cap is not None and cap.isOpened():
                 # Testa se consegue ler um frame
@@ -231,13 +136,10 @@ def detect_cameras(max_cameras=5):
     else:
         print(f"Câmeras detectadas: {available_cameras}")
     
-<<<<<<< HEAD
     # Chama callback se fornecido
     if callback:
         callback(available_cameras)
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     return available_cameras
 
 def capture_image_from_camera(camera_index=0):
@@ -263,8 +165,8 @@ def capture_image_from_camera(camera_index=0):
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         else:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         
         cap.set(cv2.CAP_PROP_FPS, 30)
         
@@ -293,20 +195,12 @@ def capture_image_from_camera(camera_index=0):
         print(f"Erro ao capturar imagem da câmera {camera_index}: {e}")
         return None
 
-<<<<<<< HEAD
 def cv2_to_tk(img_bgr, max_w=None, max_h=None, scale_percent=None):
     """
     Converte imagem OpenCV BGR para formato Tkinter PhotoImage,
-    redimensionando para caber em max_w x max_h, se fornecido,
-    ou usando scale_percent para redimensionar por porcentagem.
-=======
-def cv2_to_tk(img_bgr, max_w=None, max_h=None):
-    """
-    Converte imagem OpenCV BGR para formato Tkinter PhotoImage,
-    redimensionando para caber em max_w x max_h, se fornecido.
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+    redimensionando para usar 100% da área disponível do canvas.
     
-    Otimizada para evitar lógica duplicada de redimensionamento.
+    Otimizada para preencher completamente o espaço disponível.
     """
     # Validação de entrada
     if img_bgr is None or img_bgr.size == 0:
@@ -315,25 +209,23 @@ def cv2_to_tk(img_bgr, max_w=None, max_h=None):
     h, w = img_bgr.shape[:2]
     scale = 1.0
 
-<<<<<<< HEAD
     # Se scale_percent for fornecido, usa-o para calcular a escala
     if scale_percent is not None:
         scale = scale_percent / 100.0
     else:
-        # Calcula escala necessária de forma otimizada
-        if max_w and w > max_w:
-            scale = min(scale, max_w / w)
-        if max_h and h > max_h:
-            scale = min(scale, max_h / h)
-=======
-    # Calcula escala necessária de forma otimizada
-    if max_w and w > max_w:
-        scale = min(scale, max_w / w)
-    if max_h and h > max_h:
-        scale = min(scale, max_h / h)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+        # Calcula escala para usar 100% da área disponível
+        if max_w and max_h:
+            # Calcula escalas para largura e altura
+            scale_w = max_w / w
+            scale_h = max_h / h
+            # Usa a maior escala para preencher completamente o espaço
+            scale = max(scale_w, scale_h)
+        elif max_w:
+            scale = max_w / w
+        elif max_h:
+            scale = max_h / h
 
-    # Redimensiona apenas se necessário
+    # Redimensiona para usar toda a área disponível
     if scale != 1.0:
         new_w = max(1, int(w * scale))  # Garante dimensão mínima
         new_h = max(1, int(h * scale))
@@ -604,6 +496,28 @@ def check_slot(img_test, slot_data, M):
             return False, 0.0, 0, corners, bbox, log_msgs
         
         if slot_type == 'clip':
+            # Verifica se deve usar Machine Learning
+            if slot_data.get('use_ml', False) and slot_data.get('ml_model_path'):
+                try:
+                    from .ml_classifier import MLSlotClassifier
+                    
+                    # Carrega o modelo ML
+                    ml_classifier = MLSlotClassifier()
+                    ml_classifier.load_model(slot_data['ml_model_path'])
+                    
+                    # Faz a predição usando ML
+                    prediction, confidence = ml_classifier.predict(roi)
+                    
+                    # Converte predição para resultado booleano
+                    is_ok = prediction == 1  # 1 = OK, 0 = NG
+                    
+                    log_msgs.append(f"ML: Predição={prediction} ({'OK' if is_ok else 'NG'}), Confiança={confidence:.3f}")
+                    return is_ok, confidence, 0, corners, bbox, log_msgs
+                    
+                except Exception as ml_error:
+                    log_msgs.append(f"Erro no ML, usando método tradicional: {str(ml_error)}")
+                    # Continua com método tradicional em caso de erro
+            
             # Verifica método de detecção
             detection_method = slot_data.get('detection_method', 'template_matching')
             
@@ -625,13 +539,8 @@ def check_slot(img_test, slot_data, M):
                     cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
                     
                     # Calcula métricas do histograma
-<<<<<<< HEAD
                     np.sum(hist)
                     np.mean(hist)
-=======
-                    hist_sum = np.sum(hist)
-                    hist_mean = np.mean(hist)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                     hist_std = np.std(hist)
                     hist_max = np.max(hist)
                     
@@ -657,7 +566,6 @@ def check_slot(img_test, slot_data, M):
                         threshold = slot_data.get('detection_threshold', 30.0) / 100.0  # Converte % para decimal
                         threshold_source = "detection_threshold"
                     
-<<<<<<< HEAD
                     # Usa a porcentagem para OK personalizada ou padrão
                     ok_threshold = slot_data.get('ok_threshold', 70) / 100.0  # Converte % para decimal
                     
@@ -665,18 +573,12 @@ def check_slot(img_test, slot_data, M):
                     passou = histogram_score >= ok_threshold
                     
                     log_msgs.append(f"Histograma: {histogram_score:.3f} (limiar: {threshold:.2f} [{threshold_source}], % para OK: {ok_threshold:.2f}, entropia: {entropy:.2f}, std: {hist_std:.3f})")
-=======
-                    passou = histogram_score >= threshold
-                    
-                    log_msgs.append(f"Histograma: {histogram_score:.3f} (limiar: {threshold:.2f} [{threshold_source}], entropia: {entropy:.2f}, std: {hist_std:.3f})")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                     return passou, histogram_score, 0, corners, bbox, log_msgs
                     
                 except Exception as e:
                     log_msgs.append(f"Erro na análise por histograma: {str(e)}")
                     return False, 0.0, 0, corners, bbox, log_msgs
             
-<<<<<<< HEAD
             elif detection_method == 'contour_analysis':
                 # === ANÁLISE POR CONTORNO ===
                 try:
@@ -797,8 +699,6 @@ def check_slot(img_test, slot_data, M):
                     log_msgs.append(f"Erro na comparação de imagem: {str(e)}")
                     return False, 0.0, 0, corners, bbox, log_msgs
             
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             else:  # template_matching (método padrão)
                 # === TEMPLATE MATCHING PARA CLIPS ===
                 template_path = slot_data.get('template_path')
@@ -812,11 +712,7 @@ def check_slot(img_test, slot_data, M):
                     return False, 0.0, 0, corners, bbox, log_msgs
                 
                 # === TEMPLATE MATCHING OTIMIZADO ===
-<<<<<<< HEAD
                 slot_data.get('correlation_threshold', 0.7)
-=======
-                correlation_threshold = slot_data.get('correlation_threshold', 0.7)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 template_method_str = slot_data.get('template_method', 'TM_CCOEFF_NORMED')
                 scale_tolerance = slot_data.get('scale_tolerance', 10.0) / 100.0
                 
@@ -880,7 +776,6 @@ def check_slot(img_test, slot_data, M):
                 threshold = slot_data.get('detection_threshold', 70.0) / 100.0  # Converte % para decimal
                 threshold_source = "detection_threshold"
             
-<<<<<<< HEAD
             # Usa a porcentagem para OK personalizada ou padrão
             ok_threshold = slot_data.get('ok_threshold', 70) / 100.0  # Converte % para decimal
             
@@ -888,11 +783,6 @@ def check_slot(img_test, slot_data, M):
             passou = max_val >= ok_threshold
             
             log_msgs.append(f"Correlação: {max_val:.3f} (limiar: {threshold:.2f} [{threshold_source}], % para OK: {ok_threshold:.2f}, escala: {best_scale:.2f}, método: {template_method_str})")
-=======
-            passou = max_val >= threshold
-            
-            log_msgs.append(f"Correlação: {max_val:.3f} (limiar: {threshold:.2f} [{threshold_source}], escala: {best_scale:.2f}, método: {template_method_str})")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             return passou, max_val, 0, corners, bbox, log_msgs
         
         else:  # fita - tipo removido, apenas clips são suportados
@@ -1057,12 +947,6 @@ class EditSlotDialog(Toplevel):
             mesh_frame = ttk.LabelFrame(main_frame, text="Posição e Dimensões")
             mesh_frame.pack(fill=X, pady=(0, 10))
             
-<<<<<<< HEAD
-=======
-            mesh_grid = ttk.Frame(mesh_frame)
-            mesh_grid.pack(fill=X, padx=5, pady=5)
-            
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             # Inicialização otimizada de variáveis
             print("Inicializando variáveis...")
             self.x_var = StringVar()
@@ -1072,7 +956,6 @@ class EditSlotDialog(Toplevel):
             self.detection_threshold_var = StringVar()
             print("Variáveis inicializadas")
             
-<<<<<<< HEAD
             # Criação de um frame com grid de 2 colunas para melhor organização
             mesh_grid = ttk.Frame(mesh_frame)
             mesh_grid.pack(fill=X, padx=10, pady=10)
@@ -1093,24 +976,6 @@ class EditSlotDialog(Toplevel):
             
             ttk.Label(mesh_grid, text="Altura:").grid(row=1, column=1, sticky="w", padx=5, pady=5)
             ttk.Entry(mesh_grid, textvariable=self.h_var, width=8).grid(row=1, column=1, sticky="e", padx=5, pady=5)
-=======
-            print("Criando campos de entrada...")
-            # Grid otimizado para campos de entrada
-            fields = [
-                ("X:", self.x_var, 0, 0),
-                ("Y:", self.y_var, 0, 2),
-                ("Largura:", self.w_var, 1, 0),
-                ("Altura:", self.h_var, 1, 2)
-            ]
-            
-            for label_text, var, row, col in fields:
-                ttk.Label(mesh_grid, text=label_text).grid(
-                    row=row, column=col, sticky="w", padx=(0, 5), pady=2
-                )
-                ttk.Entry(mesh_grid, textvariable=var, width=8).grid(
-                    row=row, column=col+1, padx=(0, 10), pady=2
-                )
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             print("Campos de entrada criados")
             
             print("Criando seção de configurações...")
@@ -1282,8 +1147,7 @@ class EditSlotDialog(Toplevel):
                 self.destroy()
                 print("Janela destruída com sucesso")
             else:
-                print("Janela já foi destruída")
-                
+                print("Janela já foi destruída")                
         except Exception as e:
             print(f"Erro ao cancelar: {e}")
             import traceback
@@ -1295,10 +1159,6 @@ class EditSlotDialog(Toplevel):
                     self.destroy()
             except:
                 print("Não foi possível destruir a janela na tentativa final")
-<<<<<<< HEAD
-=======
-                pass
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 
 class SlotTrainingDialog(Toplevel):
@@ -1310,18 +1170,30 @@ class SlotTrainingDialog(Toplevel):
         self.montagem_instance = montagem_instance
         self.training_samples = []  # Lista de amostras de treinamento
         
+        # Inicializa classificador ML
+        self.ml_classifier = MLSlotClassifier(slot_id=str(slot_data['id']))
+        self.use_ml = False  # Flag para usar ML ou método tradicional
+        
         # Define o diretório para salvar as amostras
         template_path = self.slot_data.get('template_path')
         if template_path:
             template_dir = os.path.dirname(template_path)
             self.samples_dir = os.path.join(template_dir, f"slot_{slot_data['id']}_samples")
+        else:
+            # Cria diretório padrão se template_path não estiver definido
+            # Usa o diretório do projeto como base
+            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            samples_base_dir = os.path.join(project_dir, "modelos", "_samples")
+            self.samples_dir = os.path.join(samples_base_dir, f"slot_{slot_data['id']}_samples")
+            print(f"AVISO: template_path não definido. Usando diretório padrão: {self.samples_dir}")
             
-            # Cria diretórios se não existirem
+        # Cria diretórios se não existirem
+        try:
             os.makedirs(os.path.join(self.samples_dir, "ok"), exist_ok=True)
             os.makedirs(os.path.join(self.samples_dir, "ng"), exist_ok=True)
-        else:
+        except Exception as e:
+            print(f"Erro ao criar diretórios de amostras: {e}")
             self.samples_dir = None
-            print("AVISO: Não foi possível definir o diretório de amostras (template_path não definido)")
         
         self.title(f"Treinamento - Slot {slot_data['id']}")
         self.geometry("800x600")
@@ -1364,6 +1236,23 @@ class SlotTrainingDialog(Toplevel):
         controls_frame = ttk.LabelFrame(main_frame, text="📷 Controles de Captura")
         controls_frame.pack(fill=X, pady=(0, 10))
         
+        # Seleção do método de treinamento
+        method_frame = ttk.Frame(controls_frame)
+        method_frame.pack(fill=X, padx=10, pady=(10, 5))
+        
+        ttk.Label(method_frame, text="🤖 Método de Treinamento:", font=("Arial", 10, "bold")).pack(side=LEFT)
+        
+        self.training_method_var = StringVar(value="traditional")
+        self.radio_traditional = ttk.Radiobutton(method_frame, text="Tradicional (Threshold)", 
+                                               variable=self.training_method_var, value="traditional",
+                                               command=self.on_method_change)
+        self.radio_traditional.pack(side=LEFT, padx=(10, 5))
+        
+        self.radio_ml = ttk.Radiobutton(method_frame, text="Machine Learning (Scikit-Learn)", 
+                                      variable=self.training_method_var, value="ml",
+                                      command=self.on_method_change)
+        self.radio_ml.pack(side=LEFT, padx=(5, 0))
+        
         # Botões de captura
         capture_frame = ttk.Frame(controls_frame)
         capture_frame.pack(fill=X, padx=10, pady=10)
@@ -1390,7 +1279,7 @@ class SlotTrainingDialog(Toplevel):
         left_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
         
         # Canvas para exibir imagem atual
-        self.canvas = Canvas(left_frame, bg="#1E1E1E", width=400, height=300)
+        self.canvas = Canvas(left_frame, bg="#1E1E1E")
         self.canvas.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
         # Botões de feedback para imagem atual
@@ -1458,10 +1347,6 @@ class SlotTrainingDialog(Toplevel):
         
         # Adiciona suporte para scroll com mouse wheel
         self.ng_canvas.bind("<MouseWheel>", lambda e: self.ng_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
-<<<<<<< HEAD
-=======
-        
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         # Frame inferior - informações e ações
         bottom_frame = ttk.Frame(main_frame)
         bottom_frame.pack(fill=X, pady=(10, 0))
@@ -1488,6 +1373,18 @@ class SlotTrainingDialog(Toplevel):
         self.btn_apply_training = ttk.Button(action_frame, text="🚀 Aplicar Treinamento", 
                                            command=self.apply_training, state=DISABLED, width=20)
         self.btn_apply_training.pack(side=LEFT, padx=(0, 10))
+        
+        # Botão para treinar ML (inicialmente oculto)
+        self.btn_train_ml = ttk.Button(action_frame, text="🤖 Treinar ML", 
+                                     command=self.train_ml_model, state=DISABLED, width=15)
+        self.btn_train_ml.pack(side=LEFT, padx=(0, 10))
+        self.btn_train_ml.pack_forget()  # Oculta inicialmente
+        
+        # Botão para salvar modelo ML
+        self.btn_save_ml = ttk.Button(action_frame, text="💾 Salvar Modelo ML", 
+                                    command=self.save_ml_model, state=DISABLED, width=18)
+        self.btn_save_ml.pack(side=LEFT, padx=(0, 10))
+        self.btn_save_ml.pack_forget()  # Oculta inicialmente
         
         self.btn_cancel = ttk.Button(action_frame, text="❌ Cancelar", 
                                    command=self.cancel, width=15)
@@ -1603,8 +1500,23 @@ class SlotTrainingDialog(Toplevel):
             # Desenha retângulo da ROI
             cv2.rectangle(display_image, (roi_x, roi_y), (roi_x + roi_w, roi_y + roi_h), (0, 255, 0), 3)
             
+            # === AJUSTE AUTOMÁTICO AO CANVAS ===
+            try:
+                # Obtém o tamanho atual do canvas
+                canvas_width = self.canvas.winfo_width()
+                canvas_height = self.canvas.winfo_height()
+                
+                # Se o canvas ainda não foi renderizado, use valores padrão
+                if canvas_width <= 1 or canvas_height <= 1:
+                    canvas_width = 640
+                    canvas_height = 480
+            except Exception as canvas_error:
+                print(f"Erro ao obter dimensões do canvas: {canvas_error}")
+                canvas_width = 640
+                canvas_height = 480
+            
             # Converte para exibição no canvas
-            tk_image, _ = cv2_to_tk(display_image, max_w=580, max_h=380)
+            tk_image, _ = cv2_to_tk(display_image, max_w=canvas_width, max_h=canvas_height)
             
             # Limpa canvas e exibe imagem
             self.canvas.delete("all")
@@ -1840,6 +1752,11 @@ class SlotTrainingDialog(Toplevel):
     def load_existing_samples(self):
         """Carrega amostras existentes do diretório de treinamento."""
         try:
+            # Verifica se o diretório de amostras foi definido
+            if not self.samples_dir:
+                print("Diretório de amostras não definido. Pulando carregamento de amostras existentes.")
+                return
+                
             # Verifica se existem amostras OK
             ok_samples_dir = os.path.join(self.samples_dir, "ok")
             if os.path.exists(ok_samples_dir):
@@ -1919,6 +1836,141 @@ class SlotTrainingDialog(Toplevel):
         # Habilita botão de aplicar se há amostras suficientes
         if len(self.training_samples) >= 2:  # Pelo menos 2 amostras
             self.btn_apply_training.config(state=NORMAL)
+            # Habilita botões ML se método ML estiver selecionado
+            if self.use_ml:
+                self.btn_train_ml.config(state=NORMAL)
+    
+    def on_method_change(self):
+        """Callback quando o método de treinamento é alterado."""
+        self.use_ml = self.training_method_var.get() == "ml"
+        
+        if self.use_ml:
+            # Mostra botões ML
+            self.btn_train_ml.pack(side=LEFT, padx=(0, 10), before=self.btn_cancel)
+            self.btn_save_ml.pack(side=LEFT, padx=(0, 10), before=self.btn_cancel)
+            # Atualiza texto do botão principal
+            self.btn_apply_training.config(text="🚀 Aplicar Treinamento (Tradicional)")
+        else:
+            # Oculta botões ML
+            self.btn_train_ml.pack_forget()
+            self.btn_save_ml.pack_forget()
+            # Restaura texto do botão principal
+            self.btn_apply_training.config(text="🚀 Aplicar Treinamento")
+        
+        # Atualiza estado dos botões
+        self.update_info_label()
+    
+    def train_ml_model(self):
+        """Treina o modelo de machine learning com as amostras coletadas."""
+        try:
+            if len(self.training_samples) < 4:
+                messagebox.showwarning("Aviso", "São necessárias pelo menos 4 amostras (2 OK + 2 NG) para treinamento de ML.")
+                return
+            elif len(self.training_samples) < 10:
+                messagebox.showinfo("Informação", f"Treinando com {len(self.training_samples)} amostras.\nPara melhor precisão, recomenda-se 10+ amostras.")
+            
+            # Verifica se há amostras OK e NG
+            ok_samples = [s for s in self.training_samples if s['label'] == 'OK']
+            ng_samples = [s for s in self.training_samples if s['label'] == 'NG']
+            
+            if not ok_samples or not ng_samples:
+                messagebox.showwarning("Aviso", "É necessário ter amostras tanto OK quanto NG para treinamento de ML.")
+                return
+            
+            # Mostra progresso
+            progress_window = Toplevel(self)
+            progress_window.title("Treinando Modelo ML")
+            progress_window.geometry("400x150")
+            progress_window.transient(self)
+            progress_window.grab_set()
+            
+            progress_label = ttk.Label(progress_window, text="Treinando modelo de machine learning...")
+            progress_label.pack(pady=20)
+            
+            progress_bar = ttk.Progressbar(progress_window, mode='indeterminate')
+            progress_bar.pack(pady=10, padx=20, fill=X)
+            progress_bar.start()
+            
+            # Força atualização da interface
+            progress_window.update()
+            
+            # Treina o modelo
+            metrics = self.ml_classifier.train(self.training_samples)
+            
+            # Para a barra de progresso
+            progress_bar.stop()
+            progress_window.destroy()
+            
+            # Mostra resultados
+            accuracy = metrics.get('accuracy', 0)
+            cv_mean = metrics.get('cv_mean', 0)
+            cv_std = metrics.get('cv_std', 0)
+            n_samples = metrics.get('n_samples', 0)
+            
+            result_msg = (
+                f"🤖 Modelo ML treinado com sucesso!\n\n"
+                f"📊 Métricas de Performance:\n"
+                f"• Acurácia: {accuracy:.1%}\n"
+                f"• Validação Cruzada: {cv_mean:.1%} (±{cv_std:.1%})\n"
+                f"• Amostras utilizadas: {n_samples}\n"
+                f"• Amostras OK: {metrics.get('n_ok', 0)}\n"
+                f"• Amostras NG: {metrics.get('n_ng', 0)}\n\n"
+                f"O modelo está pronto para uso!"
+            )
+            
+            messagebox.showinfo("Sucesso", result_msg)
+            
+            # Habilita botão de salvar
+            self.btn_save_ml.config(state=NORMAL)
+            
+            # Atualiza slot com flag ML
+            self.slot_data['use_ml'] = True
+            self.slot_data['ml_trained'] = True
+            
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao treinar modelo ML: {str(e)}")
+    
+    def save_ml_model(self):
+        """Salva o modelo ML treinado."""
+        try:
+            if not self.ml_classifier.is_trained:
+                messagebox.showwarning("Aviso", "Nenhum modelo ML foi treinado ainda.")
+                return
+            
+            # Define caminho para salvar o modelo
+            template_path = self.slot_data.get('template_path')
+            if template_path:
+                model_dir = os.path.dirname(template_path)
+            else:
+                model_dir = get_template_dir()
+            
+            model_filename = f"ml_model_slot_{self.slot_data['id']}.joblib"
+            model_path = os.path.join(model_dir, model_filename)
+            
+            # Salva o modelo
+            if self.ml_classifier.save_model(model_path):
+                # Atualiza dados do slot
+                self.slot_data['ml_model_path'] = model_path
+                self.slot_data['use_ml'] = True
+                
+                # Salva no banco de dados se possível
+                try:
+                    if hasattr(self.montagem_instance, 'db_manager') and self.montagem_instance.db_manager:
+                        # Atualiza slot no banco
+                        self.montagem_instance.db_manager.update_slot(
+                            self.slot_data['id'],
+                            self.montagem_instance.current_model_id,
+                            **self.slot_data
+                        )
+                except Exception as db_error:
+                    print(f"Aviso: Não foi possível salvar no banco de dados: {db_error}")
+                
+                messagebox.showinfo("Sucesso", f"Modelo ML salvo com sucesso!\n\nCaminho: {model_path}")
+            else:
+                messagebox.showerror("Erro", "Falha ao salvar o modelo ML.")
+                
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao salvar modelo ML: {str(e)}")
             
     def apply_training(self):
         """Aplica o treinamento coletado para melhorar a precisão do slot."""
@@ -1934,16 +1986,32 @@ class SlotTrainingDialog(Toplevel):
             if not ok_samples:
                 messagebox.showwarning("Aviso", "É necessária pelo menos uma amostra OK.")
                 return
-                
-            # Calcula novo limiar baseado nas amostras
-            new_threshold = self.calculate_optimal_threshold(ok_samples, ng_samples)
             
-            if new_threshold is not None:
-                # Atualiza o slot com o novo limiar
-                old_threshold = self.slot_data.get('correlation_threshold', self.slot_data.get('detection_threshold', 0.8))
-                self.slot_data['correlation_threshold'] = new_threshold
+            if self.use_ml:
+                # Modo Machine Learning
+                if not self.ml_classifier.is_trained:
+                    messagebox.showwarning("Aviso", "Modelo ML não foi treinado ainda. Treine o modelo primeiro.")
+                    return
                 
-                # Salva um template melhorado se há amostras OK
+                # Testa o modelo com as amostras atuais
+                correct_predictions = 0
+                total_predictions = 0
+                
+                for sample in self.training_samples:
+                    prediction = self.ml_classifier.predict(sample['roi'])
+                    expected = 1 if sample['label'] == 'OK' else 0
+                    if prediction == expected:
+                        correct_predictions += 1
+                    total_predictions += 1
+                
+                accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+                
+                # Atualiza configurações do slot para usar ML
+                self.slot_data['use_ml'] = True
+                self.slot_data['ml_trained'] = True
+                self.slot_data['ml_accuracy'] = accuracy
+                
+                # Salva template melhorado se há amostras OK
                 if ok_samples:
                     self.update_template_with_best_sample(ok_samples)
                 
@@ -1953,15 +2021,45 @@ class SlotTrainingDialog(Toplevel):
                 # Marca modelo como modificado
                 self.montagem_instance.mark_model_modified()
                 
-                messagebox.showinfo("Sucesso", 
-                    f"Treinamento aplicado!\n\n"
-                    f"Limiar anterior: {old_threshold:.3f}\n"
-                    f"Novo limiar: {new_threshold:.3f}\n\n"
-                    f"Amostras utilizadas: {len(self.training_samples)}")
+                result_msg = (
+                    f"🤖 Treinamento ML aplicado!\n\n"
+                    f"📊 Acurácia nas amostras: {accuracy:.1%}\n"
+                    f"✅ Amostras utilizadas: {len(self.training_samples)}\n\n"
+                    f"O slot agora usará Machine Learning para classificação!"
+                )
                 
+                messagebox.showinfo("Sucesso", result_msg)
                 self.destroy()
+                
             else:
-                messagebox.showerror("Erro", "Não foi possível calcular novo limiar.")
+                # Modo tradicional (threshold)
+                new_threshold = self.calculate_optimal_threshold(ok_samples, ng_samples)
+                
+                if new_threshold is not None:
+                    # Atualiza o slot com o novo limiar
+                    old_threshold = self.slot_data.get('correlation_threshold', self.slot_data.get('detection_threshold', 0.8))
+                    self.slot_data['correlation_threshold'] = new_threshold
+                    self.slot_data['use_ml'] = False
+                    
+                    # Salva um template melhorado se há amostras OK
+                    if ok_samples:
+                        self.update_template_with_best_sample(ok_samples)
+                    
+                    # Atualiza o slot na instância principal
+                    self.montagem_instance.update_slot_data(self.slot_data)
+                    
+                    # Marca modelo como modificado
+                    self.montagem_instance.mark_model_modified()
+                    
+                    messagebox.showinfo("Sucesso", 
+                        f"Treinamento aplicado!\n\n"
+                        f"Limiar anterior: {old_threshold:.3f}\n"
+                        f"Novo limiar: {new_threshold:.3f}\n\n"
+                        f"Amostras utilizadas: {len(self.training_samples)}")
+                    
+                    self.destroy()
+                else:
+                    messagebox.showerror("Erro", "Não foi possível calcular novo limiar.")
                 
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao aplicar treinamento: {str(e)}")
@@ -1969,60 +2067,152 @@ class SlotTrainingDialog(Toplevel):
     def calculate_optimal_threshold(self, ok_samples, ng_samples):
         """Calcula o limiar ótimo baseado nas amostras de treinamento."""
         try:
-            # Carrega template atual
-            template_path = self.slot_data.get('template_path')
-            if not template_path or not Path(template_path).exists():
+            # Validações iniciais
+            if not ok_samples:
+                print("Erro: Nenhuma amostra OK fornecida")
                 return None
                 
-            template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+            # Carrega template atual ou cria um temporário
+            template_path = self.slot_data.get('template_path')
+            template = None
+            
+            if template_path and Path(template_path).exists():
+                template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+                print(f"Template carregado de: {template_path}")
+            
+            # Se não há template ou falhou ao carregar, usa a primeira amostra OK como template
             if template is None:
-                return None
+                if not ok_samples:
+                    print("Erro: Não há template nem amostras OK para usar como referência")
+                    return None
+                    
+                print("Template não encontrado. Usando primeira amostra OK como referência.")
+                first_sample = ok_samples[0]
+                template = cv2.cvtColor(first_sample, cv2.COLOR_BGR2GRAY)
+                
+                # Salva template temporário se possível
+                if template_path:
+                    try:
+                        # Cria diretório se não existir
+                        Path(template_path).parent.mkdir(parents=True, exist_ok=True)
+                        cv2.imwrite(template_path, template)
+                        print(f"Template temporário salvo em: {template_path}")
+                    except Exception as e:
+                        print(f"Aviso: Não foi possível salvar template temporário: {e}")
                 
             # Calcula correlações para amostras OK
             ok_correlations = []
-            for roi in ok_samples:
-                roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                
-                # Redimensiona template se necessário
-                if roi_gray.shape != template.shape:
-                    template_resized = cv2.resize(template, (roi_gray.shape[1], roi_gray.shape[0]))
-                else:
-                    template_resized = template
+            for i, roi in enumerate(ok_samples):
+                try:
+                    if roi is None or roi.size == 0:
+                        print(f"Aviso: Amostra OK {i} é inválida")
+                        continue
+                        
+                    roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                     
-                # Template matching
-                result = cv2.matchTemplate(roi_gray, template_resized, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, _ = cv2.minMaxLoc(result)
-                ok_correlations.append(max_val)
+                    if roi_gray.size == 0:
+                        print(f"Aviso: Amostra OK {i} resultou em imagem vazia")
+                        continue
+                    
+                    # Redimensiona template se necessário
+                    if roi_gray.shape != template.shape:
+                        template_resized = cv2.resize(template, (roi_gray.shape[1], roi_gray.shape[0]))
+                    else:
+                        template_resized = template
+                        
+                    # Template matching
+                    result = cv2.matchTemplate(roi_gray, template_resized, cv2.TM_CCOEFF_NORMED)
+                    _, max_val, _, _ = cv2.minMaxLoc(result)
+                    
+                    # Valida o resultado
+                    if not np.isnan(max_val) and not np.isinf(max_val):
+                        ok_correlations.append(max_val)
+                    else:
+                        print(f"Aviso: Correlação inválida para amostra OK {i}: {max_val}")
+                        
+                except Exception as e:
+                    print(f"Erro ao processar amostra OK {i}: {e}")
+                    continue
                 
             # Calcula correlações para amostras NG (se existirem)
             ng_correlations = []
-            for roi in ng_samples:
-                roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                
-                if roi_gray.shape != template.shape:
-                    template_resized = cv2.resize(template, (roi_gray.shape[1], roi_gray.shape[0]))
-                else:
-                    template_resized = template
+            for i, roi in enumerate(ng_samples):
+                try:
+                    if roi is None or roi.size == 0:
+                        print(f"Aviso: Amostra NG {i} é inválida")
+                        continue
+                        
+                    roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                     
-                result = cv2.matchTemplate(roi_gray, template_resized, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, _ = cv2.minMaxLoc(result)
-                ng_correlations.append(max_val)
+                    if roi_gray.size == 0:
+                        print(f"Aviso: Amostra NG {i} resultou em imagem vazia")
+                        continue
+                    
+                    if roi_gray.shape != template.shape:
+                        template_resized = cv2.resize(template, (roi_gray.shape[1], roi_gray.shape[0]))
+                    else:
+                        template_resized = template
+                        
+                    result = cv2.matchTemplate(roi_gray, template_resized, cv2.TM_CCOEFF_NORMED)
+                    _, max_val, _, _ = cv2.minMaxLoc(result)
+                    
+                    # Valida o resultado
+                    if not np.isnan(max_val) and not np.isinf(max_val):
+                        ng_correlations.append(max_val)
+                    else:
+                        print(f"Aviso: Correlação inválida para amostra NG {i}: {max_val}")
+                        
+                except Exception as e:
+                    print(f"Erro ao processar amostra NG {i}: {e}")
+                    continue
                 
+            # Verifica se temos correlações válidas
+            if not ok_correlations:
+                print("Erro: Nenhuma correlação válida foi calculada para amostras OK")
+                return None
+                
+            print(f"Correlações OK calculadas: {len(ok_correlations)} amostras")
+            print(f"Correlações NG calculadas: {len(ng_correlations)} amostras")
+            
             # Calcula limiar ótimo
-            if ok_correlations:
-                min_ok = min(ok_correlations)
+            min_ok = min(ok_correlations)
+            max_ok = max(ok_correlations)
+            avg_ok = sum(ok_correlations) / len(ok_correlations)
+            
+            print(f"Estatísticas OK - Min: {min_ok:.3f}, Max: {max_ok:.3f}, Média: {avg_ok:.3f}")
+            
+            if ng_correlations:
+                min_ng = min(ng_correlations)
+                max_ng = max(ng_correlations)
+                avg_ng = sum(ng_correlations) / len(ng_correlations)
                 
-                if ng_correlations:
-                    max_ng = max(ng_correlations)
-                    # Limiar entre o máximo NG e mínimo OK
+                print(f"Estatísticas NG - Min: {min_ng:.3f}, Max: {max_ng:.3f}, Média: {avg_ng:.3f}")
+                
+                # Verifica se há separação clara entre OK e NG
+                if min_ok > max_ng:
+                    # Caso ideal: há separação clara
                     new_threshold = (min_ok + max_ng) / 2
-                    # Garante que está dentro de limites razoáveis
-                    new_threshold = max(0.3, min(0.95, new_threshold))
+                    print(f"Separação clara detectada. Limiar calculado: {new_threshold:.3f}")
                 else:
-                    # Se não há amostras NG, usa um valor conservador
-                    new_threshold = max(0.5, min_ok * 0.9)
-                    
-                return new_threshold
+                    # Caso problemático: sobreposição entre OK e NG
+                    # Usa a média das amostras OK menos uma margem de segurança
+                    new_threshold = avg_ok * 0.85
+                    print(f"Sobreposição detectada. Usando limiar conservador: {new_threshold:.3f}")
+                
+                # Garante que está dentro de limites razoáveis
+                new_threshold = max(0.3, min(0.95, new_threshold))
+            else:
+                # Se não há amostras NG, usa um valor conservador baseado na média OK
+                new_threshold = max(0.5, min(0.9, avg_ok * 0.9))
+                print(f"Apenas amostras OK. Limiar conservador: {new_threshold:.3f}")
+                
+            # Validação final
+            if np.isnan(new_threshold) or np.isinf(new_threshold):
+                print(f"Erro: Limiar calculado é inválido: {new_threshold}")
+                return None
+                
+            print(f"Limiar final calculado: {new_threshold:.3f}")
+            return new_threshold
                 
             return None
             
@@ -2083,7 +2273,6 @@ class SystemConfigDialog(Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-<<<<<<< HEAD
         self.title("⚙️ Configurações do Sistema")
         self.geometry("550x750")  # Aumentado para acomodar todas as configurações
         self.resizable(True, True)  # Permitir redimensionamento para melhor visualização
@@ -2095,21 +2284,12 @@ class SystemConfigDialog(Toplevel):
         # Carrega as configurações de estilo atuais
         self.style_config = load_style_config()
         
-=======
-        self.title("Configurações do Sistema")
-        self.geometry("500x600")
-        self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
-        
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.result = False
         self.center_window()
         self.setup_ui()
     
     def center_window(self):
         self.update_idletasks()
-<<<<<<< HEAD
         width = 550
         height = 750
         x = (self.winfo_screenwidth() // 2) - (width // 2)
@@ -2146,15 +2326,6 @@ class SystemConfigDialog(Toplevel):
         # Frame principal dentro do scrollable_frame
         main_frame = ttk.Frame(scrollable_frame)
         main_frame.pack(fill=BOTH, expand=True)
-=======
-        x = (self.winfo_screenwidth() // 2) - (500 // 2)
-        y = (self.winfo_screenheight() // 2) - (600 // 2)
-        self.geometry(f"500x600+{x}+{y}")
-    
-    def setup_ui(self):
-        main_frame = ttk.Frame(self)
-        main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Configurações ORB
         orb_frame = ttk.LabelFrame(main_frame, text="Configurações ORB (Alinhamento de Imagem)")
@@ -2233,7 +2404,6 @@ class SystemConfigDialog(Toplevel):
         px_spin = ttk.Spinbox(detection_frame, from_=1, to=1000, textvariable=self.min_px_var, width=10)
         px_spin.pack(anchor="w", padx=5, pady=5)
         
-<<<<<<< HEAD
         # Configurações de Aparência por Local
         appearance_frame = ttk.LabelFrame(main_frame, text="Configurações de Aparência por Local")
         appearance_frame.pack(fill=X, pady=(0, 10))
@@ -2394,15 +2564,6 @@ class SystemConfigDialog(Toplevel):
         
         cancel_btn = ttk.Button(button_frame, text="Cancelar", command=self.cancel)
         cancel_btn.pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
-=======
-        # Botões
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=X, pady=(20, 0))
-        
-        ttk.Button(button_frame, text="Salvar", command=self.save_config).pack(side=LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="Restaurar Padrões", command=self.restore_defaults).pack(side=LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="Cancelar", command=self.cancel).pack(side=LEFT)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def save_config(self):
         """Salva as configurações do sistema"""
@@ -2426,7 +2587,6 @@ class SystemConfigDialog(Toplevel):
                 print(f"Erro ao reinicializar ORB: {e}")
                 messagebox.showwarning("Aviso", "Erro ao reinicializar detector ORB. O alinhamento pode não funcionar.")
             
-<<<<<<< HEAD
             # Salvar configurações de estilo
             style_config = {}
             style_config["slot_font_size"] = self.slot_font_size_var.get()
@@ -2457,10 +2617,6 @@ class SystemConfigDialog(Toplevel):
                 self.unbind_all("<MouseWheel>")
             except:
                 pass
-=======
-            self.result = True
-            messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             self.destroy()
             
         except Exception as e:
@@ -2468,10 +2624,7 @@ class SystemConfigDialog(Toplevel):
     
     def restore_defaults(self):
         """Restaura configurações padrão"""
-<<<<<<< HEAD
         # Restaura configurações ORB
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.orb_features_var.set(5000)
         self.scale_factor_var.set(1.2)
         self.n_levels_var.set(8)
@@ -2484,7 +2637,6 @@ class SystemConfigDialog(Toplevel):
         self.features_label.config(text="5000")
         self.scale_label.config(text="1.20")
         self.corr_label.config(text="0.10")
-<<<<<<< HEAD
         
         # Restaura configurações de estilo
         self.slot_font_size_var.set(10)
@@ -2502,11 +2654,6 @@ class SystemConfigDialog(Toplevel):
             self.unbind_all("<MouseWheel>")
         except:
             pass
-=======
-    
-    def cancel(self):
-        """Cancela a edição"""
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.destroy()
 
 
@@ -2524,14 +2671,12 @@ class MontagemWindow(ttk.Frame):
         self.img_original = None
         self.img_display = None
         self.scale_factor = 1.0
-<<<<<<< HEAD
         self.x_offset = 0
         self.y_offset = 0
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.slots = []
         self.selected_slot_id = None
         self.current_model_id = None  # ID do modelo atual no banco
+        self.current_model = None  # Dados do modelo atual
         self.model_modified = False  # Flag para indicar se o modelo foi modificado
         
         # Estado do desenho
@@ -2549,15 +2694,22 @@ class MontagemWindow(ttk.Frame):
         # Controle de webcam
         self.available_cameras = detect_cameras()
         self.selected_camera = 0
-<<<<<<< HEAD
-        
-        # Inicia câmera em segundo plano após inicialização
-        if self.available_cameras:
-            self.after(500, lambda: self.start_background_camera_direct(self.available_cameras[0]))
         self.camera = None
         self.live_capture = False
         self.live_view = False
         self.latest_frame = None
+        
+        # Variáveis de ferramentas de edição
+        self.current_drawing_mode = "rectangle"
+        self.editing_handle = None
+        
+        # Configura a interface primeiro
+        self.setup_ui()
+        self.update_button_states()
+        
+        # Inicia câmera em segundo plano após inicialização completa
+        if self.available_cameras:
+            self.after(500, lambda: self.start_background_camera_direct(self.available_cameras[0]))
         
     def start_background_camera_direct(self, camera_index):
         """Inicia a câmera diretamente em segundo plano com índice específico."""
@@ -2593,35 +2745,8 @@ class MontagemWindow(ttk.Frame):
             print(f"Erro ao inicializar webcam {camera_index}: {e}")
             self.camera = None
             self.live_capture = False
-        
-        # Variáveis de ferramentas de edição
-        self.current_drawing_mode = "rectangle"
-=======
-        self.camera = None
-        self.live_capture = False
-        self.latest_frame = None
-        
-        # Variáveis de ferramentas de edição
-        self.current_drawing_mode = "rectangle"
-        self.current_rotation = 0
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
-        self.editing_handle = None
-        
-        self.setup_ui()
-        self.update_button_states()
     
-<<<<<<< HEAD
-    def on_cameras_detected(self, cameras):
-        """Callback chamado após detecção das câmeras para inicializar webcam em segundo plano."""
-        try:
-            if cameras and len(cameras) > 0:
-                print(f"Inicializando webcam em segundo plano após detecção: Câmera {cameras[0]}")
-                # Aguarda um pouco para garantir que a interface esteja pronta
-                self.after(500, lambda: self.start_background_camera_direct(cameras[0]))
-            else:
-                print("Nenhuma câmera disponível para inicialização automática")
-        except Exception as e:
-            print(f"Erro no callback de detecção de câmeras: {e}")
+
     
     
     def start_background_frame_capture(self):
@@ -2642,8 +2767,6 @@ class MontagemWindow(ttk.Frame):
         self.background_thread = threading.Thread(target=capture_loop, daemon=True)
         self.background_thread.start()
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def mark_model_modified(self):
         """Marca o modelo como modificado e atualiza o status."""
         if not self.model_modified:
@@ -2675,11 +2798,7 @@ class MontagemWindow(ttk.Frame):
             self.status_var.set(f"Modelo: {model_name} - {len(self.slots)} slots")
     
     def setup_ui(self):
-<<<<<<< HEAD
         # Frame principal com layout horizontal de três painéis
-=======
-        # Frame principal com layout horizontal
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         main_frame = ttk.Frame(self)
         main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
@@ -2687,19 +2806,14 @@ class MontagemWindow(ttk.Frame):
         left_panel = ttk.Frame(main_frame)
         left_panel.pack(side=LEFT, fill=Y, padx=(0, 10))
         
-<<<<<<< HEAD
         # Painel central - Editor de malha (expandindo para preencher todo espaço restante)
         center_panel = ttk.Frame(main_frame)
         center_panel.pack(side=LEFT, fill=BOTH, expand=True)
         
         # Painel direito - Editor de slot
-        self.right_panel = ttk.Frame(main_frame)
+        self.right_panel = ttk.Frame(main_frame, width=350)
         self.right_panel.pack(side=RIGHT, fill=Y, padx=(10, 0), pady=10, expand=False)
-=======
-        # Painel direito - Canvas
-        right_panel = ttk.Frame(main_frame)
-        right_panel.pack(side=RIGHT, fill=BOTH, expand=True)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+        self.right_panel.pack_propagate(False)  # Mantém largura fixa
         
         # === PAINEL ESQUERDO ===
         
@@ -2727,20 +2841,12 @@ class MontagemWindow(ttk.Frame):
         if self.available_cameras:
             self.camera_combo.set(str(self.available_cameras[0]))
         
-<<<<<<< HEAD
         
         # Botão de inspeção contínua removido
         
         # Botão de inspeção com enter removido
         
         # Botão para capturar imagem da webcam
-=======
-        # Botão para iniciar/parar captura contínua
-        self.btn_live_capture = ttk.Button(webcam_frame, text="Iniciar Captura Contínua", 
-                                          command=self.toggle_live_capture)
-        self.btn_live_capture.pack(fill=X, padx=5, pady=2)
-        
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.btn_capture = ttk.Button(webcam_frame, text="Capturar Imagem", 
                                      command=self.capture_from_webcam)
         self.btn_capture.pack(fill=X, padx=5, pady=2)
@@ -2792,30 +2898,7 @@ class MontagemWindow(ttk.Frame):
                                                 style="TRadiobutton")
         self.btn_exclusion_mode.pack(side=LEFT)
         
-<<<<<<< HEAD
         # Controles de rotação removidos
-=======
-        # Controles de rotação
-        rotation_frame = ttk.Frame(tools_frame)
-        rotation_frame.pack(fill=X, padx=5, pady=5)
-        
-        ttk.Label(rotation_frame, text="Rotação (graus):").pack(anchor="w")
-        
-        rotation_control_frame = ttk.Frame(rotation_frame)
-        rotation_control_frame.pack(fill=X, pady=2)
-        
-        self.rotation_var = StringVar(value="0")
-        self.rotation_entry = ttk.Entry(rotation_control_frame, textvariable=self.rotation_var, width=8)
-        self.rotation_entry.pack(side=LEFT, padx=(0, 5))
-        
-        self.btn_rotate_left = ttk.Button(rotation_control_frame, text="↺ -15°", 
-                                        command=lambda: self.adjust_rotation(-15), width=8)
-        self.btn_rotate_left.pack(side=LEFT, padx=(0, 2))
-        
-        self.btn_rotate_right = ttk.Button(rotation_control_frame, text="↻ +15°", 
-                                         command=lambda: self.adjust_rotation(15), width=8)
-        self.btn_rotate_right.pack(side=LEFT)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Status da ferramenta
         self.tool_status_var = StringVar(value="Modo: Retângulo")
@@ -2830,9 +2913,7 @@ class MontagemWindow(ttk.Frame):
                                          command=self.clear_slots)
         self.btn_clear_slots.pack(fill=X, padx=5, pady=2)
         
-        self.btn_edit_slot = ttk.Button(slots_frame, text="Editar Slot Selecionado", 
-                                       command=self.edit_selected_slot)
-        self.btn_edit_slot.pack(fill=X, padx=5, pady=2)
+        # Botão de editar slot removido - editor aparece automaticamente quando slot é selecionado
         
         self.btn_delete_slot = ttk.Button(slots_frame, text="Deletar Slot Selecionado", 
                                          command=self.delete_selected_slot)
@@ -2842,7 +2923,6 @@ class MontagemWindow(ttk.Frame):
                                         command=self.train_selected_slot)
         self.btn_train_slot.pack(fill=X, padx=5, pady=2)
         
-<<<<<<< HEAD
         # Informações dos slots (substituindo a lista visual)
         self.slot_info_frame = ttk.LabelFrame(slots_frame, text="Informações do Slot Selecionado")
         self.slot_info_frame.pack(fill=X, padx=5, pady=5)
@@ -2850,23 +2930,6 @@ class MontagemWindow(ttk.Frame):
         # Label para mostrar informações do slot selecionado
         self.slot_info_label = ttk.Label(self.slot_info_frame, text="Nenhum slot selecionado", justify=LEFT)
         self.slot_info_label.pack(fill=X, padx=5, pady=5)
-=======
-        # Lista de slots
-        slots_list_frame = ttk.Frame(slots_frame)
-        slots_list_frame.pack(fill=X, padx=5, pady=5)
-        
-        # Scrollbar para lista de slots
-        scrollbar_slots = ttk.Scrollbar(slots_list_frame)
-        scrollbar_slots.pack(side=RIGHT, fill=Y)
-        
-        # Treeview para slots
-        self.slots_listbox = ttk.Treeview(slots_list_frame, yscrollcommand=scrollbar_slots.set, height=6)
-        self.slots_listbox.pack(side=LEFT, fill=BOTH, expand=True)
-        scrollbar_slots.config(command=self.slots_listbox.yview)
-        
-
-
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Seção de Ajuda
         help_frame = ttk.LabelFrame(left_panel, text="Ajuda")
@@ -2876,7 +2939,6 @@ class MontagemWindow(ttk.Frame):
                                   command=self.show_help)
         self.btn_help.pack(fill=X, padx=5, pady=5)
         
-<<<<<<< HEAD
         # Botão de configurações com ícone de engrenagem
         self.btn_config = ttk.Button(help_frame, text="⚙️ Configurações do Sistema", 
                                     command=self.open_system_config)
@@ -2886,16 +2948,6 @@ class MontagemWindow(ttk.Frame):
         
         # Canvas com scrollbars
         canvas_frame = ttk.LabelFrame(center_panel, text="Editor de Malha")
-=======
-        self.btn_config = ttk.Button(help_frame, text="Configurações do Sistema", 
-                                    command=self.open_system_config)
-        self.btn_config.pack(fill=X, padx=5, pady=(0, 5))
-        
-        # === PAINEL DIREITO ===
-        
-        # Canvas com scrollbars
-        canvas_frame = ttk.LabelFrame(right_panel, text="Editor")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         canvas_frame.pack(fill=BOTH, expand=True)
         
         # Frame para canvas e scrollbars
@@ -2924,7 +2976,6 @@ class MontagemWindow(ttk.Frame):
         self.canvas.bind("<B1-Motion>", self.on_canvas_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_canvas_release)
         
-<<<<<<< HEAD
         # Binds para zoom e pan
         self.canvas.bind("<MouseWheel>", self.on_canvas_zoom)
         self.canvas.bind("<Button-2>", self.on_canvas_pan_start)  # Botão do meio
@@ -2936,14 +2987,14 @@ class MontagemWindow(ttk.Frame):
         self.pan_start_x = 0
         self.pan_start_y = 0
         
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         # Status bar
         self.status_var = StringVar()
         self.status_var.set("Carregue uma imagem para começar")
         status_bar = ttk.Label(self, textvariable=self.status_var, relief="sunken")
         status_bar.pack(side=BOTTOM, fill=X, padx=5, pady=2)
-<<<<<<< HEAD
+        
+        # Inicializa o painel direito com mensagem padrão
+        self.show_default_right_panel()
 
     def toggle_live_capture_manual_inspection(self):
         """Alterna o modo de captura contínua com inspeção manual (ativada pelo Enter)."""
@@ -2992,8 +3043,6 @@ class MontagemWindow(ttk.Frame):
             self.camera = None
         self.latest_frame = None
         self.status_var.set("Modo Inspeção Manual desativado")
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def clear_all(self):
         """Limpa todos os dados do editor."""
@@ -3005,6 +3054,7 @@ class MontagemWindow(ttk.Frame):
         self.model_path = None
         self.drawing = False
         self.current_rect = None
+        self.current_model = None
         
         # Reset das flags de controle
         self._selecting_slot = False
@@ -3013,14 +3063,8 @@ class MontagemWindow(ttk.Frame):
         # Limpa canvas
         self.canvas.delete("all")
         
-<<<<<<< HEAD
         # Limpa informações do slot
         self.slot_info_label.config(text="Nenhum slot selecionado")
-=======
-        # Limpa lista de slots
-        for item in self.slots_listbox.get_children():
-            self.slots_listbox.delete(item)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Atualiza status
         self.status_var.set("Dados limpos")
@@ -3067,13 +3111,22 @@ class MontagemWindow(ttk.Frame):
         )
         
         if file_path:
+            # Preserva o modelo atual se estiver em criação
+            current_model_backup = None
+            if hasattr(self, 'current_model') and self.current_model and self.current_model.get('id') is None:
+                current_model_backup = self.current_model.copy()
+            
             self.clear_all()
+            
+            # Restaura o modelo em criação
+            if current_model_backup:
+                self.current_model = current_model_backup
+                self.current_model['image_path'] = file_path  # Atualiza o caminho da imagem
             
             if self.load_image_data(file_path):
                 self.status_var.set(f"Imagem carregada: {Path(file_path).name}")
                 self.update_button_states()
     
-<<<<<<< HEAD
     def auto_start_webcam(self):
         """Inicia automaticamente a webcam em segundo plano se houver câmeras disponíveis."""
         try:
@@ -3204,15 +3257,12 @@ class MontagemWindow(ttk.Frame):
         except Exception as e:
             print(f"Erro ao atualizar imagem do canvas: {e}")
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def start_live_capture(self):
         """Inicia captura contínua da câmera em segundo plano."""
         if self.live_capture:
             return
             
         try:
-<<<<<<< HEAD
             # Desativa outros modos de captura se estiverem ativos
             if hasattr(self, 'manual_inspection_mode') and self.manual_inspection_mode:
                 self.stop_live_capture_manual_inspection()
@@ -3223,10 +3273,6 @@ class MontagemWindow(ttk.Frame):
             if self.live_view:
                 self.stop_live_view()
                 
-=======
-            camera_index = int(self.camera_combo.get()) if self.camera_combo.get() else 0
-            
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             # Detecta o sistema operacional
             import platform
             is_windows = platform.system() == 'Windows'
@@ -3255,11 +3301,8 @@ class MontagemWindow(ttk.Frame):
                 self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
             self.live_capture = True
-<<<<<<< HEAD
             # Garante que o modo de inspeção manual está desativado
             self.manual_inspection_mode = False
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             self.process_live_frame()
             self.status_var.set(f"Câmera {camera_index} ativa em segundo plano")
             
@@ -3282,11 +3325,8 @@ class MontagemWindow(ttk.Frame):
             self.start_live_capture()
             if self.live_capture:  # Se iniciou com sucesso
                 self.btn_live_capture.config(text="Parar Captura Contínua")
-<<<<<<< HEAD
                 # Reseta os outros botões de captura
                 # btn_continuous_inspect e btn_manual_inspect removidos
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         else:
             self.stop_live_capture()
             self.btn_live_capture.config(text="Iniciar Captura Contínua")
@@ -3392,6 +3432,8 @@ class MontagemWindow(ttk.Frame):
             # Carrega slots
             self.slots = model_data['slots']
             self.current_model_id = model_id
+            # Define o modelo atual para uso em outras funções
+            self.current_model = model_data
             
             # Atualiza interface
             self.update_slots_list()
@@ -3407,11 +3449,7 @@ class MontagemWindow(ttk.Frame):
             
         except Exception as e:
             print(f"Erro ao carregar modelo: {e}")
-<<<<<<< HEAD
             self.status_var.set(f"Erro ao carregar modelo: {str(e)}")
-=======
-            messagebox.showerror("Erro", f"Erro ao carregar modelo: {str(e)}")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def create_new_model(self, model_name):
         """Cria um novo modelo vazio."""
@@ -3422,6 +3460,15 @@ class MontagemWindow(ttk.Frame):
             # Define como novo modelo (sem ID ainda)
             self.current_model_id = None
             self.slots = []
+            
+            # Define dados temporários do modelo para permitir adição de slots
+            # IMPORTANTE: Deve ser definido APÓS clear_all() que limpa current_model
+            self.current_model = {
+                'id': None,  # Será definido quando salvar
+                'nome': model_name,
+                'image_path': self.image_path if hasattr(self, 'image_path') else None,
+                'slots': []
+            }
             
             self.status_var.set(f"Novo modelo criado: {model_name}")
             self.update_button_states()
@@ -3435,7 +3482,6 @@ class MontagemWindow(ttk.Frame):
             print(f"Erro ao criar novo modelo: {e}")
             messagebox.showerror("Erro", f"Erro ao criar novo modelo: {str(e)}")
     
-<<<<<<< HEAD
     def update_slots_tree(self):
         """Atualiza as informações de slots na interface."""
         try:
@@ -3473,19 +3519,6 @@ class MontagemWindow(ttk.Frame):
     def update_slots_list(self):
         """Função legada para compatibilidade - redireciona para update_slots_tree."""
         self.update_slots_tree()
-=======
-    def update_slots_list(self):
-        """Atualiza a lista de slots na interface."""
-        # Limpa lista atual
-        for item in self.slots_listbox.get_children():
-            self.slots_listbox.delete(item)
-        
-        # Adiciona slots
-        for slot in self.slots:
-            self.slots_listbox.insert("", "end", 
-                                    text=slot['id'],
-                                    values=(slot['tipo'], f"({slot['x']}, {slot['y']})"))
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def redraw_slots(self):
         """Redesenha todos os slots no canvas."""
@@ -3518,11 +3551,11 @@ class MontagemWindow(ttk.Frame):
                 print("Scale factor inválido")
                 return
             
-            # Converte coordenadas da imagem para canvas
-            x1 = int(slot['x'] * self.scale_factor)
-            y1 = int(slot['y'] * self.scale_factor)
-            x2 = int((slot['x'] + slot['w']) * self.scale_factor)
-            y2 = int((slot['y'] + slot['h']) * self.scale_factor)
+            # Converte coordenadas da imagem para canvas (incluindo offsets)
+            x1 = int(slot['x'] * self.scale_factor) + self.x_offset
+            y1 = int(slot['y'] * self.scale_factor) + self.y_offset
+            x2 = int((slot['x'] + slot['w']) * self.scale_factor) + self.x_offset
+            y2 = int((slot['y'] + slot['h']) * self.scale_factor) + self.y_offset
             
             # Calcula centro para rotação
             center_x = (x1 + x2) / 2
@@ -3540,62 +3573,23 @@ class MontagemWindow(ttk.Frame):
                 width = 2
             
             # Obtém rotação do slot
-<<<<<<< HEAD
             # Desenha retângulo simples (rotação removida)
             shape_id = self.canvas.create_rectangle(x1, y1, x2, y2, 
                                        outline=color, width=width, tags="slot")
-=======
-            rotation = slot.get('rotation', 0)
-            
-            # Desenha forma baseada no tipo do slot
-            shape = slot.get('shape', 'rectangle')
-            # Para retângulos, aplica rotação se necessário
-            if True:
-                # Para retângulos, aplica rotação se necessário
-                if rotation != 0:
-                    # Calcula pontos do retângulo rotacionado
-                    import math
-                    rad = math.radians(rotation)
-                    cos_r = math.cos(rad)
-                    sin_r = math.sin(rad)
-                    
-                    # Pontos relativos ao centro
-                    w_half = (x2 - x1) / 2
-                    h_half = (y2 - y1) / 2
-                    
-                    # Calcula os 4 cantos rotacionados
-                    points = []
-                    corners = [(-w_half, -h_half), (w_half, -h_half), 
-                              (w_half, h_half), (-w_half, h_half)]
-                    
-                    for dx, dy in corners:
-                        # Rotaciona ponto
-                        rx = dx * cos_r - dy * sin_r
-                        ry = dx * sin_r + dy * cos_r
-                        # Translada para posição final
-                        points.extend([center_x + rx, center_y + ry])
-                    
-                    shape_id = self.canvas.create_polygon(points, outline=color, 
-                                                 width=width, fill="", tags="slot")
-                else:
-                    # Retângulo sem rotação
-                    shape_id = self.canvas.create_rectangle(x1, y1, x2, y2, 
-                                               outline=color, width=width, tags="slot")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             
             # Desenha áreas de exclusão se existirem
             exclusion_areas = slot.get('exclusion_areas', [])
             for exclusion in exclusion_areas:
-                ex_x1 = int(exclusion['x'] * self.scale_factor)
-                ex_y1 = int(exclusion['y'] * self.scale_factor)
-                ex_x2 = int((exclusion['x'] + exclusion['w']) * self.scale_factor)
-                ex_y2 = int((exclusion['y'] + exclusion['h']) * self.scale_factor)
+                ex_x1 = int(exclusion['x'] * self.scale_factor) + self.x_offset
+                ex_y1 = int(exclusion['y'] * self.scale_factor) + self.y_offset
+                ex_x2 = int((exclusion['x'] + exclusion['w']) * self.scale_factor) + self.x_offset
+                ex_y2 = int((exclusion['y'] + exclusion['h']) * self.scale_factor) + self.y_offset
                 
                 # Desenha área de exclusão em vermelho
                 self.canvas.create_rectangle(ex_x1, ex_y1, ex_x2, ex_y2,
                                             outline="#FF4444", width=2, tags="slot")
             
-            # Adiciona texto com ID
+            # Adiciona texto com ID (já usando x1, y1 corrigidos com offsets)
             # Carrega as configurações de estilo
             style_config = load_style_config()
             self.canvas.create_text(x1 + 5, y1 + 5, text=slot['id'],
@@ -3646,11 +3640,7 @@ class MontagemWindow(ttk.Frame):
                     
                     # Verifica se é um handle de edição
                     for tag in tags:
-<<<<<<< HEAD
                         if tag == "edit_handle" or tag.startswith("resize_handle_"):
-=======
-                        if tag == "edit_handle" or tag.startswith("resize_handle_") or tag == "rotation_handle":
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                             # Deixa o evento ser processado pelos handles
                             return
             except Exception as e:
@@ -3836,15 +3826,10 @@ class MontagemWindow(ttk.Frame):
             x2 = (slot['x'] + slot['w']) * self.scale_factor
             y2 = (slot['y'] + slot['h']) * self.scale_factor
             
-<<<<<<< HEAD
             # Verificação simples de retângulo
             if x1 <= canvas_x <= x2 and y1 <= canvas_y <= y2:
                 return slot
                     
-=======
-            if x1 <= canvas_x <= x2 and y1 <= canvas_y <= y2:
-                return slot
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         return None
     
     def select_slot(self, slot_id):
@@ -3864,22 +3849,17 @@ class MontagemWindow(ttk.Frame):
             
             self.selected_slot_id = slot_id
             
-<<<<<<< HEAD
             # Atualiza informações do slot selecionado
             self.update_slot_info_display()
-=======
-            # Atualiza seleção na lista
-            for item in self.slots_listbox.get_children():
-                item_text = self.slots_listbox.item(item, "text")
-                if str(item_text) == str(slot_id):
-                    self.slots_listbox.selection_set(item)
-                    self.slots_listbox.focus(item)
-                    break
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+            
+            # Mostra automaticamente o editor de slot no painel direito
+            slot_to_edit = next((s for s in self.slots if s['id'] == slot_id), None)
+            if slot_to_edit:
+                self.show_slot_editor_in_right_panel(slot_to_edit)
             
             self.redraw_slots()
             self.update_button_states()
-            self.status_var.set(f"Slot {slot_id} selecionado")
+            self.status_var.set(f"Slot {slot_id} selecionado - Editor aberto no painel direito")
         except Exception as e:
             print(f"Erro ao selecionar slot {slot_id}: {e}")
             import traceback
@@ -3891,11 +3871,11 @@ class MontagemWindow(ttk.Frame):
     def deselect_all_slots(self):
         """Remove seleção de todos os slots."""
         self.selected_slot_id = None
-<<<<<<< HEAD
         self.slot_info_label.config(text="Nenhum slot selecionado")
-=======
-        self.slots_listbox.selection_remove(self.slots_listbox.selection())
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+        
+        # Exibe mensagem padrão no painel direito quando nenhum slot está selecionado
+        self.show_default_right_panel()
+        
         self.hide_edit_handles()
         self.redraw_slots()
         self.update_button_states()
@@ -3955,10 +3935,6 @@ class MontagemWindow(ttk.Frame):
             'v_tolerance': v_tolerance,
             'detection_threshold': 0.8,  # Limiar padrão para detecção
             'shape': self.current_drawing_mode,  # Forma: rectangle, exclusion
-<<<<<<< HEAD
-=======
-            'rotation': self.current_rotation,   # Rotação em graus
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             'exclusion_areas': []               # Lista de áreas de exclusão
         }
         
@@ -3969,18 +3945,11 @@ class MontagemWindow(ttk.Frame):
             'scale_tolerance': 0.1
         })
         
-        # Salva template para o clip
-        template_filename = f"slot_{slot_id}_template.png"
-        template_path = TEMPLATE_DIR / template_filename
+        # Armazena o ROI em memória para salvar depois quando o modelo for salvo
+        slot_data['roi_data'] = roi.copy()  # Armazena uma cópia do ROI
+        slot_data['template_filename'] = f"slot_{slot_id}_template.png"
         
-        try:
-            cv2.imwrite(str(template_path), roi)
-            slot_data['template_path'] = str(template_path)
-            print(f"Template salvo: {template_path}")
-        except Exception as e:
-            print(f"Erro ao salvar template: {e}")
-            messagebox.showerror("Erro", f"Erro ao salvar template: {str(e)}")
-            return
+        print(f"ROI do slot {slot_id} armazenado em memória para salvamento posterior")
         
         # Adiciona slot à lista
         self.slots.append(slot_data)
@@ -3997,91 +3966,8 @@ class MontagemWindow(ttk.Frame):
         
         print(f"Slot {slot_id} adicionado com sucesso: {slot_data}")
     
-<<<<<<< HEAD
     # Funções on_slot_select e on_slot_double_click foram removidas
     # pois não são mais necessárias sem o slots_listbox
-=======
-    def on_slot_select(self, event):
-        """Callback para seleção na lista de slots."""
-        try:
-            # Previne loop infinito - não processa se já estamos selecionando
-            if hasattr(self, '_selecting_slot') and self._selecting_slot:
-                return
-                
-            selection = self.slots_listbox.selection()
-            if selection:
-                item = selection[0]
-                slot_id_text = self.slots_listbox.item(item, "text")
-                if slot_id_text and str(slot_id_text).isdigit():
-                    slot_id = int(slot_id_text)
-                    self.select_slot(slot_id)
-                else:
-                    print(f"Erro: ID do slot inválido: {slot_id_text}")
-        except Exception as e:
-            print(f"Erro na seleção do slot: {e}")
-            self.status_var.set("Erro na seleção do slot")
-    
-    def on_slot_double_click(self, event):
-        """Callback para duplo-clique na lista de slots - abre edição."""
-        try:
-            # Verifica se há uma seleção válida
-            selection = self.slots_listbox.selection()
-            if not selection:
-                print("Nenhum slot selecionado para edição")
-                return
-            
-            # Verifica se há slots disponíveis
-            if not self.slots:
-                print("Nenhum slot disponível para edição")
-                messagebox.showinfo("Aviso", "Nenhum slot disponível para edição.")
-                return
-            
-            # Obtém o item selecionado
-            item = selection[0]
-            slot_id_text = self.slots_listbox.item(item, "text")
-            
-            # Valida o ID do slot
-            if not slot_id_text or not str(slot_id_text).isdigit():
-                print(f"Erro: ID do slot inválido: {slot_id_text}")
-                messagebox.showerror("Erro", f"ID do slot inválido: {slot_id_text}")
-                return
-            
-            slot_id = int(slot_id_text)
-            
-            # Verifica se o slot existe na lista
-            slot_exists = any(slot['id'] == slot_id for slot in self.slots)
-            if not slot_exists:
-                print(f"Erro: Slot {slot_id} não encontrado na lista")
-                messagebox.showerror("Erro", f"Slot {slot_id} não encontrado.")
-                return
-            
-            # Previne múltiplas janelas de edição
-            if hasattr(self, '_editing_slot') and self._editing_slot:
-                print("Janela de edição já está aberta")
-                messagebox.showinfo("Aviso", "Uma janela de edição já está aberta.")
-                return
-            
-            # Marca que está editando
-            self._editing_slot = True
-            
-            try:
-                # Seleciona o slot apenas - removido chamada automática para edit_selected_slot()
-                self.select_slot(slot_id)
-                print(f"Slot {slot_id} selecionado via duplo-clique. Use o botão 'Editar Slot Selecionado' para editar.")
-            finally:
-                # Garante que a flag seja limpa mesmo se houver erro
-                self._editing_slot = False
-                
-        except Exception as e:
-            print(f"Erro no duplo-clique do slot: {e}")
-            import traceback
-            traceback.print_exc()
-            self.status_var.set("Erro ao abrir edição do slot")
-            messagebox.showerror("Erro", f"Erro ao abrir edição: {str(e)}")
-            # Limpa a flag em caso de erro
-            if hasattr(self, '_editing_slot'):
-                self._editing_slot = False
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def clear_slots(self):
         """Remove todos os slots."""
@@ -4100,76 +3986,50 @@ class MontagemWindow(ttk.Frame):
             # Marca modelo como modificado
             self.mark_model_modified()
     
-    def edit_selected_slot(self):
-<<<<<<< HEAD
-        """Edita o slot selecionado no painel direito."""
-=======
-        """Edita o slot selecionado usando menu inline."""
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
-        print(f"\n=== INICIANDO EDIÇÃO DO SLOT ===")
-        print(f"Selected slot ID: {self.selected_slot_id}")
-        
-        # Verifica se há um slot selecionado
-        if self.selected_slot_id is None:
-            print("ERRO: Nenhum slot selecionado")
-            messagebox.showinfo("Aviso", "Nenhum slot selecionado.")
-            return
-        
-        # Verifica se a lista de slots não está vazia
-        if not self.slots:
-            print("ERRO: Lista de slots vazia")
-            messagebox.showinfo("Aviso", "Nenhum slot disponível para edição.")
-            return
-        
-        # Busca o slot na lista
-        slot_to_edit = next((s for s in self.slots if s['id'] == self.selected_slot_id), None)
-        if not slot_to_edit:
-            print(f"ERRO: Slot {self.selected_slot_id} não encontrado na lista")
-            messagebox.showerror("Erro", f"Dados do slot {self.selected_slot_id} não encontrados.")
-            return
-        
-        # Verifica se os dados do slot são válidos
-        required_keys = ['id', 'x', 'y', 'w', 'h', 'tipo']
-        # Para slots do tipo 'clip', verifica campos específicos
-        if slot_to_edit.get('tipo') == 'clip':
-            clip_keys = ['cor', 'detection_threshold']
-            required_keys.extend(clip_keys)
-        
-        missing_keys = [key for key in required_keys if key not in slot_to_edit]
-        if missing_keys:
-            print(f"ERRO: Dados do slot incompletos. Chaves ausentes: {missing_keys}")
-            print(f"Dados do slot: {slot_to_edit}")
-            messagebox.showerror("Erro", f"Dados do slot estão incompletos. Chaves ausentes: {missing_keys}")
-            return
-        
-        print(f"Slot encontrado: {slot_to_edit}")
-<<<<<<< HEAD
-        print("Criando editor de slot no painel direito...")
-        
-        try:
-            # Mostra o editor de slot no painel direito
-            self.show_slot_editor_in_right_panel(slot_to_edit)
-            print("Editor de slot criado com sucesso")
-=======
-        print("Criando menu de edição inline...")
-        
-        try:
-            # Edita usando menu inline completo
-            self.create_inline_edit_menu(slot_to_edit)
-            print("Menu de edição criado com sucesso")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
-            
-        except Exception as e:
-            print(f"ERRO ao editar slot: {e}")
-            import traceback
-            traceback.print_exc()
-            messagebox.showerror("Erro", f"Erro ao editar slot: {str(e)}")
+    # Função edit_selected_slot removida - editor aparece automaticamente quando slot é selecionado
     
-<<<<<<< HEAD
     def clear_right_panel(self):
-        """Limpa o conteúdo do painel direito"""
+        """Limpa o painel direito."""
         for widget in self.right_panel.winfo_children():
             widget.destroy()
+    
+    def show_default_right_panel(self):
+        """Exibe mensagem padrão no painel direito quando nenhum slot está selecionado."""
+        self.clear_right_panel()
+        
+        # Título do painel
+        title_label = ttk.Label(self.right_panel, text="Editor de Slot", 
+                               font=("Arial", 12, "bold"))
+        title_label.pack(pady=(0, 10))
+        
+        # Mensagem informativa
+        info_frame = ttk.Frame(self.right_panel)
+        info_frame.pack(fill=X, pady=10)
+        
+        info_label = ttk.Label(info_frame, 
+                              text="Selecione um slot no\nEditor de Malha para\neditar suas propriedades",
+                              justify=CENTER,
+                              foreground="gray")
+        info_label.pack()
+        
+        # Instruções
+        instructions_frame = ttk.LabelFrame(self.right_panel, text="Instruções")
+        instructions_frame.pack(fill=X, pady=(20, 0))
+        
+        instructions_text = (
+            "• Clique em um slot no canvas\n"
+            "  para selecioná-lo\n\n"
+            "• O editor aparecerá\n"
+            "  automaticamente\n\n"
+            "• Ajuste posição, tamanho\n"
+            "  e parâmetros de detecção"
+        )
+        
+        instructions_label = ttk.Label(instructions_frame, 
+                                     text=instructions_text,
+                                     justify=LEFT,
+                                     foreground="#666666")
+        instructions_label.pack(padx=10, pady=10)
     
     def save_slot_changes(self, slot_data):
         """Salva as alterações feitas no slot"""
@@ -4204,6 +4064,18 @@ class MontagemWindow(ttk.Frame):
                         # Porcentagem para OK
                         if 'ok_threshold' in self.edit_vars:
                             slot['ok_threshold'] = int(self.edit_vars['ok_threshold'].get())
+                        
+                        # Limiar de correlação
+                        if 'correlation_threshold' in self.edit_vars:
+                            slot['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
+                    
+                    # Salva no banco de dados se há um modelo carregado
+                    if self.current_model_id is not None:
+                        try:
+                            self.db_manager.update_slot(slot['db_id'], slot)
+                        except Exception as e:
+                            print(f"Erro ao salvar slot no banco: {e}")
+                            messagebox.showwarning("Aviso", "Slot atualizado na interface, mas não foi salvo no banco de dados.")
                     
                     break
             
@@ -4229,8 +4101,6 @@ class MontagemWindow(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao salvar alterações: {str(e)}")
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def edit_slot_with_simple_dialogs(self, slot_data):
         """Edita o slot usando diálogos simples do tkinter"""
         from tkinter import simpledialog
@@ -4310,20 +4180,13 @@ class MontagemWindow(ttk.Frame):
         
         messagebox.showinfo("Sucesso", f"Slot {slot_data['id']} atualizado com sucesso!")
     
-<<<<<<< HEAD
     def show_slot_editor_in_right_panel(self, slot_data):
         """Cria um editor de slot simplificado no painel direito"""
         print("Criando editor de slot no painel direito...")
-=======
-    def create_inline_edit_menu(self, slot_data):
-        """Cria uma janela simples de edição para o slot"""
-        print("Criando janela de edição simples...")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Carrega as configurações de estilo
         self.style_config = load_style_config()
         
-<<<<<<< HEAD
         # Limpa o painel direito
         for widget in self.right_panel.winfo_children():
             widget.destroy()
@@ -4340,74 +4203,10 @@ class MontagemWindow(ttk.Frame):
         # Frame com scrollbar para os campos
         editor_frame = ttk.Frame(self.right_panel)
         editor_frame.pack(fill='both', expand=True, padx=5, pady=5)
-=======
-        # Remove janela anterior se existir
-        if hasattr(self, 'edit_menu_frame') and self.edit_menu_frame:
-            try:
-                self.edit_menu_frame.destroy()
-            except:
-                pass
-        
-        # Cria uma janela simples não-modal
-        from tkinter import Toplevel
-        self.edit_menu_frame = Toplevel(self.master)
-        self.edit_menu_frame.title(f"Editar Slot {slot_data['id']}")
-        self.edit_menu_frame.geometry("400x700")
-        self.edit_menu_frame.resizable(True, True)
-        
-        # Aplica a cor de fundo da janela
-        self.edit_menu_frame.configure(bg=self.style_config["background_color"])
-        
-        # Centraliza a janela
-        self.edit_menu_frame.transient(self.master)
-        self.edit_menu_frame.update_idletasks()
-        x = (self.edit_menu_frame.winfo_screenwidth() // 2) - (200)
-        y = (self.edit_menu_frame.winfo_screenheight() // 2) - (350)
-        self.edit_menu_frame.geometry(f"400x700+{x}+{y}")
-        
-        # Frame principal com scrollbar
-        main_frame = ttk.Frame(self.edit_menu_frame)
-        main_frame.pack(fill='both', expand=True, padx=10, pady=10)
-        
-        # Título
-        title_label = ttk.Label(main_frame, text=f"Editando Slot {slot_data['id']}", 
-                               font=('Arial', 12, 'bold'),
-                               foreground=self.style_config["text_color"])
-        title_label.pack(pady=(0, 10))
-        
-        # Canvas e Scrollbar para campos
-        canvas_frame = ttk.Frame(main_frame)
-        canvas_frame.pack(fill='both', expand=True)
-        
-        canvas = Canvas(canvas_frame, highlightthickness=0, bg=self.style_config["background_color"])
-        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas, style="TFrame")
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Frame para campos de entrada (agora dentro do scrollable_frame)
-        fields_frame = ttk.Frame(scrollable_frame)
-        fields_frame.pack(fill='x', pady=(0, 10), padx=10)
-        
-        # Bind mousewheel to canvas
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Variáveis para os campos
         self.edit_vars = {}
         
-<<<<<<< HEAD
         # Seção: Posição e Tamanho
         position_frame = ttk.LabelFrame(editor_frame, text="Posição e Tamanho")
         position_frame.pack(fill='x', pady=(0, 10), padx=5)
@@ -4488,6 +4287,10 @@ class MontagemWindow(ttk.Frame):
             # Canvas para exibir o preview
             self.preview_canvas = Canvas(preview_frame, bg="#1E1E1E", width=200, height=150)
             self.preview_canvas.pack(fill='both', expand=True, padx=5, pady=5)
+            
+            # Definir variáveis antes da função update_preview_filter
+            threshold_var = StringVar(value=str(slot_data.get('detection_threshold', 0.8)))
+            ok_threshold_var = StringVar(value=str(slot_data.get('ok_threshold', 70)))
             
             # Função para atualizar o preview quando o método de detecção mudar
             def update_preview_filter(*args):
@@ -4606,8 +4409,13 @@ class MontagemWindow(ttk.Frame):
                 
                 # Atualiza o canvas
                 self.preview_canvas.delete("all")
-                self.preview_canvas.create_image(self.preview_canvas.winfo_width()//2, 
-                                               self.preview_canvas.winfo_height()//2, 
+                
+                # Usa as dimensões reais do canvas ou as dimensões configuradas se ainda não foi renderizado
+                canvas_width = self.preview_canvas.winfo_width() if self.preview_canvas.winfo_width() > 1 else 200
+                canvas_height = self.preview_canvas.winfo_height() if self.preview_canvas.winfo_height() > 1 else 150
+                
+                self.preview_canvas.create_image(canvas_width//2, 
+                                               canvas_height//2, 
                                                image=filtered_roi_tk, anchor="center")
                 self.preview_canvas.image = filtered_roi_tk  # Mantém referência
             
@@ -4624,7 +4432,6 @@ class MontagemWindow(ttk.Frame):
             threshold_label = ttk.Label(threshold_frame, text="Limiar:", width=8)
             threshold_label.pack(side='left')
             
-            threshold_var = StringVar(value=str(slot_data.get('detection_threshold', 0.8)))
             self.edit_vars['detection_threshold'] = threshold_var
             threshold_entry = ttk.Entry(threshold_frame, textvariable=threshold_var, width=8)
             threshold_entry.pack(side='left', padx=(5, 0))
@@ -4643,8 +4450,6 @@ class MontagemWindow(ttk.Frame):
             ok_threshold_label = ttk.Label(ok_threshold_frame, text="% para OK:", width=8)
             ok_threshold_label.pack(side='left')
             
-            # Valor padrão de 70% se não existir
-            ok_threshold_var = StringVar(value=str(slot_data.get('ok_threshold', 70)))
             self.edit_vars['ok_threshold'] = ok_threshold_var
             ok_threshold_entry = ttk.Entry(ok_threshold_frame, textvariable=ok_threshold_var, width=8)
             ok_threshold_entry.pack(side='left', padx=(5, 0))
@@ -4655,6 +4460,25 @@ class MontagemWindow(ttk.Frame):
             ok_threshold_tip = ttk.Label(ok_threshold_frame, text="Porcentagem para considerar OK (0-100)", 
                                        font=("Arial", 8), foreground="#888888")
             ok_threshold_tip.pack(side='left', padx=(5, 0))
+            
+            # Limiar de correlação
+            correlation_threshold_frame = ttk.Frame(detection_frame)
+            correlation_threshold_frame.pack(fill='x', pady=2, padx=5)
+            
+            correlation_threshold_label = ttk.Label(correlation_threshold_frame, text="Correlação:", width=8)
+            correlation_threshold_label.pack(side='left')
+            
+            correlation_threshold_var = StringVar(value=str(slot_data.get('correlation_threshold', 0.5)))
+            self.edit_vars['correlation_threshold'] = correlation_threshold_var
+            correlation_threshold_entry = ttk.Entry(correlation_threshold_frame, textvariable=correlation_threshold_var, width=8)
+            correlation_threshold_entry.pack(side='left', padx=(5, 0))
+            
+            # Vincula a função de atualização do preview ao limiar de correlação
+            correlation_threshold_var.trace("w", update_preview_filter)
+            
+            correlation_threshold_tip = ttk.Label(correlation_threshold_frame, text="Limiar de correlação (0.0-1.0)", 
+                                                 font=("Arial", 8), foreground="#888888")
+            correlation_threshold_tip.pack(side='left', padx=(5, 0))
         
         # Botões de ação
         buttons_frame = ttk.Frame(self.right_panel)
@@ -4687,333 +4511,9 @@ class MontagemWindow(ttk.Frame):
         ttk.Label(id_frame, text="ID:", width=8).pack(side='left')
         id_value = ttk.Label(id_frame, text=str(slot_data['id']))
         id_value.pack(side='left', padx=(5, 0))
-        info_frame.pack(fill='x', pady=(10, 0), padx=5)
-        
-        # Tipo de slot
-        tipo_frame = ttk.Frame(info_frame)
-        tipo_frame.pack(fill='x', pady=2, padx=5)
-        
-        ttk.Label(tipo_frame, text="Tipo:", width=8).pack(side='left')
-        tipo_value = ttk.Label(tipo_frame, text=slot_data.get('tipo', 'desconhecido'))
-        tipo_value.pack(side='left', padx=(5, 0))
-        
-        # ID do slot
-        id_frame = ttk.Frame(info_frame)
-        id_frame.pack(fill='x', pady=2, padx=5)
-        
-        ttk.Label(id_frame, text="ID:", width=8).pack(side='left')
-        id_value = ttk.Label(id_frame, text=str(slot_data['id']))
-        id_value.pack(side='left', padx=(5, 0))
             
 
 
-=======
-        # Campos básicos
-        basic_fields = [
-            ('X:', 'x', slot_data['x']),
-            ('Y:', 'y', slot_data['y']),
-            ('Largura:', 'w', slot_data['w']),
-            ('Altura:', 'h', slot_data['h'])
-        ]
-        
-        for i, (label_text, key, value) in enumerate(basic_fields):
-            row_frame = ttk.Frame(fields_frame)
-            row_frame.pack(fill=X, pady=2)
-            
-            label = ttk.Label(row_frame, text=label_text, width=10)
-            label.pack(side=LEFT)
-            
-            var = ttk.StringVar(value=str(value))
-            self.edit_vars[key] = var
-            entry = ttk.Entry(row_frame, textvariable=var, width=15)
-            entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Campos específicos para clips
-        if slot_data.get('tipo') == 'clip':
-            # Separador
-            separator = ttk.Separator(fields_frame, orient='horizontal')
-            separator.pack(fill=X, pady=(10, 5))
-            
-            # Título para parâmetros avançados
-            advanced_label = ttk.Label(fields_frame, text="Parâmetros de Detecção:", 
-                                     font=('Arial', 9, 'bold'),
-                                     foreground=self.style_config["text_color"])
-            advanced_label.pack(pady=(0, 5))
-            
-            # Método de Detecção
-            detection_method_frame = ttk.Frame(fields_frame)
-            detection_method_frame.pack(fill=X, pady=2)
-            
-            detection_method_label = ttk.Label(detection_method_frame, text="Método Detecção:", width=12)
-            detection_method_label.pack(side=LEFT)
-            
-            detection_methods = [
-                "template_matching",
-                "histogram_analysis"
-            ]
-            
-            detection_method_var = ttk.StringVar(value=slot_data.get('detection_method', 'template_matching'))
-            self.edit_vars['detection_method'] = detection_method_var
-            detection_method_combo = ttk.Combobox(detection_method_frame, textvariable=detection_method_var, 
-                                                values=detection_methods, width=18, state="readonly")
-            detection_method_combo.pack(side=LEFT, padx=(5, 0))
-            
-            # Tooltip para detection_method
-            detection_tip_label = ttk.Label(detection_method_frame, text="ℹ️", foreground="blue")
-            detection_tip_label.pack(side=LEFT, padx=(2, 0))
-            detection_tip_label.bind("<Button-1>", lambda e: messagebox.showinfo("Método de Detecção", 
-                "Escolha o método de análise para este slot:\n\n" +
-                "• template_matching: Usa template matching tradicional (padrão)\n" +
-                "• histogram_analysis: Usa análise de histograma de cores"))
-            
-            # Detection Threshold
-            det_threshold_frame = ttk.Frame(fields_frame)
-            det_threshold_frame.pack(fill=X, pady=2)
-            
-            det_threshold_label = ttk.Label(det_threshold_frame, text="Det. Threshold:", width=12)
-            det_threshold_label.pack(side=LEFT)
-            
-            det_threshold_var = ttk.StringVar(value=str(slot_data.get('detection_threshold', 0.9)))
-            self.edit_vars['detection_threshold'] = det_threshold_var
-            det_threshold_entry = ttk.Entry(det_threshold_frame, textvariable=det_threshold_var, width=10)
-            det_threshold_entry.pack(side=LEFT, padx=(5, 0))
-            
-            # Tooltip para detection_threshold
-            det_tip_label = ttk.Label(det_threshold_frame, text="ℹ️", foreground="blue")
-            det_tip_label.pack(side=LEFT, padx=(2, 0))
-            det_tip_label.bind("<Button-1>", lambda e: messagebox.showinfo("Detection Threshold", 
-                "Limiar mínimo de confiança (0.0-1.0) para considerar uma detecção válida.\nValor padrão: 0.9 (90%)"))
-            
-            # Correlation Threshold
-            corr_threshold_frame = ttk.Frame(fields_frame)
-            corr_threshold_frame.pack(fill=X, pady=2)
-            
-            corr_threshold_label = ttk.Label(corr_threshold_frame, text="Corr. Threshold:", width=12)
-            corr_threshold_label.pack(side=LEFT)
-            
-            corr_threshold_var = ttk.StringVar(value=str(slot_data.get('correlation_threshold', 0.1)))
-            self.edit_vars['correlation_threshold'] = corr_threshold_var
-            corr_threshold_entry = ttk.Entry(corr_threshold_frame, textvariable=corr_threshold_var, width=10)
-            corr_threshold_entry.pack(side=LEFT, padx=(5, 0))
-            
-            # Tooltip para correlation_threshold
-            corr_tip_label = ttk.Label(corr_threshold_frame, text="ℹ️", foreground="blue")
-            corr_tip_label.pack(side=LEFT, padx=(2, 0))
-            corr_tip_label.bind("<Button-1>", lambda e: messagebox.showinfo("Correlation Threshold", 
-                "Limiar mínimo de correlação (0.0-1.0) para matching de templates.\nValor padrão: 0.1 (10%)"))
-            
-            # Template Method
-            template_method_frame = ttk.Frame(fields_frame)
-            template_method_frame.pack(fill=X, pady=2)
-            
-            template_method_label = ttk.Label(template_method_frame, text="Template Method:", width=12)
-            template_method_label.pack(side=LEFT)
-            
-            template_methods = [
-                "TM_CCOEFF_NORMED",
-                "TM_CCORR_NORMED", 
-                "TM_SQDIFF_NORMED",
-                "TM_CCOEFF",
-                "TM_CCORR",
-                "TM_SQDIFF"
-            ]
-            
-            template_method_var = ttk.StringVar(value=slot_data.get('template_method', 'TM_CCOEFF_NORMED'))
-            self.edit_vars['template_method'] = template_method_var
-            template_method_combo = ttk.Combobox(template_method_frame, textvariable=template_method_var, 
-                                               values=template_methods, width=18, state="readonly")
-            template_method_combo.pack(side=LEFT, padx=(5, 0))
-            
-            # Tooltip para template_method
-            method_tip_label = ttk.Label(template_method_frame, text="ℹ️", foreground="blue")
-            method_tip_label.pack(side=LEFT, padx=(2, 0))
-            method_tip_label.bind("<Button-1>", lambda e: messagebox.showinfo("Template Method", 
-                "Algoritmo do OpenCV para comparar templates:\n\n" +
-                "• TM_CCOEFF_NORMED: Coeficientes de correlação normalizados (recomendado)\n" +
-                "• TM_CCORR_NORMED: Correlação cruzada normalizada\n" +
-                "• TM_SQDIFF_NORMED: Diferença quadrática normalizada\n" +
-                "• TM_CCOEFF: Coeficientes de correlação\n" +
-                "• TM_CCORR: Correlação cruzada\n" +
-                "• TM_SQDIFF: Diferença quadrática"))
-            
-            # Scale Tolerance
-            scale_tolerance_frame = ttk.Frame(fields_frame)
-            scale_tolerance_frame.pack(fill=X, pady=2)
-            
-            scale_tolerance_label = ttk.Label(scale_tolerance_frame, text="Scale Tolerance:", width=12,
-                                            foreground=self.style_config["text_color"])
-            scale_tolerance_label.pack(side=LEFT)
-            
-            scale_tolerance_var = ttk.StringVar(value=str(slot_data.get('scale_tolerance', 0.1)))
-            self.edit_vars['scale_tolerance'] = scale_tolerance_var
-            scale_tolerance_entry = ttk.Entry(scale_tolerance_frame, textvariable=scale_tolerance_var, width=10)
-            scale_tolerance_entry.pack(side=LEFT, padx=(5, 0))
-            
-            # Tooltip para scale_tolerance
-            scale_tip_label = ttk.Label(scale_tolerance_frame, text="ℹ️", foreground="blue")
-            scale_tip_label.pack(side=LEFT, padx=(2, 0))
-            scale_tip_label.bind("<Button-1>", lambda e: messagebox.showinfo("Scale Tolerance", 
-                "Permite variação no tamanho do objeto detectado em relação ao template.\nValor 0.1 = ±10% de variação\nValor padrão: 0.1"))
-        
-        # Separador para seção de personalização
-        separator = ttk.Separator(fields_frame, orient='horizontal')
-        separator.pack(fill=X, pady=(15, 5))
-        
-        # Título para personalização
-        style_label = ttk.Label(fields_frame, text="Personalização de Aparência:", 
-                              font=('Arial', 9, 'bold'),
-                              foreground=self.style_config["text_color"])
-        style_label.pack(pady=(0, 5))
-        
-        # Cor de fundo
-        bg_color_frame = ttk.Frame(fields_frame)
-        bg_color_frame.pack(fill=X, pady=2)
-        
-        bg_color_label = ttk.Label(bg_color_frame, text="Cor de Fundo:", width=12,
-                                 foreground=self.style_config["text_color"])
-        bg_color_label.pack(side=LEFT)
-        
-        bg_color_var = ttk.StringVar(value=self.style_config["background_color"])
-        self.edit_vars['background_color'] = bg_color_var
-        bg_color_entry = ttk.Entry(bg_color_frame, textvariable=bg_color_var, width=10)
-        bg_color_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher cor de fundo
-        bg_color_btn = ttk.Button(bg_color_frame, text="Escolher", 
-                                command=lambda: self.choose_color("background_color"))
-        bg_color_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Cor do texto
-        text_color_frame = ttk.Frame(fields_frame)
-        text_color_frame.pack(fill=X, pady=2)
-        
-        text_color_label = ttk.Label(text_color_frame, text="Cor do Texto:", width=12,
-                                   foreground=self.style_config["text_color"])
-        text_color_label.pack(side=LEFT)
-        
-        text_color_var = ttk.StringVar(value=self.style_config["text_color"])
-        self.edit_vars['text_color'] = text_color_var
-        text_color_entry = ttk.Entry(text_color_frame, textvariable=text_color_var, width=10)
-        text_color_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher cor do texto
-        text_color_btn = ttk.Button(text_color_frame, text="Escolher", 
-                                  command=lambda: self.choose_color("text_color"))
-        text_color_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Cor do texto NG
-        ng_color_frame = ttk.Frame(fields_frame)
-        ng_color_frame.pack(fill=X, pady=2)
-        
-        ng_color_label = ttk.Label(ng_color_frame, text="Cor do NG:", width=12,
-                                 foreground=self.style_config["text_color"])
-        ng_color_label.pack(side=LEFT)
-        
-        ng_color_var = ttk.StringVar(value=self.style_config["ng_color"])
-        self.edit_vars['ng_color'] = ng_color_var
-        ng_color_entry = ttk.Entry(ng_color_frame, textvariable=ng_color_var, width=10)
-        ng_color_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher cor do NG
-        ng_color_btn = ttk.Button(ng_color_frame, text="Escolher", 
-                                command=lambda: self.choose_color("ng_color"))
-        ng_color_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Cor do texto OK
-        ok_color_frame = ttk.Frame(fields_frame)
-        ok_color_frame.pack(fill=X, pady=2)
-        
-        ok_color_label = ttk.Label(ok_color_frame, text="Cor do OK:", width=12,
-                                 foreground=self.style_config["text_color"])
-        ok_color_label.pack(side=LEFT)
-        
-        ok_color_var = ttk.StringVar(value=self.style_config["ok_color"])
-        self.edit_vars['ok_color'] = ok_color_var
-        ok_color_entry = ttk.Entry(ok_color_frame, textvariable=ok_color_var, width=10)
-        ok_color_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher cor do OK
-        ok_color_btn = ttk.Button(ok_color_frame, text="Escolher", 
-                                command=lambda: self.choose_color("ok_color"))
-        ok_color_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Cor do quadro de seleção
-        selection_color_frame = ttk.Frame(fields_frame)
-        selection_color_frame.pack(fill=X, pady=2)
-        
-        selection_color_label = ttk.Label(selection_color_frame, text="Cor Seleção:", width=12,
-                                        foreground=self.style_config["text_color"])
-        selection_color_label.pack(side=LEFT)
-        
-        selection_color_var = ttk.StringVar(value=self.style_config["selection_color"])
-        self.edit_vars['selection_color'] = selection_color_var
-        selection_color_entry = ttk.Entry(selection_color_frame, textvariable=selection_color_var, width=10)
-        selection_color_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher cor do quadro de seleção
-        selection_color_btn = ttk.Button(selection_color_frame, text="Escolher", 
-                                       command=lambda: self.choose_color("selection_color"))
-        selection_color_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Fonte do NG
-        ng_font_frame = ttk.Frame(fields_frame)
-        ng_font_frame.pack(fill=X, pady=2)
-        
-        ng_font_label = ttk.Label(ng_font_frame, text="Fonte do NG:", width=12,
-                                foreground=self.style_config["text_color"])
-        ng_font_label.pack(side=LEFT)
-        
-        ng_font_var = ttk.StringVar(value=self.style_config["ng_font"])
-        self.edit_vars['ng_font'] = ng_font_var
-        ng_font_entry = ttk.Entry(ng_font_frame, textvariable=ng_font_var, width=20)
-        ng_font_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher fonte do NG
-        ng_font_btn = ttk.Button(ng_font_frame, text="Escolher", 
-                               command=lambda: self.choose_font("ng_font"))
-        ng_font_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Fonte do OK
-        ok_font_frame = ttk.Frame(fields_frame)
-        ok_font_frame.pack(fill=X, pady=2)
-        
-        ok_font_label = ttk.Label(ok_font_frame, text="Fonte do OK:", width=12,
-                                foreground=self.style_config["text_color"])
-        ok_font_label.pack(side=LEFT)
-        
-        ok_font_var = ttk.StringVar(value=self.style_config["ok_font"])
-        self.edit_vars['ok_font'] = ok_font_var
-        ok_font_entry = ttk.Entry(ok_font_frame, textvariable=ok_font_var, width=20)
-        ok_font_entry.pack(side=LEFT, padx=(5, 0))
-        
-        # Botão para escolher fonte do OK
-        ok_font_btn = ttk.Button(ok_font_frame, text="Escolher", 
-                               command=lambda: self.choose_font("ok_font"))
-        ok_font_btn.pack(side=LEFT, padx=(5, 0))
-        
-        # Frame para botões (fora do canvas, fixo na parte inferior)
-        buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.pack(fill='x', pady=(10, 0), side='bottom')
-        
-        # Botão Salvar
-        save_btn = ttk.Button(buttons_frame, text="Salvar", 
-                             command=lambda: self.save_inline_edit(slot_data),
-                             style='success.TButton')
-        save_btn.pack(side=LEFT, padx=(0, 5))
-        
-        # Botão Cancelar
-        cancel_btn = ttk.Button(buttons_frame, text="Cancelar", 
-                               command=self.cancel_inline_edit,
-                               style='secondary.TButton')
-        cancel_btn.pack(side=LEFT)
-        
-        # Limpa o bind do mousewheel quando a janela for fechada
-        def on_close():
-            canvas.unbind_all("<MouseWheel>")
-            self.cancel_inline_edit()
-        
-        self.edit_menu_frame.protocol("WM_DELETE_WINDOW", on_close)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def choose_color(self, color_key):
         """Abre o seletor de cores e atualiza o campo correspondente"""
@@ -5217,29 +4717,8 @@ class MontagemWindow(ttk.Frame):
                 except Exception as e:
                     print(f"Erro ao salvar slot no banco: {e}")
             
-<<<<<<< HEAD
             # Nota: Removido o processamento de configurações de estilo
             # Essas configurações agora são gerenciadas apenas pelo menu de configurações do sistema
-=======
-            # Atualiza as configurações de estilo
-            style_config = {}
-            style_keys = ["background_color", "text_color", "ng_color", "ok_color", 
-                        "ng_font", "ok_font", "selection_color"]
-            
-            for key in style_keys:
-                if key in self.edit_vars:
-                    style_config[key] = self.edit_vars[key].get()
-            
-            # Salva as configurações de estilo
-            if style_config:
-                # Carrega as configurações atuais para manter valores não editados
-                current_config = load_style_config()
-                # Atualiza com os novos valores
-                current_config.update(style_config)
-                # Salva no arquivo
-                save_style_config(current_config)
-                print("Configurações de estilo salvas com sucesso")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             
             # Atualiza a exibição
             self.redraw_slots()
@@ -5299,6 +4778,17 @@ class MontagemWindow(ttk.Frame):
             print(f"ERRO: Slot {slot_id_to_update} não encontrado na lista para update.")
             print(f"Slots disponíveis: {[s.get('id') for s in self.slots]}")
             return
+        
+        # Salva no banco de dados se há um modelo carregado
+        if self.current_model_id is not None:
+            try:
+                print(f"Salvando slot {slot_id_to_update} no banco de dados...")
+                self.db_manager.update_slot(self.current_model_id, updated_slot_data)
+                print(f"Slot {slot_id_to_update} salvo no banco com sucesso!")
+            except Exception as e:
+                print(f"Erro ao salvar slot no banco: {e}")
+        else:
+            print("Aviso: Modelo não foi salvo ainda, dados atualizados apenas na memória.")
         
         print("Atualizando interface...")
         self.deselect_all_slots()
@@ -5374,6 +4864,33 @@ class MontagemWindow(ttk.Frame):
         self.redraw_slots()
         self.update_slots_list()
     
+    def save_templates_to_model_folder(self, model_name, model_id):
+        """Salva todos os templates dos slots na pasta do modelo."""
+        try:
+            # Obtém pasta de templates do modelo
+            model_folder = self.db_manager.get_model_folder_path(model_name, model_id)
+            templates_folder = model_folder / "templates"
+            templates_folder.mkdir(parents=True, exist_ok=True)
+            
+            # Salva cada template dos slots
+            for slot_data in self.slots:
+                if 'roi_data' in slot_data and 'template_filename' in slot_data:
+                    template_path = templates_folder / slot_data['template_filename']
+                    cv2.imwrite(str(template_path), slot_data['roi_data'])
+                    
+                    # Atualiza o caminho do template no slot
+                    slot_data['template_path'] = str(template_path)
+                    
+                    # Remove os dados temporários
+                    del slot_data['roi_data']
+                    del slot_data['template_filename']
+                    
+                    print(f"Template salvo: {template_path}")
+                    
+        except Exception as e:
+            print(f"Erro ao salvar templates: {e}")
+            raise e
+    
     def save_model(self):
         """Salva o modelo atual no banco de dados."""
         if self.img_original is None:
@@ -5406,6 +4923,9 @@ class MontagemWindow(ttk.Frame):
                 # Atualiza modelo existente
                 model_id = result['model_id']
                 
+                # Salva templates primeiro
+                self.save_templates_to_model_folder(model_name, model_id)
+                
                 # Obtém pasta específica do modelo
                 model_folder = self.db_manager.get_model_folder_path(model_name, model_id)
                 
@@ -5422,6 +4942,8 @@ class MontagemWindow(ttk.Frame):
                 )
                 
                 self.current_model_id = model_id
+                # Define o modelo atual para uso em outras funções
+                self.current_model = self.db_manager.load_modelo(model_id)
                 
             else:
                 # Cria novo modelo primeiro para obter o ID
@@ -5429,8 +4951,11 @@ class MontagemWindow(ttk.Frame):
                 model_id = self.db_manager.save_modelo(
                     nome=model_name,
                     image_path="",  # Será atualizado depois
-                    slots=self.slots
+                    slots=[]
                 )
+                
+                # Agora salva os templates na pasta correta do modelo
+                self.save_templates_to_model_folder(model_name, model_id)
                 
                 # Obtém pasta específica do modelo (já criada pelo save_modelo)
                 model_folder = self.db_manager.get_model_folder_path(model_name, model_id)
@@ -5440,13 +4965,16 @@ class MontagemWindow(ttk.Frame):
                 image_path = model_folder / image_filename
                 cv2.imwrite(str(image_path), self.img_original)
                 
-                # Atualiza o caminho da imagem no banco
+                # Atualiza o modelo com os slots e caminho da imagem
                 self.db_manager.update_modelo(
                     model_id,
-                    image_path=str(image_path)
+                    image_path=str(image_path),
+                    slots=self.slots
                 )
                 
                 self.current_model_id = model_id
+                # Define o modelo atual para uso em outras funções
+                self.current_model = self.db_manager.load_modelo(model_id)
             
             # Marca o modelo como salvo
             self.mark_model_saved()
@@ -5465,7 +4993,6 @@ class MontagemWindow(ttk.Frame):
         has_selection = self.selected_slot_id is not None
         
         # Botões que dependem de imagem
-<<<<<<< HEAD
         if hasattr(self, 'btn_save_model'):
             self.btn_save_model.config(state=NORMAL if has_image and has_slots else DISABLED)
         
@@ -5474,23 +5001,10 @@ class MontagemWindow(ttk.Frame):
             self.btn_clear_slots.config(state=NORMAL if has_slots else DISABLED)
         
         # Botões que dependem de seleção
-        if hasattr(self, 'btn_edit_slot'):
-            self.btn_edit_slot.config(state=NORMAL if has_selection else DISABLED)
         if hasattr(self, 'btn_delete_slot'):
             self.btn_delete_slot.config(state=NORMAL if has_selection else DISABLED)
         if hasattr(self, 'btn_train_slot'):
             self.btn_train_slot.config(state=NORMAL if has_selection else DISABLED)
-=======
-        self.btn_save_model.config(state=NORMAL if has_image and has_slots else DISABLED)
-        
-        # Botões que dependem de slots
-        self.btn_clear_slots.config(state=NORMAL if has_slots else DISABLED)
-        
-        # Botões que dependem de seleção
-        self.btn_edit_slot.config(state=NORMAL if has_selection else DISABLED)
-        self.btn_delete_slot.config(state=NORMAL if has_selection else DISABLED)
-        self.btn_train_slot.config(state=NORMAL if has_selection else DISABLED)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def set_drawing_mode(self):
         """Define o modo de desenho atual."""
@@ -5502,21 +5016,7 @@ class MontagemWindow(ttk.Frame):
         self.tool_status_var.set(f"Modo: {mode_names.get(self.current_drawing_mode, 'Desconhecido')}")
         print(f"Modo de desenho alterado para: {self.current_drawing_mode}")
     
-<<<<<<< HEAD
     # Função de rotação removida
-=======
-    def adjust_rotation(self, delta):
-        """Ajusta a rotação em graus."""
-        try:
-            current = float(self.rotation_var.get())
-            new_rotation = (current + delta) % 360
-            self.rotation_var.set(str(int(new_rotation)))
-            self.current_rotation = new_rotation
-            print(f"Rotação ajustada para: {new_rotation}°")
-        except ValueError:
-            self.rotation_var.set("0")
-            self.current_rotation = 0
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def add_exclusion_area(self, x, y, w, h):
         """Adiciona área de exclusão ao slot selecionado."""
@@ -5577,24 +5077,7 @@ class MontagemWindow(ttk.Frame):
             (x + w - handle_size//2, y + h//2 - handle_size//2, "e"),  # Meio direito
         ]
         
-<<<<<<< HEAD
         # Handle de rotação removido
-=======
-        # Handle de rotação (acima do slot)
-        rotation_handle_y = y - 30
-        rotation_handle = self.canvas.create_oval(
-            x + w//2 - handle_size//2, rotation_handle_y - handle_size//2,
-            x + w//2 + handle_size//2, rotation_handle_y + handle_size//2,
-            fill="#4444FF", outline="white", width=2,
-            tags=("edit_handle", "rotation_handle")
-        )
-        
-        # Linha conectando o handle de rotação ao slot
-        self.canvas.create_line(
-            x + w//2, y, x + w//2, rotation_handle_y,
-            fill="#4444FF", width=2, tags="edit_handle"
-        )
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Cria handles de redimensionamento
         for hx, hy, direction in handles:
@@ -5634,17 +5117,7 @@ class MontagemWindow(ttk.Frame):
                         'start_y': canvas_y
                     }
                     break
-<<<<<<< HEAD
                 # Tratamento de handle de rotação removido
-=======
-                elif tag == "rotation_handle":
-                    self.editing_handle = {
-                        'type': 'rotation',
-                        'start_x': canvas_x,
-                        'start_y': canvas_y
-                    }
-                    break
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def on_handle_drag(self, event):
         """Processa arrastar do handle."""
@@ -5666,12 +5139,7 @@ class MontagemWindow(ttk.Frame):
         
         if self.editing_handle['type'] == 'resize':
             self.handle_resize_drag(selected_slot, canvas_x, canvas_y)
-<<<<<<< HEAD
         # Tratamento de arrastar handle de rotação removido
-=======
-        elif self.editing_handle['type'] == 'rotation':
-            self.handle_rotation_drag(selected_slot, canvas_x, canvas_y)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def handle_resize_drag(self, slot, canvas_x, canvas_y):
         """Lida com redimensionamento do slot."""
@@ -5715,34 +5183,7 @@ class MontagemWindow(ttk.Frame):
         self.show_edit_handles(slot)
         self.update_slots_list()
     
-<<<<<<< HEAD
     # Função de rotação removida
-=======
-    def handle_rotation_drag(self, slot, canvas_x, canvas_y):
-        """Lida com rotação do slot."""
-        # Calcula o centro do slot
-        center_x = (slot['x'] + slot['w'] / 2) * self.scale_factor
-        center_y = (slot['y'] + slot['h'] / 2) * self.scale_factor
-        
-        # Calcula o ângulo baseado na posição do mouse
-        import math
-        angle = math.degrees(math.atan2(canvas_y - center_y, canvas_x - center_x))
-        
-        # Arredonda para incrementos de 15 graus
-        angle = round(angle / 15) * 15
-        
-        # Atualiza a rotação do slot
-        slot['rotation'] = angle
-        
-        # Marca modelo como modificado e atualiza interface
-        self.mark_model_modified()
-        self.redraw_slots()
-        self.show_edit_handles(slot)
-        self.update_slots_list()
-        
-        # Atualiza o campo de rotação na interface
-        self.rotation_var.set(str(int(angle)))
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def on_handle_release(self, event):
         """Finaliza edição com handle."""
@@ -5762,7 +5203,6 @@ class MontagemWindow(ttk.Frame):
         help_window.grab_set()
         
         # Texto de ajuda
-<<<<<<< HEAD
 
     def validate_slot_reference(self, slot_id):
         """Valida se a referência do slot está correta para o modelo atual."""
@@ -5817,8 +5257,6 @@ class MontagemWindow(ttk.Frame):
         except Exception as e:
             print(f"❌ Erro na limpeza de templates órfãos: {e}")
 
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         help_text = """
 # Editor de Malha - Ajuda
 
@@ -5893,7 +5331,6 @@ class MontagemWindow(ttk.Frame):
         config_dialog = SystemConfigDialog(self.master)
         config_dialog.wait_window()
     
-<<<<<<< HEAD
     def set_drawing_mode(self):
         """Define o modo de desenho atual."""
         mode = self.drawing_mode.get()
@@ -5905,8 +5342,6 @@ class MontagemWindow(ttk.Frame):
     
     # Funções de rotação removidas
 
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def on_closing(self):
         """Limpa recursos ao fechar a aplicação."""
         if self.live_capture:
@@ -5946,7 +5381,6 @@ class InspecaoWindow(ttk.Frame):
         
         self.setup_ui()
         self.update_button_states()
-<<<<<<< HEAD
         
         # Inicia câmera em segundo plano após inicialização completa
         if self.available_cameras:
@@ -5986,8 +5420,6 @@ class InspecaoWindow(ttk.Frame):
             print(f"Erro ao inicializar webcam {camera_index}: {e}")
             self.camera = None
             self.live_capture = False
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def setup_ui(self):
         # Configuração de estilo industrial Keyence
@@ -6045,11 +5477,7 @@ class InspecaoWindow(ttk.Frame):
         # Nota: widgets ttk não suportam configuração direta de background
         # self.configure(background=self.bg_color) # Esta linha causava erro
         
-<<<<<<< HEAD
         # Frame principal com layout horizontal de três painéis
-=======
-        # Frame principal com layout horizontal
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         main_frame = ttk.Frame(self)
         main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
@@ -6057,7 +5485,6 @@ class InspecaoWindow(ttk.Frame):
         left_panel = ttk.Frame(main_frame)
         left_panel.pack(side=LEFT, fill=Y, padx=(0, 10))
         
-<<<<<<< HEAD
         # Painel central - Apenas imagem
         center_panel = ttk.Frame(main_frame)
         center_panel.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
@@ -6065,11 +5492,6 @@ class InspecaoWindow(ttk.Frame):
         # Painel direito - Resultados e status
         right_panel = ttk.Frame(main_frame)
         right_panel.pack(side=RIGHT, fill=Y, padx=(0, 0), pady=0, ipadx=0)
-=======
-        # Painel direito - Canvas
-        right_panel = ttk.Frame(main_frame)
-        right_panel.pack(side=RIGHT, fill=BOTH, expand=True)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # === PAINEL ESQUERDO ===
         
@@ -6081,11 +5503,7 @@ class InspecaoWindow(ttk.Frame):
         self.style.configure('Header.TFrame', background=self.accent_color)
         
         # Logo e título
-<<<<<<< HEAD
         header_label = ttk.Label(header_frame, text="AutoVerify DX SYSTEM", 
-=======
-        header_label = ttk.Label(header_frame, text="KEYENCE VISION SYSTEM", 
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                                 font=style_config["ok_font"], foreground="white",
                                 background=self.accent_color)
         header_label.pack(pady=10, fill=X)
@@ -6140,7 +5558,6 @@ class InspecaoWindow(ttk.Frame):
         if self.available_cameras:
             self.camera_combo.set(str(self.available_cameras[0]))
         
-<<<<<<< HEAD
         # Nota informativa sobre o ajuste automático
         info_frame = ttk.Frame(webcam_frame)
         info_frame.pack(fill=X, padx=5, pady=2)
@@ -6150,13 +5567,6 @@ class InspecaoWindow(ttk.Frame):
             .pack(side=LEFT, padx=(0, 5))
         
         # Botão para iniciar/parar captura contínua
-=======
-        # Botão para iniciar/parar captura contínua
-        self.btn_live_capture_inspection = ttk.Button(webcam_frame, text="INICIAR CAPTURA CONTÍNUA", 
-                                                     command=self.toggle_live_capture_inspection)
-        self.btn_live_capture_inspection.pack(fill=X, padx=5, pady=2)
-        
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.btn_capture_test = ttk.Button(webcam_frame, text="CAPTURAR IMAGEM", 
                                           command=self.capture_test_from_webcam)
         self.btn_capture_test.pack(fill=X, padx=5, pady=2)
@@ -6176,7 +5586,6 @@ class InspecaoWindow(ttk.Frame):
                                      foreground=self.success_color, font=("Arial", 8, "bold"))
         self.inspection_status_label.pack(side=LEFT)
         
-<<<<<<< HEAD
         # Botões de inspeção contínua removidos conforme solicitado pelo usuário
         
         # Botão para inspecionar sem tirar foto
@@ -6234,21 +5643,6 @@ class InspecaoWindow(ttk.Frame):
         # Resultados - Estilo industrial Keyence (reduzido) - Movido para parte inferior
         results_frame = ttk.LabelFrame(right_panel, text="RESULTADOS DE INSPEÇÃO")
         results_frame.pack(fill=X, expand=False, side=BOTTOM, pady=(0, 10))
-=======
-        # Botão de inspeção com ícone industrial
-        self.btn_inspect = ttk.Button(inspection_frame, text="▶ EXECUTAR INSPEÇÃO", 
-                                    command=self.run_inspection, style="Inspect.TButton")
-        self.btn_inspect.pack(fill=X, padx=5, pady=5)
-        
-        # Botão de inspeção contínua
-        self.btn_continuous_inspect = ttk.Button(inspection_frame, text="⟳ INSPEÇÃO CONTÍNUA", 
-                                              command=self.toggle_live_capture_inspection)
-        self.btn_continuous_inspect.pack(fill=X, padx=5, pady=5)
-        
-        # Resultados - Estilo industrial Keyence
-        results_frame = ttk.LabelFrame(left_panel, text="RESULTADOS DE INSPEÇÃO")
-        results_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Painel de resumo de resultados
         summary_frame = ttk.Frame(results_frame)
@@ -6257,15 +5651,9 @@ class InspecaoWindow(ttk.Frame):
         # Criar painel de resumo de status
         self.create_status_summary_panel(summary_frame)
         
-<<<<<<< HEAD
         # Lista de resultados com estilo industrial (altura reduzida)
         list_container = ttk.Frame(results_frame)
         list_container.pack(fill=X, expand=False, padx=5, pady=5)
-=======
-        # Lista de resultados com estilo industrial
-        list_container = ttk.Frame(results_frame)
-        list_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         scrollbar_results = ttk.Scrollbar(list_container)
         scrollbar_results.pack(side=RIGHT, fill=Y)
@@ -6285,12 +5673,8 @@ class InspecaoWindow(ttk.Frame):
                       background=[("selected", style_config["selection_color"])],
                       foreground=[("selected", "#000000")])
         
-<<<<<<< HEAD
         # Altura reduzida para 4 linhas em vez de 8
         self.results_listbox = ttk.Treeview(list_container, yscrollcommand=scrollbar_results.set, height=4)
-=======
-        self.results_listbox = ttk.Treeview(list_container, yscrollcommand=scrollbar_results.set, height=8)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.results_listbox.pack(side=LEFT, fill=BOTH, expand=True)
         scrollbar_results.config(command=self.results_listbox.yview)
         
@@ -6310,45 +5694,6 @@ class InspecaoWindow(ttk.Frame):
         self.results_listbox.tag_configure("pass", background="#004400", foreground="#FFFFFF")
         self.results_listbox.tag_configure("fail", background="#440000", foreground="#FFFFFF")
         
-<<<<<<< HEAD
-=======
-        # === PAINEL DIREITO ===
-        
-        # Dividir painel direito em duas seções
-        # Seção superior - Canvas de inspeção com estilo industrial
-        canvas_frame = ttk.LabelFrame(right_panel, text="VISUALIZAÇÃO DE INSPEÇÃO")
-        canvas_frame.pack(fill=BOTH, expand=True, pady=(0, 5))
-        
-        # Frame para canvas e scrollbars
-        canvas_container = ttk.Frame(canvas_frame)
-        canvas_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
-        
-        # Scrollbars
-        v_scrollbar = ttk.Scrollbar(canvas_container, orient=VERTICAL)
-        v_scrollbar.pack(side=RIGHT, fill=Y)
-        
-        h_scrollbar = ttk.Scrollbar(canvas_container, orient=HORIZONTAL)
-        h_scrollbar.pack(side=BOTTOM, fill=X)
-        
-        # Canvas com fundo escuro estilo industrial
-        self.canvas = Canvas(canvas_container, bg="#121212",
-                           yscrollcommand=v_scrollbar.set,
-                           xscrollcommand=h_scrollbar.set)
-        self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
-        
-        # Configurar scrollbars
-        v_scrollbar.config(command=self.canvas.yview)
-        h_scrollbar.config(command=self.canvas.xview)
-        
-        # Seção inferior - Painel de resumo de status estilo Keyence IV3
-        status_summary_frame = ttk.LabelFrame(right_panel, text="PAINEL DE STATUS")
-        status_summary_frame.pack(fill=X, pady=(5, 0))
-        
-        # Frame interno para o grid de status
-        self.status_grid_frame = ttk.Frame(status_summary_frame)
-        self.status_grid_frame.pack(fill=X, padx=10, pady=10)
-        
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         # Dicionário para armazenar widgets de status
         self.status_widgets = {}
         
@@ -6398,8 +5743,9 @@ class InspecaoWindow(ttk.Frame):
             # Carrega slots
             self.slots = model_data['slots']
             self.current_model_id = model_id
+            # Define o modelo atual para uso em outras funções
+            self.current_model = model_data
             
-<<<<<<< HEAD
             # Limpa resultados de inspeção anteriores
             self.inspection_results = []
             
@@ -6408,8 +5754,6 @@ class InspecaoWindow(ttk.Frame):
             if children:
                 self.results_listbox.delete(*children)
             
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             # Criar painel de resumo de status
             self.create_status_summary_panel()
             
@@ -6420,11 +5764,7 @@ class InspecaoWindow(ttk.Frame):
             
         except Exception as e:
             print(f"Erro ao carregar modelo: {e}")
-<<<<<<< HEAD
             self.status_var.set(f"Erro ao carregar modelo: {str(e)}")
-=======
-            messagebox.showerror("Erro", f"Erro ao carregar modelo: {str(e)}")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def load_test_image(self):
         """Carrega imagem de teste."""
@@ -6439,14 +5779,7 @@ class InspecaoWindow(ttk.Frame):
                 if self.img_test is None:
                     raise ValueError(f"Não foi possível carregar a imagem: {file_path}")
                 
-<<<<<<< HEAD
 
-=======
-                # Para de captura ao vivo se estiver ativa
-                if self.live_view:
-                    self.stop_live_view()
-                
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 # Limpa resultados de inspeção anteriores
                 self.inspection_results = []
                 
@@ -6456,7 +5789,6 @@ class InspecaoWindow(ttk.Frame):
                 
             except Exception as e:
                 print(f"Erro ao carregar imagem de teste: {e}")
-<<<<<<< HEAD
                 self.status_var.set(f"Erro ao carregar imagem: {str(e)}")
     
     def start_live_capture_inspection(self):
@@ -6465,17 +5797,10 @@ class InspecaoWindow(ttk.Frame):
         if not hasattr(self, 'live_capture'):
             self.live_capture = False
             
-=======
-                messagebox.showerror("Erro", f"Erro ao carregar imagem: {str(e)}")
-    
-    def start_live_capture_inspection(self):
-        """Inicia captura contínua da câmera em segundo plano para inspeção."""
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         if self.live_capture:
             return
             
         try:
-<<<<<<< HEAD
             # Desativa o modo de inspeção manual se estiver ativo
             if hasattr(self, 'manual_inspection_mode') and self.manual_inspection_mode:
                 try:
@@ -6499,13 +5824,6 @@ class InspecaoWindow(ttk.Frame):
                     self.stop_live_view()
                 except Exception as stop_view_error:
                     print(f"Erro ao parar visualização ao vivo: {stop_view_error}")
-=======
-            camera_index = int(self.camera_combo.get()) if self.camera_combo.get() else 0
-            
-            # Para live view se estiver ativo
-            if self.live_view:
-                self.stop_live_view()
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             
             # Detecta o sistema operacional
             import platform
@@ -6534,7 +5852,6 @@ class InspecaoWindow(ttk.Frame):
                 self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
                 self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
-<<<<<<< HEAD
             # Inicializa contador de frames para inspeção automática
             self._inspection_frame_count = 0
             
@@ -6919,25 +6236,20 @@ class InspecaoWindow(ttk.Frame):
             if not hasattr(self, 'img_test') or self.img_test is None:
                 return
                 
-            # Cria uma cópia da imagem para exibição
-            img_display = self.img_test.copy()
-            
-            # Converte para formato PIL
-            img_pil = Image.fromarray(cv2.cvtColor(img_display, cv2.COLOR_BGR2RGB))
-            
             # Obtém dimensões do canvas
             canvas_width = self.canvas.winfo_width()
             canvas_height = self.canvas.winfo_height()
             
-            # Redimensiona a imagem para caber no canvas mantendo a proporção
-            img_width, img_height = img_pil.size
-            scale = min(canvas_width/img_width, canvas_height/img_height)
-            new_width = int(img_width * scale)
-            new_height = int(img_height * scale)
-            img_pil = img_pil.resize((new_width, new_height), Image.LANCZOS)
+            # Usa a função cv2_to_tk para manter consistência com o resto do código
+            self.img_display, self.scale_factor = cv2_to_tk(self.img_test, max_w=canvas_width, max_h=canvas_height)
             
-            # Atualiza a exibição no canvas principal
-            self.img_display = ImageTk.PhotoImage(img_pil)
+            if self.img_display is None:
+                return
+            
+            # Calcula dimensões da imagem redimensionada
+            img_height, img_width = self.img_test.shape[:2]
+            new_width = int(img_width * self.scale_factor)
+            new_height = int(img_height * self.scale_factor)
             
             # Limpa o canvas e exibe a imagem centralizada
             self.canvas.delete("all")
@@ -6966,46 +6278,12 @@ class InspecaoWindow(ttk.Frame):
             return
             
         if not hasattr(self, 'camera') or not self.camera:
-=======
-            self.live_capture = True
-            self.process_live_frame_inspection()
-            self.status_var.set(f"Câmera {camera_index} ativa em segundo plano")
-            
-        except Exception as e:
-            print(f"Erro ao iniciar câmera: {e}")
-            messagebox.showerror("Erro", f"Erro ao iniciar câmera: {str(e)}")
-    
-    def stop_live_capture_inspection(self):
-        """Para a captura contínua da câmera para inspeção."""
-        self.live_capture = False
-        if self.camera and not self.live_view:  # Não libera se live_view estiver usando
-            self.camera.release()
-            self.camera = None
-        self.latest_frame = None
-        if not self.live_view:
-            self.status_var.set("Câmera desconectada")
-    
-    def toggle_live_capture_inspection(self):
-        """Alterna entre iniciar e parar a captura contínua para inspeção."""
-        if not self.live_capture:
-            self.start_live_capture_inspection()
-            if self.live_capture:  # Se iniciou com sucesso
-                self.btn_live_capture_inspection.config(text="Parar Captura Contínua")
-        else:
-            self.stop_live_capture_inspection()
-            self.btn_live_capture_inspection.config(text="Iniciar Captura Contínua")
-    
-    def process_live_frame_inspection(self):
-        """Processa frames da câmera em segundo plano para inspeção."""
-        if not self.live_capture or not self.camera:
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             return
         
         try:
             ret, frame = self.camera.read()
             if ret:
                 self.latest_frame = frame.copy()
-<<<<<<< HEAD
                 
                 # NÃO atualiza a exibição automaticamente - apenas mantém o frame mais recente
                 # A exibição e inspeção serão executadas apenas quando Enter for pressionado
@@ -7020,16 +6298,6 @@ class InspecaoWindow(ttk.Frame):
         
         # Agenda próximo frame (100ms para melhor estabilidade)
         if hasattr(self, 'live_capture') and self.live_capture:
-=======
-        except Exception as e:
-            print(f"Erro ao capturar frame: {e}")
-            # Para a captura em caso de erro
-            self.stop_live_capture_inspection()
-            return
-        
-        # Agenda próximo frame (100ms para melhor estabilidade)
-        if self.live_capture:
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             self.master.after(100, self.process_live_frame_inspection)
     
     def capture_test_from_webcam(self):
@@ -7054,33 +6322,22 @@ class InspecaoWindow(ttk.Frame):
                 # Limpa resultados de inspeção anteriores
                 self.inspection_results = []
                 
-<<<<<<< HEAD
-=======
-                # Atualiza a exibição
-                self.update_display()
-                
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 # Atualiza estado dos botões
                 self.update_button_states()
                 
                 camera_index = int(self.camera_combo.get()) if self.camera_combo.get() else 0
                 self.status_var.set(f"Imagem capturada da câmera {camera_index}")
-<<<<<<< HEAD
                 
                 # Salva a imagem no histórico de fotos
                 self.save_to_photo_history(captured_image)
                 
                 # Exibe a imagem em tela cheia
                 self.show_fullscreen_image()
-=======
-                messagebox.showinfo("Sucesso", "Imagem capturada instantaneamente!")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 
                 # Executa inspeção automática se modelo carregado
                 if hasattr(self, 'slots') and self.slots and hasattr(self, 'img_reference') and self.img_reference is not None:
                     self.run_inspection()
             else:
-<<<<<<< HEAD
                 self.status_var.set("Nenhuma imagem disponível para captura")
                 
         except Exception as e:
@@ -7224,19 +6481,11 @@ class InspecaoWindow(ttk.Frame):
             print(f"Resultado de inspeção salvo no histórico: {file_path}")
         except Exception as e:
             print(f"Erro ao salvar resultado de inspeção no histórico: {e}")
-=======
-                messagebox.showerror("Erro", "Nenhuma imagem disponível para captura.")
-                
-        except Exception as e:
-            print(f"Erro ao capturar da webcam: {e}")
-            messagebox.showerror("Erro", f"Erro ao capturar da webcam: {str(e)}")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
 
     
     def stop_live_view(self):
         """Para a captura ao vivo."""
-<<<<<<< HEAD
         try:
             # Verifica se o atributo live_view existe
             if hasattr(self, 'live_view'):
@@ -7349,11 +6598,19 @@ class InspecaoWindow(ttk.Frame):
                 self.canvas.delete("result_overlay")
                 self.canvas.delete("inspection")
                 
+                # Calcula dimensões da imagem redimensionada e offsets para centralização
+                img_height, img_width = self.img_test.shape[:2]
+                new_width = int(img_width * self.scale_factor)
+                new_height = int(img_height * self.scale_factor)
+                self.x_offset = max(0, (self.canvas.winfo_width() - new_width) // 2)
+                self.y_offset = max(0, (self.canvas.winfo_height() - new_height) // 2)
+                
                 # Cria ou atualiza imagem
                 if not hasattr(self, '_canvas_image_id'):
-                    self._canvas_image_id = self.canvas.create_image(0, 0, anchor=NW, image=self.img_display)
+                    self._canvas_image_id = self.canvas.create_image(self.x_offset, self.y_offset, anchor=NW, image=self.img_display)
                 else:
                     self.canvas.itemconfig(self._canvas_image_id, image=self.img_display)
+                    self.canvas.coords(self._canvas_image_id, self.x_offset, self.y_offset)
             except Exception as canvas_update_error:
                 print(f"Erro ao atualizar canvas: {canvas_update_error}")
                 return
@@ -7653,266 +6910,6 @@ class InspecaoWindow(ttk.Frame):
             # O status já foi atualizado acima com o texto: f"INSPEÇÃO: {final_status} - {passed}/{total} SLOTS OK, {failed} FALHAS"
         except Exception as final_error:
             print(f"Erro ao processar resultado final: {final_error}")
-=======
-        self.live_view = False
-        if self.camera:
-            self.camera.release()
-            self.camera = None
-    
-    def process_live_frame(self):
-        """Processa frame da câmera de forma otimizada"""
-        if not self.live_view or not self.camera:
-            return
-        
-        ret, frame = self.camera.read()
-        if ret:
-            self.img_test = frame
-            self.update_display()
-            
-            # Inspeção automática otimizada (menos frequente)
-            if self.slots and hasattr(self, '_frame_count'):
-                self._frame_count += 1
-                # Executa inspeção a cada 5 frames para melhor performance
-                if self._frame_count % 5 == 0:
-                    self.run_inspection(show_message=False)
-            elif self.slots:
-                self._frame_count = 0
-        
-        # Agenda próximo frame
-        if self.live_view:
-            self.master.after(100, self.process_live_frame)
-    
-    def update_display(self):
-        """Atualiza exibição no canvas de forma otimizada"""
-        if self.img_test is None:
-            return
-        
-        # === CONVERSÃO OTIMIZADA ===
-        self.img_display, self.scale_factor = cv2_to_tk(self.img_test, PREVIEW_W, PREVIEW_H)
-        
-        if self.img_display is None:
-            return
-        
-        # === ATUALIZAÇÃO EFICIENTE DO CANVAS ===
-        # Remove apenas overlays, mantém imagem base quando possível
-        self.canvas.delete("result_overlay")
-        self.canvas.delete("inspection")
-        
-        # Cria ou atualiza imagem
-        if not hasattr(self, '_canvas_image_id'):
-            self._canvas_image_id = self.canvas.create_image(0, 0, anchor=NW, image=self.img_display)
-        else:
-            self.canvas.itemconfig(self._canvas_image_id, image=self.img_display)
-        
-        # Desenha resultados se disponíveis
-        if hasattr(self, 'inspection_results') and self.inspection_results:
-            self.draw_inspection_results()
-        
-        # Atualiza scroll region apenas se necessário
-        bbox = self.canvas.bbox("all")
-        if bbox != self.canvas.cget("scrollregion"):
-            self.canvas.configure(scrollregion=bbox)
-    
-    def run_inspection(self, show_message=True):
-        """Executa inspeção otimizada com estilo industrial Keyence"""
-        # === ATUALIZAÇÃO DE STATUS ===
-        try:
-            self.inspection_status_var.set("PROCESSANDO...")
-            self.update_idletasks()  # Força atualização da UI
-        except Exception as e:
-            print(f"Erro ao atualizar status: {e}")
-        
-        # === VALIDAÇÃO INICIAL ===
-        if not self.slots or self.img_reference is None or self.img_test is None:
-            if show_message:
-                messagebox.showerror("Erro", "Carregue o modelo de referência E a imagem de teste antes de inspecionar.", parent=self)
-            self.inspection_status_var.set("ERRO")
-            return
-        
-        print("--- Iniciando Inspeção Keyence ---")
-        
-        # Limpa resultados anteriores
-        self.canvas.delete("result_overlay")
-        
-        # === 1. ALINHAMENTO DE IMAGEM ===
-        try:
-            self.inspection_status_var.set("ALINHANDO...")
-            self.update_idletasks()  # Força atualização da UI
-            M, _, align_error = find_image_transform(self.img_reference, self.img_test)
-        except Exception as e:
-            self.inspection_status_var.set("ERRO")
-            if show_message:
-                messagebox.showerror("Erro de Processamento", f"Erro durante alinhamento: {e}", parent=self)
-            return
-        
-        if M is None:
-            print(f"FALHA no Alinhamento: {align_error}")
-            self.inspection_status_var.set("FALHA DE ALINHAMENTO")
-            if show_message:
-                messagebox.showerror("Falha no Alinhamento", f"Não foi possível alinhar as imagens.\nErro: {align_error}", parent=self)
-            
-            # Desenha slots de referência em cor de erro (estilo Keyence)
-            for slot in self.slots:
-                xr, yr, wr, hr = slot['x'], slot['y'], slot['w'], slot['h']
-                xa, ya = xr * self.scale_factor, yr * self.scale_factor
-                wa, ha = wr * self.scale_factor, hr * self.scale_factor
-                self.canvas.create_rectangle(xa, ya, xa+wa, ya+ha, outline=COLOR_ALIGN_FAIL, width=2, tags="result_overlay")
-                # Carrega as configurações de estilo
-                style_config = load_style_config()
-                self.canvas.create_text(xa + wa/2, ya + ha/2, text=f"S{slot['id']}\nFAIL", fill=COLOR_ALIGN_FAIL, font=style_config["ng_font"], tags="result_overlay", justify="center")
-            return
-        
-        # === 2. VERIFICAÇÃO DOS SLOTS (ESTILO KEYENCE) ===
-        try:
-            self.inspection_status_var.set("INSPECIONANDO...")
-            self.update_idletasks()  # Força atualização da UI
-            
-            overall_ok = True
-            self.inspection_results = []
-            failed_slots = []  # Para log otimizado
-            
-            # Adicionar modelo_id aos resultados se disponível
-            model_id = getattr(self, 'current_model_id', '--')
-            
-            for i, slot in enumerate(self.slots):
-                # Atualizar status com progresso
-                progress = f"SLOT {i+1}/{len(self.slots)}"
-                self.inspection_status_var.set(progress)
-                self.update_idletasks()  # Força atualização da UI
-                
-                # Processamento otimizado sem logs excessivos
-                is_ok, correlation, pixels, corners, bbox, log_msgs = check_slot(self.img_test, slot, M)
-                
-                # Log apenas para falhas (reduz overhead)
-                if not is_ok:
-                    failed_slots.append(f"S{slot['id']}({slot['tipo']})")
-                    for msg in log_msgs:
-                        print(f"  -> {msg}")
-                
-                # Armazena resultado otimizado com estilo Keyence
-                result = {
-                    'slot_id': slot['id'],
-                    'passou': is_ok,
-                    'score': correlation,
-                    'detalhes': f"Score: {correlation:.3f}, Pixels: {pixels}",
-                    'slot_data': slot,
-                    'corners': corners,
-                    'bbox': bbox,
-                    'model_id': model_id
-                }
-                self.inspection_results.append(result)
-                
-                if not is_ok:
-                    overall_ok = False
-        except Exception as e:
-            self.inspection_status_var.set("ERRO")
-            if show_message:
-                messagebox.showerror("Erro de Processamento", f"Erro durante inspeção: {e}", parent=self)
-            return
-            
-        # === 3. DESENHO OTIMIZADO NO CANVAS COM ESTILO KEYENCE ===
-        for result in self.inspection_results:
-            is_ok = result['passou']
-            corners = result['corners']
-            bbox = result['bbox']
-            slot_id = result['slot_id']
-            
-            # Cores no estilo Keyence
-            fill_color = COLOR_PASS if is_ok else COLOR_FAIL
-            
-            if corners is not None:
-                # Conversão otimizada de coordenadas
-                canvas_corners = [(int(pt[0] * self.scale_factor), int(pt[1] * self.scale_factor)) for pt in corners]
-                
-                # Desenha polígono transformado estilo Keyence
-                self.canvas.create_polygon(canvas_corners, outline=fill_color, fill="", width=2, tags="result_overlay")
-                
-                # Adiciona um pequeno retângulo de status no canto estilo Keyence
-                status_x, status_y = canvas_corners[0][0], canvas_corners[0][1] - 20
-                self.canvas.create_rectangle(status_x, status_y, status_x + 40, status_y + 16, 
-                                           fill=fill_color, outline="", tags="result_overlay")
-                
-                # Label otimizado estilo Keyence
-                # Carrega as configurações de estilo
-                style_config = load_style_config()
-                self.canvas.create_text(status_x + 20, status_y + 8,
-                                      text=f"S{slot_id}", fill="#FFFFFF", anchor="center", tags="result_overlay",
-                                      font=style_config["ok_font"])
-                
-                # Adiciona indicador de status
-                status_text = "OK" if is_ok else "NG"
-                # Carrega as configurações de estilo se ainda não foi carregado
-                if 'style_config' not in locals():
-                    style_config = load_style_config()
-                # Escolhe a fonte baseada no resultado
-                font_str = style_config["ok_font"] if is_ok else style_config["ng_font"]
-                self.canvas.create_text(canvas_corners[0][0] + 60, canvas_corners[0][1] - 12,
-                                      text=status_text, fill=fill_color, anchor="nw", tags="result_overlay",
-                                      font=font_str)
-            elif bbox != [0,0,0,0]:  # Fallback para bbox com estilo Keyence
-                xa, ya = bbox[0] * self.scale_factor, bbox[1] * self.scale_factor
-                wa, ha = bbox[2] * self.scale_factor, bbox[3] * self.scale_factor
-                self.canvas.create_rectangle(xa, ya, xa+wa, ya+ha, outline=COLOR_FAIL, width=1, dash=(4, 2), tags="result_overlay")
-                
-                # Adiciona indicador de erro estilo Keyence
-                # Carrega as configurações de estilo
-                style_config = load_style_config()
-                self.canvas.create_text(xa + wa/2, ya + ha/2, text=f"S{slot_id}\nERRO", fill=COLOR_FAIL, 
-                                      font=style_config["ng_font"], tags="result_overlay", justify="center")
-        
-        # === 4. RESULTADO FINAL ESTILO KEYENCE ===
-        total = len(self.inspection_results)
-        passed = sum(1 for r in self.inspection_results if r['passou'])
-        failed = total - passed
-        final_status = "APROVADO" if overall_ok else "REPROVADO"
-        
-        # Atualizar status de inspeção
-        if overall_ok:
-            self.inspection_status_var.set("OK")
-        else:
-            self.inspection_status_var.set("NG")
-        
-        # Log otimizado estilo Keyence
-        if failed_slots:
-            print(f"Falhas detectadas em: {', '.join(failed_slots)}")
-        print(f"--- Inspeção Keyence Concluída: {final_status} ({passed}/{total}) ---")
-        
-        # Atualiza interface com estilo industrial Keyence
-        self.update_results_list()
-        
-        # Status com estilo industrial Keyence
-        status_text = f"INSPEÇÃO: {final_status} - {passed}/{total} SLOTS OK, {failed} FALHAS"
-        self.status_var.set(status_text)
-        
-        # Atualiza cor da barra de status baseado no resultado estilo Keyence
-        try:
-            # Armazenamos uma referência direta ao status_bar durante a criação
-            if hasattr(self, 'status_bar'):
-                if overall_ok:
-                    self.status_bar.config(background="#00AA00", foreground="#FFFFFF")
-                else:
-                    self.status_bar.config(background="#CC0000", foreground="#FFFFFF")
-                    
-            # Atualizar cor do indicador de status de inspeção usando referência direta
-            if hasattr(self, 'inspection_status_label'):
-                if overall_ok:
-                    self.inspection_status_label.config(foreground="#00AA00")
-                else:
-                    self.inspection_status_label.config(foreground="#CC0000")
-        except Exception as e:
-            print(f"Erro ao atualizar status_bar: {e}")
-        
-        if show_message:
-            # Mensagem estilo industrial Keyence
-            if overall_ok:
-                messagebox.showinfo("RESULTADO DA INSPEÇÃO KEYENCE", 
-                                  f"✓ INSPEÇÃO CONCLUÍDA COM SUCESSO\n\nRESULTADO: {final_status}\n{passed}/{total} SLOTS APROVADOS", 
-                                  parent=self)
-            else:
-                messagebox.showerror("RESULTADO DA INSPEÇÃO KEYENCE", 
-                                   f"⚠ FALHA NA INSPEÇÃO\n\nRESULTADO: {final_status}\n{passed}/{total} SLOTS APROVADOS\n{failed} SLOTS REPROVADOS", 
-                                   parent=self)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def create_status_summary_panel(self, parent_frame=None):
         """Cria o painel de resumo de status estilo Keyence IV3"""
@@ -7959,7 +6956,6 @@ class InspecaoWindow(ttk.Frame):
             self.id_label.pack(side=LEFT, padx=5, fill=X, expand=True)
             return
         
-<<<<<<< HEAD
         # Caso contrário, estamos criando o painel principal de status
         # Primeiro, limpe qualquer widget existente no status_grid_frame
         for widget in self.status_grid_frame.winfo_children():
@@ -7975,8 +6971,6 @@ class InspecaoWindow(ttk.Frame):
                                 background=self.accent_color)
         header_label.pack(pady=10, fill=X)
         
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         # Caso contrário, criar o painel de resumo de slots
         # Limpar widgets existentes
         for widget in self.status_widgets.values():
@@ -7987,7 +6981,6 @@ class InspecaoWindow(ttk.Frame):
         if not self.slots:
             return
         
-<<<<<<< HEAD
         # Criar um frame para conter os slots usando pack em vez de grid
         slots_container = ttk.Frame(self.status_grid_frame)
         slots_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
@@ -8010,24 +7003,6 @@ class InspecaoWindow(ttk.Frame):
             # Frame para cada slot com estilo industrial
             slot_frame = ttk.Frame(column_frames[col_idx], relief="raised", borderwidth=2)
             slot_frame.pack(fill=X, pady=3, padx=2)
-=======
-        # Calcular layout do grid (máximo 6 colunas)
-        num_slots = len(self.slots)
-        cols = min(6, num_slots)
-        rows = (num_slots + cols - 1) // cols
-        
-        # Criar widgets para cada slot com estilo industrial Keyence
-        for i, slot in enumerate(self.slots):
-            row = i // cols
-            col = i % cols
-            
-            # Frame para cada slot com estilo industrial
-            slot_frame = ttk.Frame(self.status_grid_frame, relief="raised", borderwidth=2)
-            slot_frame.grid(row=row, column=col, padx=3, pady=3, sticky="nsew")
-            
-            # Configurar peso das colunas para expansão uniforme
-            self.status_grid_frame.columnconfigure(col, weight=1)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             
             # Label do ID do slot com estilo industrial Keyence
             id_label = ttk.Label(slot_frame, text=f"SLOT {slot['id']}", 
@@ -8059,16 +7034,11 @@ class InspecaoWindow(ttk.Frame):
     
     def update_status_summary_panel(self):
         """Atualiza o painel de resumo com os resultados da inspeção no estilo industrial"""
-<<<<<<< HEAD
         if not hasattr(self, 'status_widgets') or not self.status_widgets:
-=======
-        if not self.status_widgets:
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             return
         
         # Resetar todos os status com estilo industrial
         for slot_id, widgets in self.status_widgets.items():
-<<<<<<< HEAD
             if all(key in widgets for key in ['status_label', 'score_label', 'frame']):
                 try:
                     widgets['status_label'].config(text="---", foreground="#7F8C8D", background="#2A2A2A")
@@ -8081,12 +7051,6 @@ class InspecaoWindow(ttk.Frame):
         if not hasattr(self, 'inspection_results') or not self.inspection_results:
             return
             
-=======
-            widgets['status_label'].config(text="---", foreground="#7F8C8D", background="#2A2A2A")
-            widgets['score_label'].config(text="---", background="#1E1E1E", foreground="#CCCCCC")
-            widgets['frame'].config(relief="raised", borderwidth=2, padding=2)
-        
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         # Atualizar com resultados da inspeção usando estilo industrial
         for result in self.inspection_results:
             slot_id = result['slot_id']
@@ -8096,7 +7060,6 @@ class InspecaoWindow(ttk.Frame):
                 # Carrega as configurações de estilo
                 style_config = load_style_config()
                 
-<<<<<<< HEAD
                 try:
                     if result['passou']:
                         # Estilo industrial para OK (cor personalizada)
@@ -8117,25 +7080,6 @@ class InspecaoWindow(ttk.Frame):
                         widgets['score_label'].config(text=score_text, background="#330000", foreground="#FFFFFF")
                 except Exception as e:
                     print(f"Erro ao atualizar widget do slot {slot_id}: {e}")
-=======
-                if result['passou']:
-                    # Estilo industrial para OK (cor personalizada)
-                    widgets['status_label'].config(text="OK", foreground="#FFFFFF", background=style_config["ok_color"])
-                    widgets['frame'].config(relief="raised", borderwidth=3)
-                    widgets['id_label'].config(background="#003300", foreground="#FFFFFF")
-                else:
-                    # Estilo industrial para NG (cor personalizada)
-                    widgets['status_label'].config(text="NG", foreground="#FFFFFF", background=style_config["ng_color"])
-                    widgets['frame'].config(relief="raised", borderwidth=3)
-                    widgets['id_label'].config(background="#330000", foreground="#FFFFFF")
-                
-                # Atualizar score com estilo industrial
-                score_text = f"{result['score']:.3f}"
-                if result['passou']:
-                    widgets['score_label'].config(text=score_text, background="#003300", foreground="#FFFFFF")
-                else:
-                    widgets['score_label'].config(text=score_text, background="#330000", foreground="#FFFFFF")
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def update_results_list(self):
         """Atualiza lista de resultados com estilo industrial Keyence"""
@@ -8204,11 +7148,7 @@ class InspecaoWindow(ttk.Frame):
         if hasattr(self, 'status_label') and hasattr(self, 'score_label') and hasattr(self, 'id_label'):
             # Calcular status geral no estilo Keyence
             if total_slots > 0:
-<<<<<<< HEAD
                 total_score / total_slots
-=======
-                avg_score = total_score / total_slots
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 overall_status = "OK" if passed_slots == total_slots else "NG"
                 
                 # Atualizar labels com estilo Keyence
@@ -8234,11 +7174,11 @@ class InspecaoWindow(ttk.Frame):
         for result in self.inspection_results:
             slot = result['slot_data']
             
-            # Converte coordenadas da imagem para canvas
-            x1 = int(slot['x'] * self.scale_factor)
-            y1 = int(slot['y'] * self.scale_factor)
-            x2 = int((slot['x'] + slot['w']) * self.scale_factor)
-            y2 = int((slot['y'] + slot['h']) * self.scale_factor)
+            # Converte coordenadas da imagem para canvas (incluindo offsets)
+            x1 = int(slot['x'] * self.scale_factor) + self.x_offset
+            y1 = int(slot['y'] * self.scale_factor) + self.y_offset
+            x2 = int((slot['x'] + slot['w']) * self.scale_factor) + self.x_offset
+            y2 = int((slot['y'] + slot['h']) * self.scale_factor) + self.y_offset
             
             # Carrega as configurações de estilo
             style_config = load_style_config()
@@ -8291,19 +7231,28 @@ class InspecaoWindow(ttk.Frame):
     
     def update_button_states(self):
         """Atualiza estado dos botões baseado no estado atual."""
-<<<<<<< HEAD
         len(self.slots) > 0
         self.img_test is not None
         
         # Botões que dependem de modelo e imagem de teste
         # Nota: btn_inspect foi removido, então não precisamos mais atualizar seu estado
-=======
-        has_model = len(self.slots) > 0
-        has_test_image = self.img_test is not None
+    
+    def start_background_frame_capture(self):
+        """Inicia a captura contínua de frames em segundo plano."""
+        def capture_frames():
+            while self.live_capture and self.camera and self.camera.isOpened():
+                try:
+                    ret, frame = self.camera.read()
+                    if ret:
+                        self.latest_frame = frame.copy()
+                    time.sleep(0.033)  # ~30 FPS
+                except Exception as e:
+                    print(f"Erro na captura de frame: {e}")
+                    break
         
-        # Botões que dependem de modelo e imagem de teste
-        self.btn_inspect.config(state=NORMAL if has_model and has_test_image else DISABLED)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+        import threading
+        self.capture_thread = threading.Thread(target=capture_frames, daemon=True)
+        self.capture_thread.start()
     
     def on_closing_inspection(self):
         """Limpa recursos ao fechar a aplicação de inspeção."""
@@ -8344,7 +7293,6 @@ def create_main_window():
     inspecao_frame.pack(fill=BOTH, expand=True)
     notebook.add(inspecao_frame, text="Inspeção")
     
-<<<<<<< HEAD
     # Aba Histórico de Fotos
     historico_frame = HistoricoFotosWindow(notebook)
     historico_frame.pack(fill=BOTH, expand=True)
@@ -9012,15 +7960,6 @@ def main():
     root = create_main_window()
     root.mainloop()
     return root
-=======
-    return root
-
-
-def main():
-    """Função principal do módulo montagem."""
-    app = create_main_window()
-    app.mainloop()
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 
 if __name__ == "__main__":

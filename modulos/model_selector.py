@@ -6,7 +6,6 @@ from pathlib import Path
 try:
     # Quando importado como módulo
     from .database_manager import DatabaseManager
-<<<<<<< HEAD
     from .utils import load_style_config
 except ImportError:
     # Quando executado diretamente
@@ -17,11 +16,6 @@ except ImportError:
         # Quando executado a partir do diretório raiz
         from modulos.database_manager import DatabaseManager
         from modulos.utils import load_style_config
-=======
-except ImportError:
-    # Quando executado diretamente
-    from database_manager import DatabaseManager
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 class ModelSelectorDialog:
     """Diálogo para seleção, criação e gerenciamento de modelos."""
@@ -56,19 +50,8 @@ class ModelSelectorDialog:
         main_frame.pack(fill=BOTH, expand=True)
         
         # Título
-<<<<<<< HEAD
         # Carrega as configurações de estilo
         style_config = load_style_config()
-=======
-        # Importar style_config se necessário
-        try:
-            import json
-            with open('style_config.json', 'r') as f:
-                style_config = json.load(f)
-        except Exception as e:
-            print(f"Erro ao carregar style_config.json: {e}")
-            style_config = {"ok_font": ("Arial", 12, "bold")}
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             
         title_label = ttk.Label(main_frame, text="Gerenciar Modelos de Inspeção", 
                                font=style_config["ok_font"])
@@ -379,12 +362,9 @@ class SaveModelDialog:
         self.current_model_id = current_model_id
         self.result = None
         
-<<<<<<< HEAD
         # Carrega as configurações de estilo
         self.style_config = load_style_config()
         
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.dialog = ttk.Toplevel(parent)
         self.dialog.title("Salvar Modelo")
         self.dialog.geometry("400x200")
@@ -414,11 +394,7 @@ class SaveModelDialog:
                 
                 title_label = ttk.Label(main_frame, 
                                        text=f"Salvar alterações no modelo '{modelo['nome']}'?",
-<<<<<<< HEAD
                                        font=self.style_config["ok_font"])
-=======
-                                       font=style_config["ok_font"])
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 title_label.pack(pady=(0, 20))
                 
                 # Botões para modelo existente
@@ -436,11 +412,7 @@ class SaveModelDialog:
                 ttk.Button(btn_frame, text="Cancelar", 
                           command=self.on_cancel).pack(side=RIGHT)
                 
-<<<<<<< HEAD
             except Exception:
-=======
-            except Exception as e:
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 # Se erro ao carregar modelo atual, trata como novo
                 self.current_model_id = None
                 self.setup_new_model_ui(main_frame)
@@ -450,11 +422,7 @@ class SaveModelDialog:
     def setup_new_model_ui(self, parent_frame):
         """Configura UI para novo modelo."""
         title_label = ttk.Label(parent_frame, text="Salvar Novo Modelo",
-<<<<<<< HEAD
                                font=self.style_config["ok_font"])
-=======
-                               font=style_config["ok_font"])
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         title_label.pack(pady=(0, 20))
         
         # Campo para nome

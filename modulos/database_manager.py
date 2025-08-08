@@ -3,11 +3,7 @@ import json
 import shutil
 from pathlib import Path
 from datetime import datetime
-<<<<<<< HEAD
 from typing import List, Dict
-=======
-from typing import List, Dict, Optional, Tuple
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 
 class DatabaseManager:
     """Gerenciador do banco de dados SQLite para o sistema de inspeção visual."""
@@ -19,11 +15,8 @@ class DatabaseManager:
             db_path = str(project_root / "modelos" / "models.db")
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(exist_ok=True)
-<<<<<<< HEAD
         # Armazena o caminho da raiz do projeto para uso em caminhos relativos
         self.project_root = Path(__file__).parent.parent
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         self.init_database()
     
     def init_database(self):
@@ -71,11 +64,7 @@ class DatabaseManager:
                 )
             """)
             
-<<<<<<< HEAD
             # Adiciona colunas shape, rotation e ok_threshold se não existirem (para compatibilidade)
-=======
-            # Adiciona colunas shape e rotation se não existirem (para compatibilidade)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             try:
                 cursor.execute("ALTER TABLE slots ADD COLUMN shape TEXT DEFAULT 'rectangle'")
             except sqlite3.OperationalError:
@@ -85,14 +74,11 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE slots ADD COLUMN rotation REAL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # Coluna já existe
-<<<<<<< HEAD
                 
             try:
                 cursor.execute("ALTER TABLE slots ADD COLUMN ok_threshold INTEGER DEFAULT 70")
             except sqlite3.OperationalError:
                 pass  # Coluna já existe
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             
             # Índices para melhor performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_slots_modelo_id ON slots(modelo_id)")
@@ -100,15 +86,12 @@ class DatabaseManager:
             
             conn.commit()
             print("Banco de dados inicializado com sucesso")
-<<<<<<< HEAD
             
             # Verifica e corrige caminhos absolutos no banco de dados
             try:
                 self.fix_absolute_paths()
             except Exception as e:
                 print(f"Aviso: Não foi possível corrigir caminhos absolutos: {e}")
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     
     def save_modelo(self, nome: str, image_path: str, slots: List[Dict]) -> int:
         """Salva um modelo completo no banco de dados.
@@ -126,22 +109,15 @@ class DatabaseManager:
             
             now = datetime.now().isoformat()
             
-<<<<<<< HEAD
             # Converte caminho absoluto para relativo se necessário
             rel_image_path = self._convert_to_relative_path(image_path)
             
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             try:
                 # Insere o modelo
                 cursor.execute("""
                     INSERT INTO modelos (nome, image_path, criado_em, atualizado_em)
                     VALUES (?, ?, ?, ?)
-<<<<<<< HEAD
                 """, (nome, rel_image_path, now, now))
-=======
-                """, (nome, image_path, now, now))
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 
                 modelo_id = cursor.lastrowid
                 
@@ -190,15 +166,10 @@ class DatabaseManager:
                     params.append(nome)
                 
                 if image_path is not None:
-<<<<<<< HEAD
                     # Converte caminho para relativo
                     rel_image_path = self._convert_to_relative_path(image_path)
                     updates.append("image_path = ?")
                     params.append(rel_image_path)
-=======
-                    updates.append("image_path = ?")
-                    params.append(image_path)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 
                 updates.append("atualizado_em = ?")
                 params.append(now)
@@ -245,37 +216,27 @@ class DatabaseManager:
             
             nome, image_path, criado_em, atualizado_em = modelo_row
             
-<<<<<<< HEAD
             # Converte caminho relativo para absoluto
             abs_image_path = self._convert_to_absolute_path(image_path)
             
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             # Carrega slots do modelo
             cursor.execute("""
                 SELECT slot_id, tipo, x, y, w, h, cor_r, cor_g, cor_b,
                        h_tolerance, s_tolerance, v_tolerance,
                        detection_threshold, correlation_threshold,
                        template_method, scale_tolerance, template_path,
-<<<<<<< HEAD
                        detection_method, shape, rotation, ok_threshold
-=======
-                       detection_method, shape, rotation
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 FROM slots WHERE modelo_id = ?
                 ORDER BY slot_id
             """, (modelo_id,))
             
             slots = []
             for row in cursor.fetchall():
-<<<<<<< HEAD
                 # Converte caminho do template para absoluto se existir
                 template_path = row[16]
                 if template_path:
                     template_path = self._convert_to_absolute_path(template_path)
                 
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 slot = {
                     'id': row[0],
                     'tipo': row[1],
@@ -291,35 +252,23 @@ class DatabaseManager:
                     'correlation_threshold': row[13],
                     'template_method': row[14],
                     'scale_tolerance': row[15],
-<<<<<<< HEAD
                     'template_path': template_path,
                     'detection_method': row[17],
                     'shape': row[18] if len(row) > 18 and row[18] else 'rectangle',
                     'rotation': row[19] if len(row) > 19 and row[19] is not None else 0,
                     'ok_threshold': row[20] if len(row) > 20 and row[20] is not None else 70
-=======
-                    'template_path': row[16],
-                    'detection_method': row[17],
-                    'shape': row[18] if len(row) > 18 and row[18] else 'rectangle',
-                    'rotation': row[19] if len(row) > 19 and row[19] is not None else 0
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 }
                 slots.append(slot)
             
             return {
                 'id': modelo_id,
                 'nome': nome,
-<<<<<<< HEAD
                 'image_path': abs_image_path,
-=======
-                'image_path': image_path,
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
                 'slots': slots,
                 'criado_em': criado_em,
                 'atualizado_em': atualizado_em
             }
     
-<<<<<<< HEAD
     def get_model_by_id(self, modelo_id: int) -> Dict:
         """Retorna informações básicas de um modelo pelo ID.
         
@@ -349,8 +298,6 @@ class DatabaseManager:
                 'atualizado_em': row[4]
             }
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def load_modelo_by_name(self, nome: str) -> Dict:
         """Carrega um modelo pelo nome.
         
@@ -461,10 +408,6 @@ class DatabaseManager:
             modelo_id: ID do modelo
         """
         import time
-<<<<<<< HEAD
-=======
-        import stat
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         
         # Define o caminho da pasta do modelo
         models_dir = Path(self.db_path).parent
@@ -512,7 +455,6 @@ class DatabaseManager:
                 print(f"Erro inesperado ao remover pasta para modelo '{nome}': {e}")
                 break
     
-<<<<<<< HEAD
     def _convert_to_relative_path(self, path_str):
         """Converte um caminho absoluto para relativo à raiz do projeto.
         
@@ -520,21 +462,23 @@ class DatabaseManager:
             path_str: Caminho absoluto ou relativo
             
         Returns:
-            Caminho relativo à raiz do projeto
+            Caminho relativo à raiz do projeto com separadores normalizados
         """
         if not path_str:
             return path_str
             
         path = Path(path_str)
         
-        # Se já é um caminho relativo ou não existe, retorna como está
+        # Se já é um caminho relativo, normaliza os separadores e retorna
         if not path.is_absolute():
-            return path_str
+            # Normaliza separadores para '/' (padrão esperado pelo banco)
+            return str(path).replace('\\', '/')
             
         try:
             # Tenta converter para relativo à raiz do projeto
             rel_path = path.relative_to(self.project_root)
-            return str(rel_path)
+            # Normaliza separadores para '/' (padrão esperado pelo banco)
+            return str(rel_path).replace('\\', '/')
         except ValueError:
             # Se não for possível, mantém o caminho original
             return path_str
@@ -561,8 +505,6 @@ class DatabaseManager:
         abs_path = self.project_root / path
         return str(abs_path)
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def _remove_readonly_attributes(self, folder_path: Path):
         """Remove atributos somente leitura de arquivos e pastas.
         
@@ -655,14 +597,11 @@ class DatabaseManager:
         """Insere um slot no banco de dados."""
         cor = slot_data.get('cor', [0, 0, 255])
         
-<<<<<<< HEAD
         # Converte caminho do template para relativo se existir
         template_path = slot_data.get('template_path')
         if template_path:
             template_path = self._convert_to_relative_path(template_path)
         
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         cursor.execute("""
             INSERT INTO slots (
                 modelo_id, slot_id, tipo, x, y, w, h,
@@ -670,13 +609,8 @@ class DatabaseManager:
                 h_tolerance, s_tolerance, v_tolerance,
                 detection_threshold, correlation_threshold,
                 template_method, scale_tolerance, template_path,
-<<<<<<< HEAD
                 detection_method, shape, rotation, ok_threshold
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-=======
-                detection_method, shape, rotation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         """, (
             modelo_id,
             slot_data['id'],
@@ -693,18 +627,11 @@ class DatabaseManager:
             slot_data.get('correlation_threshold', 0.5),
             slot_data.get('template_method', 'TM_CCOEFF_NORMED'),
             slot_data.get('scale_tolerance', 0.1),
-<<<<<<< HEAD
             template_path,
             slot_data.get('detection_method', 'template_matching'),
             slot_data.get('shape', 'rectangle'),
             slot_data.get('rotation', 0),
             slot_data.get('ok_threshold', 70)
-=======
-            slot_data.get('template_path'),
-            slot_data.get('detection_method', 'template_matching'),
-            slot_data.get('shape', 'rectangle'),
-            slot_data.get('rotation', 0)
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         ))
     
     def _update_slot_data(self, cursor, modelo_id: int, slot_data: Dict):
@@ -718,11 +645,7 @@ class DatabaseManager:
                 h_tolerance = ?, s_tolerance = ?, v_tolerance = ?,
                 detection_threshold = ?, correlation_threshold = ?,
                 template_method = ?, scale_tolerance = ?, template_path = ?,
-<<<<<<< HEAD
                 detection_method = ?, shape = ?, rotation = ?, ok_threshold = ?
-=======
-                detection_method = ?, shape = ?, rotation = ?
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             WHERE modelo_id = ? AND slot_id = ?
         """, (
             slot_data['tipo'],
@@ -742,15 +665,11 @@ class DatabaseManager:
             slot_data.get('detection_method', 'template_matching'),
             slot_data.get('shape', 'rectangle'),
             slot_data.get('rotation', 0),
-<<<<<<< HEAD
             slot_data.get('ok_threshold', 70),
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
             modelo_id,
             slot_data['id']
         ))
     
-<<<<<<< HEAD
     def fix_absolute_paths(self):
         """Verifica e corrige caminhos absolutos no banco de dados, convertendo-os para relativos.
         
@@ -839,8 +758,6 @@ class DatabaseManager:
             conn.commit()
             print("Verificação e correção de caminhos absolutos concluída")
     
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
     def migrate_from_json(self, json_file_path: str, modelo_name: str = None) -> int:
         """Migra dados de um arquivo JSON para o banco SQLite.
         
@@ -870,7 +787,6 @@ class DatabaseManager:
             if "não encontrado" not in str(e):
                 raise
         
-<<<<<<< HEAD
         # Converte o caminho da imagem para relativo se for absoluto
         image_path = data['image_path']
         
@@ -885,10 +801,4 @@ class DatabaseManager:
             nome=modelo_name,
             image_path=image_path,
             slots=slots
-=======
-        return self.save_modelo(
-            nome=modelo_name,
-            image_path=data['image_path'],
-            slots=data['slots']
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
         )

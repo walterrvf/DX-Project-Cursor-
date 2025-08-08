@@ -1,32 +1,391 @@
-# Sistema de Visão Computacional Honda
+# 🔬 Sistema de Visão Computacional DX
 
-Sistema avançado de inspeção visual automatizada para controle de qualidade na linha de produção Honda. O sistema utiliza técnicas de visão computacional e machine learning para detectar defeitos, verificar montagem de componentes, contar peças e medir dimensões com alta precisão.
+<div align="center">
 
-## Funcionalidades Principais
+![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)
+![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-red.svg)
+![License](https://img.shields.io/badge/License-Proprietary-yellow.svg)
+![Status](https://img.shields.io/badge/Status-Production-brightgreen.svg)
 
-### 🔍 Módulo de Montagem
-- Verificação automática de montagem de componentes
-- Template matching para detecção de peças
-- Sistema de treinamento com amostras OK/NG
-- Detecção de alinhamento e posicionamento
-- Suporte a múltiplas câmeras
-- Interface de configuração avançada
+**Sistema avançado de inspeção visual automatizada para controle de qualidade industrial**
 
-### 📊 Módulo de Contagem
-- Contagem automática de peças em linha de produção
-- Algoritmos de detecção de objetos
-- Relatórios de produtividade
+*Desenvolvido pela equipe DX (Desenvolvimento Digital)*
 
-### 📏 Módulo de Dimensões
-- Medição precisa de dimensões de componentes
-- Calibração automática de câmera
-- Tolerâncias configuráveis
+</div>
 
-### 🔄 Módulo de Rotação
-- Medição de ângulos e rotação de peças
-- Detecção de orientação incorreta
+---
 
-## Requisitos do Sistema
+## 📋 Índice
+
+- [🎯 Visão Geral](#-visão-geral)
+- [✨ Funcionalidades Principais](#-funcionalidades-principais)
+- [🧮 Algoritmos Matemáticos](#-algoritmos-matemáticos)
+- [⚙️ Requisitos do Sistema](#️-requisitos-do-sistema)
+- [🚀 Instalação](#-instalação)
+- [📊 Arquitetura do Sistema](#-arquitetura-do-sistema)
+- [🔧 Configuração e Uso](#-configuração-e-uso)
+- [📈 Performance e Otimização](#-performance-e-otimização)
+- [🛠️ Desenvolvimento](#️-desenvolvimento)
+- [📞 Suporte](#-suporte)
+
+---
+
+## 🎯 Visão Geral
+
+O **Sistema de Visão Computacional DX** é uma solução completa de inspeção visual automatizada que combina técnicas avançadas de **visão computacional**, **machine learning** e **processamento de imagens** para realizar controle de qualidade industrial com alta precisão e eficiência.
+
+### 🏗️ Arquitetura Modular
+
+```mermaid
+graph TB
+    A[Dashboard Principal] --> B[Módulo de Montagem]
+    A --> C[Gerenciador de BD]
+    A --> D[Seletor de Modelos]
+    B --> E[Template Matching]
+    B --> F[Feature Detection]
+    B --> G[Machine Learning]
+    B --> H[Análise de Histogramas]
+```
+
+## ✨ Funcionalidades Principais
+
+### 🔍 **Módulo de Montagem Avançado**
+- ✅ **Verificação automática** de montagem de componentes
+- 🎯 **Template matching** com múltiplos algoritmos
+- 🤖 **Sistema de treinamento** com amostras OK/NG
+- 📐 **Detecção de alinhamento** e posicionamento
+- 📹 **Suporte a múltiplas câmeras** (USB, Industrial)
+- ⚙️ **Interface de configuração** avançada
+- 📊 **Relatórios em tempo real** com métricas detalhadas
+
+### 🧠 **Inteligência Artificial Integrada**
+- 🌲 **Random Forest Classifier** para classificação OK/NG
+- 🎯 **Support Vector Machine (SVM)** para casos complexos
+- 📈 **Validação cruzada** automática
+- 🔄 **Retreinamento** de slots específicos
+- 📊 **Métricas de performance** em tempo real
+
+### 🎨 **Interface Moderna e Intuitiva**
+- 🖥️ **Dashboard centralizado** com PyQt5
+- 🎨 **Interface moderna** com ttkbootstrap
+- 📱 **Design responsivo** e adaptável
+- 🔧 **Configuração visual** de parâmetros
+- 📊 **Visualização em tempo real** dos resultados
+
+## 🧮 Algoritmos Matemáticos
+
+### 📐 **Template Matching**
+
+O sistema utiliza correlação cruzada normalizada para detectar componentes:
+
+**Fórmula da Correlação Cruzada Normalizada:**
+
+```
+γ(u,v) = Σ[T(x,y) - T̄][I(x+u,y+v) - Ī(u,v)] / √{Σ[T(x,y) - T̄]² · Σ[I(x+u,y+v) - Ī(u,v)]²}
+```
+
+Onde:
+- `T(x,y)` = Template de referência
+- `I(x,y)` = Imagem de entrada
+- `T̄` = Média do template
+- `Ī(u,v)` = Média da região da imagem
+- `γ(u,v)` = Coeficiente de correlação (-1 ≤ γ ≤ 1)
+
+**Implementação OpenCV:**
+```python
+result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+locations = np.where(result >= threshold)  # threshold ∈ [0.7, 0.95]
+```
+
+### 🎯 **Feature Detection (ORB)**
+
+**Algoritmo FAST (Features from Accelerated Segment Test):**
+
+Para um pixel `p` com intensidade `Ip`, um ponto é considerado corner se:
+
+```
+∃ conjunto S de n pixels contíguos no círculo de 16 pixels tal que:
+∀ pixel x ∈ S: |Ix - Ip| > t
+```
+
+Onde `t` é o threshold de intensidade e `n ≥ 12` para FAST-12.
+
+**Descritor BRIEF:**
+
+Para um patch de imagem suavizada `S`, o descritor binário é:
+
+```
+τ(S; x, y) = { 1 se S(x) < S(y)
+             { 0 caso contrário
+```
+
+**Parâmetros ORB Otimizados:**
+```python
+orb = cv2.ORB_create(
+    nfeatures=500,        # Máximo de features
+    scaleFactor=1.2,      # Fator de escala da pirâmide
+    nlevels=8,            # Níveis da pirâmide
+    edgeThreshold=31,     # Tamanho da borda
+    firstLevel=0,         # Primeiro nível da pirâmide
+    WTA_K=2,              # Pontos para produzir elementos BRIEF
+    scoreType=cv2.ORB_HARRIS_SCORE,
+    patchSize=31,         # Tamanho do patch para descritor
+    fastThreshold=20      # Threshold FAST
+)
+```
+
+### 🔄 **RANSAC (Random Sample Consensus)**
+
+**Algoritmo para Estimativa de Homografia:**
+
+1. **Seleção Aleatória:** Escolher 4 pontos correspondentes aleatoriamente
+2. **Modelo:** Calcular homografia `H` usando DLT (Direct Linear Transform)
+3. **Consenso:** Contar inliers usando distância de reprojeção:
+
+```
+d = ||x'i - H·xi|| < threshold
+```
+
+4. **Iteração:** Repetir N vezes onde:
+
+```
+N = log(1-p) / log(1-(1-ε)^s)
+```
+
+Onde:
+- `p` = probabilidade de sucesso (0.99)
+- `ε` = proporção de outliers
+- `s` = número mínimo de pontos (4)
+
+**Implementação:**
+```python
+H, mask = cv2.findHomography(
+    src_pts, dst_pts, 
+    cv2.RANSAC, 
+    ransacReprojThreshold=5.0,
+    maxIters=2000,
+    confidence=0.995
+)
+```
+
+### 📊 **Análise de Histogramas**
+
+**Comparação de Histogramas HSV:**
+
+**Correlação de Histogramas:**
+```
+ρ(H1,H2) = Σ[H1(i) - H̄1][H2(i) - H̄2] / √{Σ[H1(i) - H̄1]² · Σ[H2(i) - H̄2]²}
+```
+
+**Chi-Square Distance:**
+```
+χ²(H1,H2) = Σ[(H1(i) - H2(i))² / (H1(i) + H2(i))]
+```
+
+**Bhattacharyya Distance:**
+```
+dB(H1,H2) = √{1 - (1/√(H̄1·H̄2·N²)) · Σ√(H1(i)·H2(i))}
+```
+
+### 🤖 **Machine Learning**
+
+**Random Forest Classifier:**
+
+**Entropia para Divisão de Nós:**
+```
+H(S) = -Σ(pi · log2(pi))
+```
+
+**Information Gain:**
+```
+IG(S,A) = H(S) - Σ(|Sv|/|S| · H(Sv))
+```
+
+**Support Vector Machine:**
+
+**Função de Decisão:**
+```
+f(x) = sign(Σ(αi·yi·K(xi,x)) + b)
+```
+
+**Kernel RBF:**
+```
+K(xi,xj) = exp(-γ||xi - xj||²)
+```
+
+### 📈 **Métricas de Avaliação**
+
+**Acurácia:**
+```
+Accuracy = (TP + TN) / (TP + TN + FP + FN)
+```
+
+**Precisão:**
+```
+Precision = TP / (TP + FP)
+```
+
+**Recall (Sensibilidade):**
+```
+Recall = TP / (TP + FN)
+```
+
+**F1-Score:**
+```
+F1 = 2 · (Precision · Recall) / (Precision + Recall)
+```
+
+**Validação Cruzada K-Fold:**
+```
+CV_Score = (1/k) · Σ(Accuracy_i)
+```
+
+---
+
+## 📊 Diagramas e Fluxogramas
+
+### 🔄 **Fluxo de Processamento Principal**
+
+```mermaid
+flowchart TD
+    A[📷 Captura de Imagem] --> B{🔍 Pré-processamento}
+    B --> C[📐 Template Matching]
+    B --> D[🎯 Feature Detection]
+    B --> E[📊 Análise de Histograma]
+    
+    C --> F{🎯 Threshold OK?}
+    D --> G{🔗 Matches Suficientes?}
+    E --> H{📈 Similaridade OK?}
+    
+    F -->|Sim| I[✅ Componente OK]
+    F -->|Não| J[❌ Componente NG]
+    G -->|Sim| I
+    G -->|Não| J
+    H -->|Sim| I
+    H -->|Não| J
+    
+    I --> K[🤖 ML Validation]
+    J --> K
+    K --> L[📋 Resultado Final]
+    L --> M[💾 Salvar Log]
+    M --> N[📊 Atualizar Dashboard]
+```
+
+### 🧠 **Pipeline de Machine Learning**
+
+```mermaid
+flowchart LR
+    A[📸 Amostras OK/NG] --> B[🔧 Feature Extraction]
+    B --> C[📊 Normalização]
+    C --> D{🌳 Algoritmo}
+    
+    D -->|Random Forest| E[🌲 RF Classifier]
+    D -->|SVM| F[🎯 SVM Classifier]
+    
+    E --> G[📈 Cross Validation]
+    F --> G
+    G --> H[🎯 Otimização Hiperparâmetros]
+    H --> I[💾 Modelo Treinado]
+    I --> J[🔍 Predição]
+    J --> K[📊 Métricas]
+```
+
+### 🎯 **Arquitetura do Sistema de Detecção**
+
+```mermaid
+graph TB
+    subgraph "🖥️ Interface Principal"
+        A[Dashboard] --> B[Seletor de Modelos]
+        B --> C[Configurações]
+    end
+    
+    subgraph "📷 Módulo de Captura"
+        D[Camera Manager] --> E[Image Preprocessor]
+        E --> F[Quality Check]
+    end
+    
+    subgraph "🔍 Módulo de Detecção"
+        G[Template Matching] --> J[Fusion Engine]
+        H[ORB + RANSAC] --> J
+        I[Histogram Analysis] --> J
+        J --> K[ML Classifier]
+    end
+    
+    subgraph "💾 Persistência"
+        L[(SQLite DB)] --> M[Model Storage]
+        M --> N[Training Data]
+    end
+    
+    F --> G
+    F --> H
+    F --> I
+    K --> L
+    C --> L
+```
+
+### 📈 **Processo de Treinamento**
+
+```mermaid
+sequenceDiagram
+    participant U as 👤 Usuário
+    participant UI as 🖥️ Interface
+    participant ML as 🤖 ML Engine
+    participant DB as 💾 Database
+    
+    U->>UI: Selecionar Slot
+    UI->>ML: Inicializar Treinamento
+    
+    loop Coleta de Amostras
+        U->>UI: Capturar/Carregar Imagem
+        UI->>U: Classificar OK/NG
+        UI->>DB: Salvar Amostra
+    end
+    
+    U->>UI: Iniciar Treinamento
+    UI->>ML: Processar Amostras
+    ML->>ML: Feature Extraction
+    ML->>ML: Cross Validation
+    ML->>UI: Retornar Métricas
+    UI->>U: Exibir Resultados
+    
+    alt Modelo Aprovado
+        U->>UI: Salvar Modelo
+        UI->>DB: Persistir Modelo
+        DB->>UI: Confirmação
+    else Retreinar
+        U->>UI: Ajustar Parâmetros
+        Note over UI,ML: Repetir Processo
+    end
+```
+
+### 🔧 **Configuração de Parâmetros**
+
+```mermaid
+mindmap
+  root((⚙️ Configurações))
+    🎯 Template Matching
+      Threshold (0.7-0.95)
+      Método (CCOEFF_NORMED)
+      Multi-scale
+    🔍 ORB Features
+      nFeatures (500)
+      scaleFactor (1.2)
+      nLevels (8)
+      edgeThreshold (31)
+    🤖 Machine Learning
+      Algoritmo (RF/SVM)
+      Cross Validation (5-fold)
+      Hiperparâmetros
+    📊 Métricas
+      Acurácia Mínima (85%)
+      Precisão/Recall
+      F1-Score
+```
+
+---
+
+## ⚙️ Requisitos do Sistema
 
 - **Python**: 3.8 ou superior
 - **Sistema Operacional**: Windows 10/11, Linux, macOS
@@ -46,7 +405,7 @@ python --version
 ### 2. Clone ou Baixe o Projeto
 ```bash
 git clone [URL_DO_REPOSITORIO]
-cd vis-o-computacional
+cd sistema-visao-computacional
 ```
 
 ### 3. Crie um Ambiente Virtual (Recomendado)
@@ -86,51 +445,38 @@ python -c "import cv2, PyQt5, ttkbootstrap; print('Instalação bem-sucedida!')"
 python app.py
 ```
 
-### Execução de Módulos Individuais
-Cada módulo pode ser executado independentemente para testes:
+### Execução do Módulo de Montagem
+O módulo de montagem pode ser executado independentemente para testes:
 ```bash
 # Módulo de Montagem
 python -m modulos.montagem
-
-# Módulo de Contagem
-python -m modulos.contagem
-
-# Módulo de Dimensões
-python -m modulos.dimensoes
-
-# Módulo de Rotação
-python -m modulos.rotacao
 ```
 
 ## Estrutura do Projeto
 
 ```
-vis-o-computacional/
+sistema-visao-computacional/
 ├── app.py                      # Dashboard principal do sistema
 ├── requirements.txt            # Dependências do projeto
 ├── README.md                   # Documentação do projeto
-├── RELATORIO_ANALISE_MONTAGEM.md # Relatório técnico detalhado
 │
 ├── assets/                     # Recursos visuais
-│   └── honda_logo.svg         # Logo oficial da Honda
+│   └── logo.svg               # Logo do sistema
 │
 ├── modelos/                    # Modelos e templates
 │   ├── _templates/            # Templates de referência
 │   │   ├── slot_1_template.png
 │   │   ├── slot_2_template.png
 │   │   └── slot_3_template.png
-│   ├── HRV_17/               # Modelos específicos do HRV 2017
-│   ├── walter ramos_18/      # Outros modelos específicos
+│   ├── modelo_exemplo/        # Modelos específicos
 │   └── models.db             # Banco de dados SQLite
 │
 ├── modulos/                    # Módulos do sistema
 │   ├── __pycache__/           # Cache Python (gerado automaticamente)
-│   ├── contagem.py            # Módulo de contagem de peças
 │   ├── database_manager.py    # Gerenciador de banco de dados
-│   ├── dimensoes.py           # Módulo de medição de dimensões
 │   ├── model_selector.py      # Seletor de modelos
 │   ├── montagem.py            # Módulo principal de verificação de montagem
-│   └── rotacao.py             # Módulo de medição de rotação
+│   └── utils.py               # Utilitários e configurações
 │
 └── Imagem de teste/           # Imagens para testes
     ├── NG.JPG                # Exemplo de imagem com defeito
@@ -156,11 +502,8 @@ vis-o-computacional/
 ## Uso do Sistema
 
 ### Dashboard Principal
-O dashboard oferece acesso rápido a todos os módulos:
+O dashboard oferece acesso ao módulo de montagem:
 - **Montagem**: Verificação de componentes montados
-- **Contagem**: Contagem automática de peças
-- **Dimensões**: Medição de dimensões
-- **Rotação**: Análise de orientação
 
 ### Módulo de Montagem - Funcionalidades Avançadas
 
@@ -210,55 +553,6 @@ Para adicionar um novo módulo:
 3. Adicione uma função `main()` para execução independente
 4. O módulo será automaticamente detectado pelo dashboard
 
-<<<<<<< HEAD
-## Portabilidade do Sistema
-
-O sistema foi projetado para ser portátil entre diferentes computadores. Todos os caminhos de arquivo são armazenados de forma relativa à raiz do projeto, permitindo que você copie a pasta do projeto para outro computador e execute-o sem problemas.
-
-### Como funciona a portabilidade
-
-1. **Caminhos relativos**: Todos os caminhos de arquivo são armazenados relativos à raiz do projeto
-2. **Detecção automática**: O sistema detecta automaticamente a localização atual do projeto
-3. **Banco de dados**: Os caminhos no banco de dados são armazenados de forma relativa e convertidos para absolutos quando necessário
-
-### Transferindo o sistema para outro computador
-
-1. Copie toda a pasta do projeto para o novo computador
-2. Execute `python check_dependencies.py` para instalar as dependências necessárias
-3. Execute `python app.py` para iniciar o sistema
-
-Não é necessário reconfigurar caminhos ou fazer qualquer ajuste manual.
-
-### Migrando de versões anteriores
-
-#### Migração de caminhos absolutos para relativos
-
-Se você está atualizando de uma versão anterior do sistema que usava caminhos absolutos, execute o script de migração para converter os caminhos no banco de dados:
-
-```bash
-python migrate_paths.py
-```
-
-Este script irá:
-1. Verificar todos os caminhos no banco de dados
-2. Converter caminhos absolutos para relativos
-3. Preparar o sistema para ser portável entre computadores
-
-#### Migração para suporte à Porcentagem para OK
-
-Se você está atualizando para a versão que suporta o parâmetro de Porcentagem para OK, execute o script de migração para adicionar a coluna necessária ao banco de dados:
-
-```bash
-python migrate_ok_threshold.py
-```
-
-Este script irá:
-1. Verificar se a coluna ok_threshold existe na tabela slots
-2. Adicionar a coluna se necessário, com valor padrão de 70%
-3. Preparar o sistema para usar o novo parâmetro de aceitação
-
-=======
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
 ### Exemplo de Módulo
 ```python
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel
@@ -402,7 +696,7 @@ rm modelos/models.db
 ### Problemas com Imagens
 
 #### Erro ao carregar logo
-1. Verifique se `assets/honda_logo.svg` existe
+1. Verifique se `assets/logo.svg` existe
 2. Teste com formato alternativo (PNG/JPG)
 3. Verifique permissões do arquivo
 
@@ -436,15 +730,14 @@ set OPENCV_LOG_LEVEL=DEBUG     # Windows
 ### Contato e Suporte
 
 Se os problemas persistirem:
-1. Verifique a documentação técnica em `RELATORIO_ANALISE_MONTAGEM.md`
-2. Colete informações do sistema:
+1. Colete informações do sistema:
    ```bash
    python --version
    pip list
    # Inclua essas informações ao reportar problemas
    ```
-3. Documente os passos para reproduzir o erro
-4. Inclua screenshots ou logs de erro quando possível
+2. Documente os passos para reproduzir o erro
+3. Inclua screenshots ou logs de erro quando possível
 
 ## Contribuição
 
@@ -487,14 +780,12 @@ Ao reportar bugs, inclua:
 
 ## Licença
 
-Este projeto é desenvolvido para uso interno da Honda. Todos os direitos reservados.
-
-**Uso Restrito**: Este software é propriedade da Honda e destina-se exclusivamente ao uso em suas operações de controle de qualidade. A distribuição, modificação ou uso não autorizado é estritamente proibido.
+Este projeto é desenvolvido pela equipe DX (Desenvolvimento Digital). Todos os direitos reservados.
 
 ## Créditos
 
 ### Desenvolvido por
-- **Equipe de Engenharia Honda**
+- **Equipe DX (Desenvolvimento Digital)**
 - **Departamento de Visão Computacional**
 
 ### Tecnologias Utilizadas
@@ -505,12 +796,12 @@ Este projeto é desenvolvido para uso interno da Honda. Todos os direitos reserv
 - **SQLite**: Banco de dados
 
 ### Agradecimentos
-- Equipe de Produção Honda pela colaboração nos testes
+- Equipe de Produção pela colaboração nos testes
 - Departamento de TI pelo suporte técnico
 - Engenheiros de Qualidade pelas especificações técnicas
 
 ---
 
-**© 2024 Honda Motor Co., Ltd. Todos os direitos reservados.**
+**© 2024 Equipe DX - Desenvolvimento Digital. Todos os direitos reservados.**
 
-*Sistema de Visão Computacional Honda - Versão 1.0*
+*Sistema de Visão Computacional DX - Versão 1.0*

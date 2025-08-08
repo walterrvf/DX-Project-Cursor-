@@ -1,39 +1,83 @@
-<<<<<<< HEAD
-# Interface gráfica
-PyQt5==5.15.9
+# ===================================
+# Sistema de Visão Computacional DX
+# Dependências Principais
+# ===================================
+
+# Interface Gráfica
+PyQt5==5.15.10
 PyQt5-Qt5==5.15.2
 PyQt5-sip==12.12.2
-
-# Interface moderna (ttkbootstrap)
 ttkbootstrap==1.10.1
 
-# Processamento de imagem e visão computacional
+# Visão Computacional e Processamento de Imagem
 opencv-python==4.8.1.78
 Pillow==10.0.1
 numpy==1.24.3
+scipy==1.11.3
+imageio==2.31.5
+skimage==0.0  # Alias para scikit-image
+scikit-image==0.21.0
 
-# Banco de dados
-# sqlite3 já vem incluído no Python padrão
+# Machine Learning e Análise de Dados
+scikit-learn==1.3.0
+joblib==1.3.2
+pandas==2.1.1
+matplotlib==3.7.2
+seaborn==0.12.2
 
-# Utilitários
+# Utilitários e Sistema
 pathlib2==2.3.7
-=======
-# Interface gráfica
-PyQt5==5.15.9
-PyQt5-Qt5==5.15.2
-PyQt5-sip==12.12.2
+psutil==5.9.5
+requests==2.31.0
+tqdm==4.66.1
 
-# Interface moderna (ttkbootstrap)
-ttkbootstrap==1.10.1
+# Logging e Debugging
+coloredlogs==15.0.1
+loguru==0.7.2
 
-# Processamento de imagem e visão computacional
-opencv-python==4.8.1.78
-Pillow==10.0.1
-numpy==1.24.3
+# Configuração e Serialização
+PyYAML==6.0.1
+configparser==6.0.0
+json5==0.9.14
 
-# Banco de dados
-# sqlite3 já vem incluído no Python padrão
+# Performance e Otimização
+numba==0.58.1
+cython==3.0.2
 
-# Utilitários
-pathlib2==2.3.7
->>>>>>> d59fc9774a8914a83ec425c781248aed3f221ccd
+# Testes e Qualidade de Código
+pytest==7.4.2
+pytest-cov==4.1.0
+flake8==6.1.0
+black==23.9.1
+
+# Documentação
+sphinx==7.2.6
+sphinx-rtd-theme==1.3.0
+
+# Opcional: Aceleração GPU (descomente se necessário)
+# tensorflow==2.13.0
+# torch==2.0.1
+# torchvision==0.15.2
+
+# Opcional: Processamento Paralelo
+# multiprocessing-logging==0.3.4
+# concurrent-futures==3.1.1
+
+# ===================================
+# Notas de Instalação:
+# 
+# 1. Para instalar todas as dependências:
+#    pip install -r requirements.txt
+#
+# 2. Para ambiente de desenvolvimento:
+#    pip install -r requirements.txt
+#    pip install pytest flake8 black
+#
+# 3. Para produção (mínimo):
+#    pip install PyQt5 opencv-python numpy scikit-learn
+#
+# 4. Compatibilidade:
+#    - Python 3.8+
+#    - Windows 10/11, Linux, macOS
+#    - RAM: 4GB+ recomendado
+# ===================================
