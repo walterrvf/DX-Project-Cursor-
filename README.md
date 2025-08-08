@@ -404,8 +404,8 @@ python --version
 
 ### 2. Clone ou Baixe o Projeto
 ```bash
-git clone [URL_DO_REPOSITORIO]
-cd sistema-visao-computacional
+git clone https://github.com/walterrvf/DX-Project.git
+cd DX-Project
 ```
 
 ### 3. Crie um Ambiente Virtual (Recomendado)
@@ -435,6 +435,21 @@ pip install -r requirements.txt
 ```bash
 python -c "import cv2, PyQt5, ttkbootstrap; print('Instalação bem-sucedida!')"
 ```
+
+### 🔗 **Status do Repositório**
+
+✅ **Repositório Atualizado**: Janeiro 2025  
+🚀 **Versão Atual**: 2.0 - Documentação Técnica Completa  
+📊 **Tamanho**: 111.59 MB (216 arquivos)  
+
+**🆕 Novidades Incluídas:**
+- 📚 Documentação técnica detalhada com fundamentos matemáticos
+- 🤖 Sistema de Machine Learning integrado (Random Forest + SVM)
+- 🔧 Otimizações específicas para Raspberry Pi
+- 📈 Métricas avançadas de performance e validação
+- 🎨 Interface moderna com PyQt5 e ttkbootstrap
+- 🔍 Algoritmos de visão computacional otimizados
+- 📋 Relatórios automáticos e análise de dados
 
 ## Executando o Sistema
 
