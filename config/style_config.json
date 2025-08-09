@@ -3,12 +3,12 @@
     "result_font_size": 10,
     "button_font_size": 9,
     "background_color": "#1E1E1E",
-    "text_color": "#ffffff",
-    "ok_color": "#6cd55e",
-    "ng_color": "#ff0000",
+    "text_color": "#FFFFFF",
+    "ok_color": "#8cde81",
+    "ng_color": "#e7472c",
     "hud_font_size": 12,
-    "hud_opacity": 80,
-    "hud_position": "top-right",
+    "hud_opacity": 77,
+    "hud_position": "bottom-right",
     "show_fps": true,
     "show_timestamp": true
 }

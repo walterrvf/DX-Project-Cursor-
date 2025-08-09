@@ -74,15 +74,15 @@ ORB_FEATURES = 5000
 ORB_SCALE_FACTOR = 1.2
 ORB_N_LEVELS = 8
 
-# Cores para desenho no canvas (Editor) - ALTERADAS PARA NOVO LAYOUT
-COLOR_CLIP = "#FF6B6B"  # Vermelho coral
-COLOR_SELECTED = "#FFE66D"  # Amarelo dourado
-COLOR_DRAWING = "#A8E6CF"  # Verde claro
+# Cores para desenho no canvas (Editor) - DESIGN MODERNO 2024
+COLOR_CLIP = "#6366F1"  # Indigo moderno
+COLOR_SELECTED = "#F59E0B"  # Amber vibrante
+COLOR_DRAWING = "#10B981"  # Emerald
 
-# Cores para desenho no canvas (Inspeção) - ALTERADAS PARA NOVO LAYOUT
-COLOR_PASS = "#95E1D3"  # Verde menta
-COLOR_FAIL = "#F38BA8"  # Rosa
-COLOR_ALIGN_FAIL = "#FECA57"  # Laranja claro
+# Cores para desenho no canvas (Inspeção) - DESIGN MODERNO 2024
+COLOR_PASS = "#22C55E"  # Green-500
+COLOR_FAIL = "#EF4444"  # Red-500
+COLOR_ALIGN_FAIL = "#F97316"  # Orange-500
 
 # Caminho para o arquivo de configurações de estilo
 STYLE_CONFIG_PATH = get_style_config_path()
@@ -1196,8 +1196,9 @@ class SlotTrainingDialog(Toplevel):
             self.samples_dir = None
         
         self.title(f"Treinamento - Slot {slot_data['id']}")
-        self.geometry("800x600")
+        self.geometry("1200x800")  # Tamanho inicial maior
         self.resizable(True, True)
+        self.minsize(1000, 700)  # Tamanho mínimo para evitar elementos sobrepostos
         
         # Variáveis
         self.current_image = None
@@ -1215,10 +1216,17 @@ class SlotTrainingDialog(Toplevel):
     def center_window(self):
         """Centraliza a janela na tela."""
         self.update_idletasks()
-        width = self.winfo_width()
-        height = self.winfo_height()
-        x = (self.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.winfo_screenheight() // 2) - (height // 2)
+        # Usa as dimensões definidas em geometry() se a janela ainda não foi renderizada
+        width = max(self.winfo_width(), 1200)
+        height = max(self.winfo_height(), 800)
+        
+        # Calcula posição central considerando a barra de tarefas
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        x = max(0, (screen_width - width) // 2)
+        y = max(0, (screen_height - height) // 2 - 30)  # Ajuste para barra de tarefas
+        
         self.geometry(f"{width}x{height}+{x}+{y}")
         
     def setup_ui(self):
@@ -1270,17 +1278,40 @@ class SlotTrainingDialog(Toplevel):
                                           command=self.clear_training_history, width=20)
         self.btn_clear_history.pack(side=RIGHT)
         
-        # Frame central dividido em duas colunas
+        # Frame central dividido em duas colunas com proporções otimizadas
         central_frame = ttk.Frame(main_frame)
         central_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
         
+        # Configura grid para melhor controle de layout
+        central_frame.grid_columnconfigure(0, weight=2)  # Coluna esquerda maior
+        central_frame.grid_columnconfigure(1, weight=1)  # Coluna direita menor
+        central_frame.grid_rowconfigure(0, weight=1)
+        
         # Coluna esquerda - visualização atual
         left_frame = ttk.LabelFrame(central_frame, text="🖼️ Visualização Atual")
-        left_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         
-        # Canvas para exibir imagem atual
-        self.canvas = Canvas(left_frame, bg="#1E1E1E")
-        self.canvas.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        # Frame para canvas com scrollbars
+        canvas_frame = ttk.Frame(left_frame)
+        canvas_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        # Canvas para exibir imagem atual com scrollbars
+        self.canvas = Canvas(canvas_frame, bg="#1E1E1E")
+        
+        # Scrollbars para o canvas
+        v_scrollbar_canvas = ttk.Scrollbar(canvas_frame, orient="vertical", command=self.canvas.yview)
+        h_scrollbar_canvas = ttk.Scrollbar(canvas_frame, orient="horizontal", command=self.canvas.xview)
+        
+        self.canvas.configure(yscrollcommand=v_scrollbar_canvas.set, xscrollcommand=h_scrollbar_canvas.set)
+        
+        # Pack dos elementos do canvas
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar_canvas.grid(row=0, column=1, sticky="ns")
+        h_scrollbar_canvas.grid(row=1, column=0, sticky="ew")
+        
+        # Configura grid do canvas_frame
+        canvas_frame.grid_rowconfigure(0, weight=1)
+        canvas_frame.grid_columnconfigure(0, weight=1)
         
         # Botões de feedback para imagem atual
         feedback_buttons_frame = ttk.Frame(left_frame)
@@ -1296,7 +1327,7 @@ class SlotTrainingDialog(Toplevel):
         
         # Coluna direita - histórico de treinamento
         right_frame = ttk.LabelFrame(central_frame, text="📊 Histórico de Treinamento")
-        right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=(5, 0))
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
         
         # Notebook para separar OK e NG
         self.history_notebook = ttk.Notebook(right_frame)
@@ -1502,18 +1533,27 @@ class SlotTrainingDialog(Toplevel):
             
             # === AJUSTE AUTOMÁTICO AO CANVAS ===
             try:
+                # Força atualização do canvas
+                self.canvas.update_idletasks()
+                
                 # Obtém o tamanho atual do canvas
                 canvas_width = self.canvas.winfo_width()
                 canvas_height = self.canvas.winfo_height()
                 
-                # Se o canvas ainda não foi renderizado, use valores padrão
+                # Se o canvas ainda não foi renderizado, usa valores baseados na janela
                 if canvas_width <= 1 or canvas_height <= 1:
-                    canvas_width = 640
-                    canvas_height = 480
+                    # Calcula baseado no tamanho da janela
+                    window_width = self.winfo_width()
+                    window_height = self.winfo_height()
+                    
+                    # Estima o espaço disponível para o canvas (60% da largura, 50% da altura)
+                    canvas_width = max(int(window_width * 0.6), 800)
+                    canvas_height = max(int(window_height * 0.5), 400)
+                    
             except Exception as canvas_error:
                 print(f"Erro ao obter dimensões do canvas: {canvas_error}")
-                canvas_width = 640
-                canvas_height = 480
+                canvas_width = 800
+                canvas_height = 400
             
             # Converte para exibição no canvas
             tk_image, _ = cv2_to_tk(display_image, max_w=canvas_width, max_h=canvas_height)
@@ -2710,6 +2750,86 @@ class MontagemWindow(ttk.Frame):
         # Inicia câmera em segundo plano após inicialização completa
         if self.available_cameras:
             self.after(500, lambda: self.start_background_camera_direct(self.available_cameras[0]))
+    
+    def configure_modern_styles(self):
+        """Configura estilos modernos para a interface."""
+        style = ttk.Style()
+        
+        # Estilo para frames principais
+        style.configure("Modern.TFrame", 
+                       background="#1a1d29",
+                       relief="flat")
+        
+        # Estilo para cards/painéis
+        style.configure("Card.TFrame",
+                       background="#252837",
+                       relief="flat",
+                       borderwidth=1)
+        
+        # Estilo para painel principal do canvas
+        style.configure("Canvas.TFrame",
+                       background="#2d3142",
+                       relief="flat")
+        
+        # Estilo para painel direito
+        style.configure("RightPanel.TFrame",
+                       background="#252837",
+                       relief="flat")
+        
+        # Estilo para botões modernos
+        style.configure("Modern.TButton",
+                       background="#6366F1",
+                       foreground="white",
+                       borderwidth=0,
+                       focuscolor="none",
+                       padding=(12, 8))
+        
+        style.map("Modern.TButton",
+                 background=[("active", "#5855eb"),
+                           ("pressed", "#4f46e5")])
+        
+        # Estilo para botões de sucesso
+        style.configure("Success.TButton",
+                       background="#10B981",
+                       foreground="white",
+                       borderwidth=0,
+                       focuscolor="none",
+                       padding=(12, 8))
+        
+        style.map("Success.TButton",
+                 background=[("active", "#059669"),
+                           ("pressed", "#047857")])
+        
+        # Estilo para botões de perigo
+        style.configure("Danger.TButton",
+                       background="#EF4444",
+                       foreground="white",
+                       borderwidth=0,
+                       focuscolor="none",
+                       padding=(12, 8))
+        
+        style.map("Danger.TButton",
+                 background=[("active", "#dc2626"),
+                           ("pressed", "#b91c1c")])
+        
+        # Estilo para labels modernos
+        style.configure("Modern.TLabel",
+                       background="#252837",
+                       foreground="#e5e7eb",
+                       font=("Segoe UI", 10))
+        
+        # Estilo para LabelFrames modernos
+        style.configure("Modern.TLabelframe",
+                       background="#252837",
+                       foreground="#f3f4f6",
+                       borderwidth=1,
+                       relief="solid",
+                       labelmargins=(10, 5, 10, 5))
+        
+        style.configure("Modern.TLabelframe.Label",
+                       background="#252837",
+                       foreground="#f3f4f6",
+                       font=("Segoe UI", 10, "bold"))
         
     def start_background_camera_direct(self, camera_index):
         """Inicia a câmera diretamente em segundo plano com índice específico."""
@@ -2798,161 +2918,172 @@ class MontagemWindow(ttk.Frame):
             self.status_var.set(f"Modelo: {model_name} - {len(self.slots)} slots")
     
     def setup_ui(self):
-        # Frame principal com layout horizontal de três painéis
+        """Configura a interface moderna com design responsivo."""
+        # Frame principal com gradiente visual
         main_frame = ttk.Frame(self)
-        main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        main_frame.pack(fill=BOTH, expand=True, padx=15, pady=15)
         
-        # Painel esquerdo - Controles
+        # Configura grid para layout responsivo
+        main_frame.grid_columnconfigure(0, weight=0, minsize=300)  # Painel esquerdo - largura fixa mínima
+        main_frame.grid_columnconfigure(1, weight=1)  # Painel central - expansível
+        main_frame.grid_columnconfigure(2, weight=0, minsize=380)  # Painel direito - largura fixa
+        main_frame.grid_rowconfigure(0, weight=1)
+        
+        # Painel esquerdo - Controles com design card
         left_panel = ttk.Frame(main_frame)
-        left_panel.pack(side=LEFT, fill=Y, padx=(0, 10))
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
         
-        # Painel central - Editor de malha (expandindo para preencher todo espaço restante)
+        # Painel central - Editor de malha com bordas arredondadas
         center_panel = ttk.Frame(main_frame)
-        center_panel.pack(side=LEFT, fill=BOTH, expand=True)
+        center_panel.grid(row=0, column=1, sticky="nsew")
         
-        # Painel direito - Editor de slot
-        self.right_panel = ttk.Frame(main_frame, width=350)
-        self.right_panel.pack(side=RIGHT, fill=Y, padx=(10, 0), pady=10, expand=False)
-        self.right_panel.pack_propagate(False)  # Mantém largura fixa
+        # Painel direito - Editor de slot com design moderno
+        self.right_panel = ttk.Frame(main_frame)
+        self.right_panel.grid(row=0, column=2, sticky="nsew", padx=(15, 0))
         
-        # === PAINEL ESQUERDO ===
+        # === PAINEL ESQUERDO - DESIGN MODERNO ===
         
-        # Seção de Imagem
-        img_frame = ttk.LabelFrame(left_panel, text="Imagem")
-        img_frame.pack(fill=X, pady=(0, 10))
+        # Seção de Imagem com ícones
+        img_frame = ttk.LabelFrame(left_panel, text="📁 Imagem")
+        img_frame.pack(fill=X, pady=(0, 15))
         
-        self.btn_load_image = ttk.Button(img_frame, text="Carregar Imagem", 
+        self.btn_load_image = ttk.Button(img_frame, text="📂 Carregar Imagem", 
                                         command=self.load_image)
-        self.btn_load_image.pack(fill=X, padx=5, pady=2)
+        self.btn_load_image.pack(fill=X, padx=10, pady=8)
         
-        # Seção de Webcam
-        webcam_frame = ttk.LabelFrame(left_panel, text="Webcam")
-        webcam_frame.pack(fill=X, pady=(0, 10))
+        # Seção de Webcam com design moderno
+        webcam_frame = ttk.LabelFrame(left_panel, text="📹 Webcam")
+        webcam_frame.pack(fill=X, pady=(0, 15))
         
-        # Combobox para seleção de câmera
+        # Combobox para seleção de câmera com estilo moderno
         camera_selection_frame = ttk.Frame(webcam_frame)
-        camera_selection_frame.pack(fill=X, padx=5, pady=2)
+        camera_selection_frame.pack(fill=X, padx=10, pady=8)
         
-        ttk.Label(camera_selection_frame, text="Câmera:").pack(side=LEFT)
+        ttk.Label(camera_selection_frame, text="📷 Câmera:").pack(side=LEFT)
         self.camera_combo = Combobox(camera_selection_frame, 
                                    values=[str(i) for i in self.available_cameras],
-                                   state="readonly", width=5)
-        self.camera_combo.pack(side=RIGHT)
+                                   state="readonly", width=8,
+                                   font=("Segoe UI", 9))
+        self.camera_combo.pack(side=RIGHT, padx=(10, 0))
         if self.available_cameras:
             self.camera_combo.set(str(self.available_cameras[0]))
         
-        
-        # Botão de inspeção contínua removido
-        
-        # Botão de inspeção com enter removido
-        
         # Botão para capturar imagem da webcam
-        self.btn_capture = ttk.Button(webcam_frame, text="Capturar Imagem", 
+        self.btn_capture = ttk.Button(webcam_frame, text="📸 Capturar Imagem", 
                                      command=self.capture_from_webcam)
-        self.btn_capture.pack(fill=X, padx=5, pady=2)
+        self.btn_capture.pack(fill=X, padx=10, pady=(8, 8))
         
-        # Seção de Modelo
-        model_frame = ttk.LabelFrame(left_panel, text="Modelo")
-        model_frame.pack(fill=X, pady=(0, 10))
+        # Seção de Modelo com design moderno
+        model_frame = ttk.LabelFrame(left_panel, text="🎯 Modelo")
+        model_frame.pack(fill=X, pady=(0, 15))
         
-        self.btn_load_model = ttk.Button(model_frame, text="Carregar Modelo", 
+        self.btn_load_model = ttk.Button(model_frame, text="📥 Carregar Modelo", 
                                         command=self.load_model_dialog)
-        self.btn_load_model.pack(fill=X, padx=5, pady=2)
+        self.btn_load_model.pack(fill=X, padx=10, pady=(8, 4))
         
-        self.btn_save_model = ttk.Button(model_frame, text="Salvar Modelo", 
+        self.btn_save_model = ttk.Button(model_frame, text="💾 Salvar Modelo", 
                                         command=self.save_model)
-        self.btn_save_model.pack(fill=X, padx=5, pady=2)
+        self.btn_save_model.pack(fill=X, padx=10, pady=(4, 8))
         
-        # Seção de Ferramentas de Edição
-        tools_frame = ttk.LabelFrame(left_panel, text="Ferramentas de Edição")
-        tools_frame.pack(fill=X, pady=(0, 10))
+        # Seção de Ferramentas de Edição com design moderno
+        tools_frame = ttk.LabelFrame(left_panel, text="🛠️ Ferramentas de Edição", )
+        tools_frame.pack(fill=X, pady=(0, 15))
         
-        # Modo de desenho
-        mode_frame = ttk.Frame(tools_frame)
-        mode_frame.pack(fill=X, padx=5, pady=5)
+        # Modo de desenho com cards
+        mode_frame = ttk.Frame(tools_frame, )
+        mode_frame.pack(fill=X, padx=10, pady=8)
         
-        ttk.Label(mode_frame, text="Modo de Desenho:").pack(anchor="w")
+        ttk.Label(mode_frame, text="✏️ Modo de Desenho:", ).pack(anchor="w", pady=(5, 8))
         
         self.drawing_mode = StringVar(value="rectangle")
         
-        mode_buttons_frame = ttk.Frame(mode_frame)
-        mode_buttons_frame.pack(fill=X, pady=2)
+        mode_buttons_frame = ttk.Frame(mode_frame, )
+        mode_buttons_frame.pack(fill=X, pady=(0, 5))
         
-        # Configurando estilo para os botões de rádio com fundo escuro
+        # Configurando estilo moderno para os botões de rádio
         self.style = ttk.Style()
-        self.style.configure("TRadiobutton", background="#1E1E1E", foreground="white")
-        # Configurando mapeamento para garantir que o fundo permaneça escuro em todos os estados
-        self.style.map("TRadiobutton",
-                      background=[('active', '#1E1E1E'), ('selected', '#1E1E1E')],
+        self.style.configure("Modern.TRadiobutton", 
+                           background="#252837", 
+                           foreground="#e5e7eb",
+                           font=("Segoe UI", 9))
+        self.style.map("Modern.TRadiobutton",
+                      background=[('active', '#374151'), ('selected', '#6366F1')],
                       foreground=[('active', 'white'), ('selected', 'white')])
         
-        self.btn_rect_mode = ttk.Radiobutton(mode_buttons_frame, text="Retângulo", 
+        self.btn_rect_mode = ttk.Radiobutton(mode_buttons_frame, text="📐 Retângulo", 
                                            variable=self.drawing_mode, value="rectangle",
                                            command=self.set_drawing_mode,
-                                           style="TRadiobutton")
-        self.btn_rect_mode.pack(side=LEFT, padx=(0, 5))
+                                           )
+        self.btn_rect_mode.pack(side=LEFT, padx=(5, 10))
         
-        self.btn_exclusion_mode = ttk.Radiobutton(mode_buttons_frame, text="Exclusão", 
+        self.btn_exclusion_mode = ttk.Radiobutton(mode_buttons_frame, text="🚫 Exclusão", 
                                                 variable=self.drawing_mode, value="exclusion",
                                                 command=self.set_drawing_mode,
-                                                style="TRadiobutton")
-        self.btn_exclusion_mode.pack(side=LEFT)
+                                                )
+        self.btn_exclusion_mode.pack(side=LEFT, padx=(0, 5))
         
-        # Controles de rotação removidos
+        # Status da ferramenta com design moderno
+        self.tool_status_var = StringVar(value="🔧 Modo: Retângulo")
+        status_label = ttk.Label(tools_frame, textvariable=self.tool_status_var, 
+                               font=("Segoe UI", 8), 
+                               foreground="#9CA3AF",
+                               background="#252837")
+        status_label.pack(padx=10, pady=(0, 8))
         
-        # Status da ferramenta
-        self.tool_status_var = StringVar(value="Modo: Retângulo")
-        ttk.Label(tools_frame, textvariable=self.tool_status_var, 
-                 font=("Arial", 8), foreground="#666").pack(padx=5, pady=(0, 5))
+        # Seção de Slots com design moderno
+        slots_frame = ttk.LabelFrame(left_panel, text="🎯 Slots", )
+        slots_frame.pack(fill=X, pady=(0, 15))
         
-        # Seção de Slots
-        slots_frame = ttk.LabelFrame(left_panel, text="Slots")
-        slots_frame.pack(fill=X, pady=(0, 10))
+        self.btn_clear_slots = ttk.Button(slots_frame, text="🗑️ Limpar Todos os Slots", 
+                                         command=self.clear_slots,
+                                         )
+        self.btn_clear_slots.pack(fill=X, padx=10, pady=(8, 4))
         
-        self.btn_clear_slots = ttk.Button(slots_frame, text="Limpar Todos os Slots", 
-                                         command=self.clear_slots)
-        self.btn_clear_slots.pack(fill=X, padx=5, pady=2)
+        self.btn_delete_slot = ttk.Button(slots_frame, text="❌ Deletar Slot Selecionado", 
+                                         command=self.delete_selected_slot,
+                                         )
+        self.btn_delete_slot.pack(fill=X, padx=10, pady=(4, 4))
         
-        # Botão de editar slot removido - editor aparece automaticamente quando slot é selecionado
+        self.btn_train_slot = ttk.Button(slots_frame, text="🧠 Treinar Slot Selecionado", 
+                                        command=self.train_selected_slot,
+                                        )
+        self.btn_train_slot.pack(fill=X, padx=10, pady=(4, 8))
         
-        self.btn_delete_slot = ttk.Button(slots_frame, text="Deletar Slot Selecionado", 
-                                         command=self.delete_selected_slot)
-        self.btn_delete_slot.pack(fill=X, padx=5, pady=2)
-        
-        self.btn_train_slot = ttk.Button(slots_frame, text="Treinar Slot Selecionado", 
-                                        command=self.train_selected_slot)
-        self.btn_train_slot.pack(fill=X, padx=5, pady=2)
-        
-        # Informações dos slots (substituindo a lista visual)
-        self.slot_info_frame = ttk.LabelFrame(slots_frame, text="Informações do Slot Selecionado")
-        self.slot_info_frame.pack(fill=X, padx=5, pady=5)
+        # Informações dos slots com design moderno
+        self.slot_info_frame = ttk.LabelFrame(slots_frame, text="ℹ️ Informações do Slot", )
+        self.slot_info_frame.pack(fill=X, padx=10, pady=(8, 8))
         
         # Label para mostrar informações do slot selecionado
-        self.slot_info_label = ttk.Label(self.slot_info_frame, text="Nenhum slot selecionado", justify=LEFT)
-        self.slot_info_label.pack(fill=X, padx=5, pady=5)
+        self.slot_info_label = ttk.Label(self.slot_info_frame, 
+                                       text="Nenhum slot selecionado", 
+                                       justify=LEFT,
+                                       font=("Segoe UI", 9))
+        self.slot_info_label.pack(fill=X, padx=8, pady=8)
         
-        # Seção de Ajuda
-        help_frame = ttk.LabelFrame(left_panel, text="Ajuda")
-        help_frame.pack(fill=X, pady=(0, 10))
+        # Seção de Ajuda com design moderno
+        help_frame = ttk.LabelFrame(left_panel, text="❓ Ajuda & Configurações", )
+        help_frame.pack(fill=X, pady=(0, 15))
         
-        self.btn_help = ttk.Button(help_frame, text="Mostrar Ajuda", 
-                                  command=self.show_help)
-        self.btn_help.pack(fill=X, padx=5, pady=5)
+        self.btn_help = ttk.Button(help_frame, text="📖 Mostrar Ajuda", 
+                                  command=self.show_help,
+                                  )
+        self.btn_help.pack(fill=X, padx=10, pady=(8, 4))
         
-        # Botão de configurações com ícone de engrenagem
+        # Botão de configurações com design moderno
         self.btn_config = ttk.Button(help_frame, text="⚙️ Configurações do Sistema", 
-                                    command=self.open_system_config)
-        self.btn_config.pack(fill=X, padx=5, pady=(0, 5))
+                                    command=self.open_system_config,
+                                    )
+        self.btn_config.pack(fill=X, padx=10, pady=(4, 8))
         
         # === PAINEL CENTRAL - Editor de Malha ===
         
-        # Canvas com scrollbars
-        canvas_frame = ttk.LabelFrame(center_panel, text="Editor de Malha")
+        # Canvas com scrollbars e design moderno
+        canvas_frame = ttk.LabelFrame(center_panel, text="🖼️ Editor de Malha", )
         canvas_frame.pack(fill=BOTH, expand=True)
         
         # Frame para canvas e scrollbars
-        canvas_container = ttk.Frame(canvas_frame)
-        canvas_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
+        canvas_container = ttk.Frame(canvas_frame, )
+        canvas_container.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
         # Scrollbars
         v_scrollbar = ttk.Scrollbar(canvas_container, orient=VERTICAL)
@@ -2961,8 +3092,11 @@ class MontagemWindow(ttk.Frame):
         h_scrollbar = ttk.Scrollbar(canvas_container, orient=HORIZONTAL)
         h_scrollbar.pack(side=BOTTOM, fill=X)
         
-        # Canvas
-        self.canvas = Canvas(canvas_container, bg="#2C3E50",  # Cor de fundo alterada
+        # Canvas com design moderno
+        self.canvas = Canvas(canvas_container, 
+                           bg="#1E293B",  # Cor de fundo moderna (slate-800)
+                           highlightthickness=0,
+                           relief="flat",
                            yscrollcommand=v_scrollbar.set,
                            xscrollcommand=h_scrollbar.set)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
@@ -2987,14 +3121,61 @@ class MontagemWindow(ttk.Frame):
         self.pan_start_x = 0
         self.pan_start_y = 0
         
-        # Status bar
+        # Status bar com design moderno
+        status_frame = ttk.Frame(self)
+        status_frame.pack(side=BOTTOM, fill=X, padx=10, pady=(5, 10))
+        
         self.status_var = StringVar()
-        self.status_var.set("Carregue uma imagem para começar")
-        status_bar = ttk.Label(self, textvariable=self.status_var, relief="sunken")
-        status_bar.pack(side=BOTTOM, fill=X, padx=5, pady=2)
+        self.status_var.set("📋 Carregue uma imagem para começar")
+        status_bar = ttk.Label(status_frame, 
+                              textvariable=self.status_var, 
+                              font=("Segoe UI", 9))
+        status_bar.pack(padx=15, pady=8)
         
         # Inicializa o painel direito com mensagem padrão
         self.show_default_right_panel()
+        
+        # Configura tamanho inicial responsivo
+        self.configure_responsive_window()
+    
+    def configure_responsive_window(self):
+        """Configura o tamanho da janela de forma responsiva baseado na resolução da tela."""
+        try:
+            # Verifica se é uma janela top-level (tem métodos geometry e minsize)
+            if not hasattr(self, 'geometry') or not hasattr(self, 'minsize'):
+                # Se não é uma janela top-level, tenta configurar a janela pai
+                if hasattr(self, 'master') and hasattr(self.master, 'geometry'):
+                    parent = self.master
+                else:
+                    print("Configuração responsiva não aplicável para este tipo de widget")
+                    return
+            else:
+                parent = self
+            
+            # Obtém dimensões da tela
+            screen_width = parent.winfo_screenwidth()
+            screen_height = parent.winfo_screenheight()
+            
+            # Calcula tamanho ideal (80% da tela, mas com limites)
+            ideal_width = min(max(int(screen_width * 0.8), 1200), screen_width - 100)
+            ideal_height = min(max(int(screen_height * 0.8), 800), screen_height - 100)
+            
+            # Centraliza a janela
+            x = (screen_width - ideal_width) // 2
+            y = (screen_height - ideal_height) // 2
+            
+            # Aplica a geometria
+            parent.geometry(f"{ideal_width}x{ideal_height}+{x}+{y}")
+            
+            # Define tamanho mínimo
+            if hasattr(parent, 'minsize'):
+                parent.minsize(1000, 700)
+            
+            print(f"Janela configurada: {ideal_width}x{ideal_height} (Tela: {screen_width}x{screen_height})")
+            
+        except Exception as e:
+            print(f"Erro ao configurar janela responsiva: {e}")
+            # Não faz fallback se não conseguir configurar
 
     def toggle_live_capture_manual_inspection(self):
         """Alterna o modo de captura contínua com inspeção manual (ativada pelo Enter)."""
@@ -3997,39 +4178,45 @@ class MontagemWindow(ttk.Frame):
         """Exibe mensagem padrão no painel direito quando nenhum slot está selecionado."""
         self.clear_right_panel()
         
-        # Título do painel
-        title_label = ttk.Label(self.right_panel, text="Editor de Slot", 
-                               font=("Arial", 12, "bold"))
-        title_label.pack(pady=(0, 10))
+        # Título do painel com design moderno
+        title_label = ttk.Label(self.right_panel, 
+                               text="🎯 Editor de Slot", 
+                               font=("Segoe UI", 14, "bold"),
+                               )
+        title_label.pack(pady=(20, 15))
         
-        # Mensagem informativa
-        info_frame = ttk.Frame(self.right_panel)
-        info_frame.pack(fill=X, pady=10)
+        # Card de mensagem informativa
+        info_card = ttk.Frame(self.right_panel, )
+        info_card.pack(fill=X, padx=15, pady=10)
         
-        info_label = ttk.Label(info_frame, 
-                              text="Selecione um slot no\nEditor de Malha para\neditar suas propriedades",
+        info_label = ttk.Label(info_card, 
+                              text="💡 Selecione um slot no\nEditor de Malha para\neditar suas propriedades",
                               justify=CENTER,
-                              foreground="gray")
-        info_label.pack()
+                              font=("Segoe UI", 10),
+                              )
+        info_label.pack(pady=15)
         
-        # Instruções
-        instructions_frame = ttk.LabelFrame(self.right_panel, text="Instruções")
-        instructions_frame.pack(fill=X, pady=(20, 0))
+        # Card de instruções com design moderno
+        instructions_frame = ttk.LabelFrame(self.right_panel, 
+                                          text="📋 Instruções", 
+                                          )
+        instructions_frame.pack(fill=X, padx=15, pady=(15, 0))
         
         instructions_text = (
-            "• Clique em um slot no canvas\n"
-            "  para selecioná-lo\n\n"
-            "• O editor aparecerá\n"
-            "  automaticamente\n\n"
-            "• Ajuste posição, tamanho\n"
-            "  e parâmetros de detecção"
+            "🖱️ Clique em um slot no canvas\n"
+            "   para selecioná-lo\n\n"
+            "⚡ O editor aparecerá\n"
+            "   automaticamente\n\n"
+            "⚙️ Ajuste posição, tamanho\n"
+            "   e parâmetros de detecção"
         )
         
         instructions_label = ttk.Label(instructions_frame, 
                                      text=instructions_text,
                                      justify=LEFT,
-                                     foreground="#666666")
-        instructions_label.pack(padx=10, pady=10)
+                                     font=("Segoe UI", 9),
+                                     )
+        instructions_label.pack(padx=15, pady=12)
     
     def save_slot_changes(self, slot_data):
         """Salva as alterações feitas no slot"""
@@ -5459,7 +5646,7 @@ class InspecaoWindow(ttk.Frame):
                        background=[('active', '#FF7733'), ('pressed', '#CC4400')])
         
         # Estilos para resultados
-        self.style.configure('Success.TFrame', background='#004400')
+        self.style.configure('Success.TFrame', background='#333333')
         self.style.configure('Danger.TFrame', background='#440000')
         
         # Estilos para Entry e Combobox
@@ -5502,16 +5689,67 @@ class InspecaoWindow(ttk.Frame):
         # Estilo para o cabeçalho
         self.style.configure('Header.TFrame', background=self.accent_color)
         
-        # Logo e título
-        header_label = ttk.Label(header_frame, text="AutoVerify DX SYSTEM", 
-                                font=style_config["ok_font"], foreground="white",
-                                background=self.accent_color)
-        header_label.pack(pady=10, fill=X)
+        # Logo DX Project
+        try:
+            from tkinter import PhotoImage
+            from PIL import Image, ImageTk
+            import os
+            
+            logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "dx_project_logo.png")
+            
+            if os.path.exists(logo_path):
+                # Carregar e redimensionar a imagem
+                pil_image = Image.open(logo_path)
+                # Redimensionar mantendo proporção - altura de aproximadamente 100px
+                original_width, original_height = pil_image.size
+                new_height = 100
+                new_width = int((new_height * original_width) / original_height)
+                pil_image = pil_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                # Converter para PhotoImage
+                logo_image = ImageTk.PhotoImage(pil_image)
+                
+                # Frame para a logo - sem estilo para evitar fundo verde
+                logo_frame = ttk.Frame(header_frame)
+                logo_frame.pack(pady=15, fill=X)
+                
+                # Label com a imagem da logo - sem background para ficar transparente
+                logo_label = ttk.Label(logo_frame, image=logo_image)
+                logo_label.image = logo_image  # Manter referência para evitar garbage collection
+                logo_label.pack(side="left", padx=(20, 20))
+            else:
+                # Fallback para texto se a imagem não existir
+                logo_frame = ttk.Frame(header_frame, style='Header.TFrame')
+                logo_frame.pack(pady=10, fill=X)
+                
+                # Texto DX em estilo grande
+                dx_label = ttk.Label(logo_frame, text="DX", 
+                                    font=("Arial", 28, "bold"), foreground="#28a745",
+                                    background=self.accent_color)
+                dx_label.pack(side="left", padx=(20, 5))
+                
+                # Ícone de olho simulado
+                eye_label = ttk.Label(logo_frame, text="👁", 
+                                    font=("Arial", 24), foreground="#28a745",
+                                    background=self.accent_color)
+                eye_label.pack(side="left", padx=5)
+                
+                # Texto PROJECT
+                project_label = ttk.Label(logo_frame, text="PROJECT", 
+                                        font=("Arial", 16, "bold"), foreground="#28a745",
+                                        background=self.accent_color)
+                project_label.pack(side="left", padx=(5, 20))
+            
+        except Exception as e:
+            # Fallback para texto simples se houver erro
+            header_label = ttk.Label(header_frame, text="DX PROJECT - VISUAL INSPECTION", 
+                                    font=style_config["ok_font"], foreground="#28a745",
+                                    background=self.accent_color)
+            header_label.pack(pady=10, fill=X)
         
         # Versão do sistema
         version_label = ttk.Label(header_frame, text="V1.0.0 - INDUSTRIAL INSPECTION", 
-                                font=style_config["ok_font"].replace("12", "8"), foreground="white",
-                                background=self.accent_color)
+                                font=style_config["ok_font"].replace("12", "8"), foreground="gray")
         version_label.pack(pady=(0, 10))
         
         # Seção de Modelo - Estilo industrial Keyence
@@ -5531,7 +5769,7 @@ class InspecaoWindow(ttk.Frame):
         
         # Botão com ícone industrial
         self.btn_load_model = ttk.Button(model_frame, text="CARREGAR MODELO ▼", 
-                                       command=self.load_model_dialog, style="Action.TButton")
+                                       command=self.load_model_dialog, )
         self.btn_load_model.pack(fill=X, padx=5, pady=5)
         
         # Seção de Imagem de Teste - Estilo industrial
@@ -5591,8 +5829,19 @@ class InspecaoWindow(ttk.Frame):
         # Botão para inspecionar sem tirar foto
         self.btn_inspect_only = ttk.Button(inspection_frame, text="INSPECIONAR SEM CAPTURAR", 
                                         command=self.inspect_without_capture,
-                                        style="Inspect.TButton")
+                                        )
         self.btn_inspect_only.pack(fill=X, padx=5, pady=5)
+        
+        # Label grande para resultado NG/OK
+        self.result_display_label = ttk.Label(inspection_frame, text="--", 
+                                            font=("Arial", 36, "bold"), 
+                                            foreground="#CCCCCC", 
+                                            background="#2A2A2A",
+                                            anchor="center",
+                                            relief="raised",
+                                            borderwidth=4,
+                                            padding=(20, 15))
+        self.result_display_label.pack(fill=X, padx=5, pady=(10, 5), ipady=20)
         
         # === PAINEL CENTRAL - CANVAS DE INSPEÇÃO ===
         
@@ -5691,7 +5940,7 @@ class InspecaoWindow(ttk.Frame):
         self.results_listbox.heading("detalhes", text="DETALHES")
         
         # Configurar tags para resultados
-        self.results_listbox.tag_configure("pass", background="#004400", foreground="#FFFFFF")
+        self.results_listbox.tag_configure("pass", background="#333333", foreground="#FFFFFF")
         self.results_listbox.tag_configure("fail", background="#440000", foreground="#FFFFFF")
         
         # Dicionário para armazenar widgets de status
@@ -5754,6 +6003,14 @@ class InspecaoWindow(ttk.Frame):
             if children:
                 self.results_listbox.delete(*children)
             
+            # Resetar o label grande de resultado
+            if hasattr(self, 'result_display_label'):
+                self.result_display_label.config(
+                    text="--",
+                    foreground="#CCCCCC",
+                    background="#2A2A2A"
+                )
+            
             # Criar painel de resumo de status
             self.create_status_summary_panel()
             
@@ -5782,6 +6039,22 @@ class InspecaoWindow(ttk.Frame):
 
                 # Limpa resultados de inspeção anteriores
                 self.inspection_results = []
+                
+                # Resetar o label grande de resultado
+                if hasattr(self, 'result_display_label'):
+                    self.result_display_label.config(
+                        text="--",
+                        foreground="#CCCCCC",
+                        background="#2A2A2A"
+                    )
+                
+                # Resetar o label grande de resultado
+                if hasattr(self, 'result_display_label'):
+                    self.result_display_label.config(
+                        text="--",
+                        foreground="#CCCCCC",
+                        background="#2A2A2A"
+                    )
                 
                 self.update_display()
                 self.status_var.set(f"Imagem de teste carregada: {Path(file_path).name}")
@@ -5870,6 +6143,14 @@ class InspecaoWindow(ttk.Frame):
             
             # Limpa resultados anteriores
             self.inspection_results = []
+            
+            # Resetar o label grande de resultado
+            if hasattr(self, 'result_display_label'):
+                self.result_display_label.config(
+                    text="--",
+                    foreground="#CCCCCC",
+                    background="#2A2A2A"
+                )
             self.update_results_list()
             
             # Configura o bind da tecla Enter para inspeção
@@ -6004,6 +6285,14 @@ class InspecaoWindow(ttk.Frame):
             # Limpa resultados anteriores
             if hasattr(self, 'inspection_results'):
                 self.inspection_results = []
+                
+                # Resetar o label grande de resultado
+                if hasattr(self, 'result_display_label'):
+                    self.result_display_label.config(
+                        text="--",
+                        foreground="#CCCCCC",
+                        background="#2A2A2A"
+                    )
                 
             # Atualiza a lista de resultados
             if hasattr(self, 'update_results_list'):
@@ -6720,6 +7009,14 @@ class InspecaoWindow(ttk.Frame):
                 self.inspection_results = []
                 failed_slots = []  # Para log otimizado
                 
+                # Resetar o label grande de resultado
+                if hasattr(self, 'result_display_label'):
+                    self.result_display_label.config(
+                        text="--",
+                        foreground="#CCCCCC",
+                        background="#2A2A2A"
+                    )
+                
                 # Adicionar modelo_id aos resultados se disponível
                 model_id = getattr(self, 'current_model_id', '--')
                 
@@ -6965,11 +7262,7 @@ class InspecaoWindow(ttk.Frame):
         header_frame = ttk.Frame(self.status_grid_frame)
         header_frame.pack(fill=X, pady=(0, 10))
         
-        # Título do painel de status
-        header_label = ttk.Label(header_frame, text="SISTEMA DE INSPEÇÃO WALTER", 
-                                font=('Arial', 14, 'bold'), foreground="white",
-                                background=self.accent_color)
-        header_label.pack(pady=10, fill=X)
+
         
         # Caso contrário, criar o painel de resumo de slots
         # Limpar widgets existentes
@@ -7165,6 +7458,34 @@ class InspecaoWindow(ttk.Frame):
                 )
                 
                 self.id_label.config(text=model_id)
+        
+        # Atualizar o label grande de resultado NG/OK
+        if hasattr(self, 'result_display_label'):
+            if total_slots > 0:
+                overall_status = "OK" if passed_slots == total_slots else "NG"
+                
+                # Carrega as configurações de estilo
+                style_config = load_style_config()
+                
+                if overall_status == "OK":
+                    self.result_display_label.config(
+                        text="OK",
+                        foreground="#FFFFFF",
+                        background=style_config["ok_color"]
+                    )
+                else:
+                    self.result_display_label.config(
+                        text="NG",
+                        foreground="#FFFFFF",
+                        background=style_config["ng_color"]
+                    )
+            else:
+                # Resetar para estado inicial quando não há resultados
+                self.result_display_label.config(
+                    text="--",
+                    foreground="#CCCCCC",
+                    background="#2A2A2A"
+                )
     
     def draw_inspection_results(self):
         """Desenha resultados da inspeção no canvas com estilo industrial."""
@@ -7265,12 +7586,18 @@ class InspecaoWindow(ttk.Frame):
 
 def create_main_window():
     """Cria e configura a janela principal da aplicação."""
-    # Inicializa ttkbootstrap com tema mais claro
-    root = ttk.Window(themename="flatly")  # Tema alterado de "cyborg" para "flatly"
-    root.title("Sistema de Visão Computacional - Inspeção de Montagem")
+    # Inicializa ttkbootstrap com tema moderno
+    root = ttk.Window(themename="superhero")  # Tema moderno escuro
+    root.title("AutoVerify DX - Sistema de Inspeção Visual Automotiva")
     
     # Configurar para abrir em tela cheia
     root.state('zoomed')  # Maximiza a janela no Windows
+    
+    # Configurar ícone da janela (se disponível)
+    try:
+        root.iconbitmap(str(get_project_root() / "assets" / "logo.ico"))
+    except:
+        pass  # Ignora se não encontrar o ícone
     
     # Configura fechamento de janelas OpenCV
     def on_closing():
