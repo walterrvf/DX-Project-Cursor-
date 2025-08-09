@@ -6,7 +6,7 @@ from tkinter import ttk
 DEFAULT_STYLES = {
     "background_color": "#1E1E1E",  # Cor de fundo dos diálogos
     "text_color": "#FFFFFF",       # Cor do texto
-    "button_color": "#4CAF50",     # Cor dos botões
+    "button_color": "#FFFFFF",     # Cor dos botões
     "ng_color": "#F38BA8",         # Cor do texto NG
     "ok_color": "#95E1D3",         # Cor do texto OK
     "ng_font": "Arial 10 bold",    # Fonte do texto NG
