@@ -5696,6 +5696,7 @@ class InspecaoWindow(ttk.Frame):
             import os
             
             logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "dx_project_logo.png")
+
             
             if os.path.exists(logo_path):
                 # Carregar e redimensionar a imagem
