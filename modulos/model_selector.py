@@ -1,12 +1,12 @@
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+from ttkbootstrap.constants import BOTH, LEFT, RIGHT, Y, CENTER, VERTICAL, X, SUCCESS, DANGER, INFO, PRIMARY, DISABLED, NORMAL, END
 from tkinter import messagebox, simpledialog
 from datetime import datetime
 from pathlib import Path
 try:
     # Quando importado como módulo
-    from .database_manager import DatabaseManager
-    from .utils import load_style_config
+    from database_manager import DatabaseManager
+    from utils import load_style_config
 except ImportError:
     # Quando executado diretamente
     try:
@@ -54,16 +54,28 @@ class ModelSelectorDialog:
         style_config = load_style_config()
             
         title_label = ttk.Label(main_frame, text="Gerenciar Modelos de Inspeção", 
-                               font=style_config["ok_font"])
+                               font=style_config["ok_font"]) 
         title_label.pack(pady=(0, 20))
         
         # Frame para lista de modelos
         list_frame = ttk.LabelFrame(main_frame, text="Modelos Disponíveis", padding=10)
         list_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
         
+        # Estilo para garantir contraste no modo escuro/claro
+        style = ttk.Style()
+        style.configure('Models.Treeview',
+                        background='#ffffff',
+                        fieldbackground='#ffffff',
+                        foreground='#000000')
+        style.configure('Models.Treeview.Heading',
+                        foreground='#000000')
+        style.map('Models.Treeview',
+                  background=[('selected', '#0d6efd')],
+                  foreground=[('selected', '#ffffff')])
+
         # Treeview para modelos
         columns = ('nome', 'slots', 'criado', 'atualizado')
-        self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
+        self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15, style='Models.Treeview')
         
         # Configurar colunas
         self.tree.heading('nome', text='Nome do Modelo')
@@ -141,6 +153,8 @@ class ModelSelectorDialog:
         # Carrega modelos do banco
         try:
             modelos = self.db_manager.list_modelos()
+            # Debug visual no console para confirmar contagem
+            print(f"ModelSelector: encontrados {len(modelos)} modelos")
             
             for modelo in modelos:
                 # Formata datas

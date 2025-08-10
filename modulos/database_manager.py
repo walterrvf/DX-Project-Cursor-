@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict
+from pathlib import Path
 
 class DatabaseManager:
     """Gerenciador do banco de dados SQLite para o sistema de inspeção visual."""
@@ -103,6 +104,16 @@ class DatabaseManager:
                 self.fix_absolute_paths()
             except Exception as e:
                 print(f"Aviso: Não foi possível corrigir caminhos absolutos: {e}")
+            
+            # Bootstrap automático de modelos a partir de pastas existentes se a tabela estiver vazia
+            try:
+                cursor.execute("SELECT COUNT(1) FROM modelos")
+                count = int(cursor.fetchone()[0] or 0)
+                if count == 0:
+                    self._bootstrap_models_from_folders(cursor)
+                    conn.commit()
+            except Exception as e:
+                print(f"Aviso: Não foi possível inicializar modelos a partir das pastas: {e}")
     
     def save_modelo(self, nome: str, image_path: str, slots: List[Dict]) -> int:
         """Salva um modelo completo no banco de dados.
@@ -346,27 +357,148 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em,
-                       COUNT(s.id) as num_slots
-                FROM modelos m
-                LEFT JOIN slots s ON m.id = s.modelo_id
-                GROUP BY m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em
-                ORDER BY m.atualizado_em DESC
-            """)
+            # Verifica tabelas existentes
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = {name for (name,) in cursor.fetchall()}
             
-            modelos = []
-            for row in cursor.fetchall():
-                modelos.append({
-                    'id': row[0],
-                    'nome': row[1],
-                    'image_path': row[2],
-                    'criado_em': row[3],
-                    'atualizado_em': row[4],
-                    'num_slots': row[5]
-                })
+            modelos: List[Dict] = []
+            if 'modelos' in tables:
+                cursor.execute(
+                    """
+                    SELECT m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em,
+                           COUNT(s.id) as num_slots
+                    FROM modelos m
+                    LEFT JOIN slots s ON m.id = s.modelo_id
+                    GROUP BY m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em
+                    ORDER BY m.atualizado_em DESC
+                    """
+                )
+                for row in cursor.fetchall():
+                    modelos.append({
+                        'id': row[0],
+                        'nome': row[1],
+                        'image_path': row[2],
+                        'criado_em': row[3],
+                        'atualizado_em': row[4],
+                        'num_slots': row[5],
+                    })
+                
+                # Se a tabela existir mas estiver vazia e houver legado, tenta fallback
+                if modelos or 'models' not in tables:
+                    # Se vazio, tenta bootstrap a partir de pastas existentes
+                    if not modelos:
+                        try:
+                            self._bootstrap_models_from_folders(cursor)
+                            conn.commit()
+                            cursor.execute(
+                                """
+                                SELECT m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em,
+                                       COUNT(s.id) as num_slots
+                                FROM modelos m
+                                LEFT JOIN slots s ON m.id = s.modelo_id
+                                GROUP BY m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em
+                                ORDER BY m.atualizado_em DESC
+                                """
+                            )
+                            modelos = [{
+                                'id': r[0], 'nome': r[1], 'image_path': r[2],
+                                'criado_em': r[3], 'atualizado_em': r[4], 'num_slots': r[5]
+                            } for r in cursor.fetchall()]
+                        except Exception:
+                            pass
+                    return modelos
+            
+            # Fallback para esquemas legados que usam tabela 'models'
+            if 'models' in tables:
+                try:
+                    cursor.execute(
+                        """
+                        SELECT m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em
+                        FROM models m
+                        ORDER BY m.atualizado_em DESC
+                        """
+                    )
+                    legacy_rows = cursor.fetchall()
+                    # Verifica se existe tabela slots compatível
+                    has_slots = 'slots' in tables
+                    for row in legacy_rows:
+                        model_id = row[0]
+                        num_slots = 0
+                        if has_slots:
+                            try:
+                                cursor.execute("SELECT COUNT(1) FROM slots WHERE modelo_id = ?", (model_id,))
+                                num_slots = int(cursor.fetchone()[0] or 0)
+                            except Exception:
+                                num_slots = 0
+                        modelos.append({
+                            'id': model_id,
+                            'nome': row[1],
+                            'image_path': row[2],
+                            'criado_em': row[3],
+                            'atualizado_em': row[4],
+                            'num_slots': num_slots,
+                        })
+                except Exception:
+                    pass
             
             return modelos
+
+    def _bootstrap_models_from_folders(self, cursor):
+        """Cria registros na tabela 'modelos' com base nas pastas já existentes em 'modelos/'.
+        Não cria novas pastas nem move arquivos; apenas referencia a imagem _reference existente.
+        """
+        try:
+            models_dir: Path = self.db_path.parent
+            if not models_dir.exists():
+                return
+            # Pastas candidatas: qualquer subpasta com padrão base_sufixo e contendo *_reference.(jpg|png)
+            for sub in models_dir.iterdir():
+                if not sub.is_dir():
+                    continue
+                name = sub.name
+                if '_' not in name:
+                    continue
+                base = name.split('_')[0]
+                # Pula pastas reservadas
+                if base in {"_templates", "_samples", "historico_fotos"}:
+                    continue
+                # Já existe um modelo com este nome?
+                cursor.execute("SELECT id FROM modelos WHERE nome = ?", (base,))
+                if cursor.fetchone():
+                    continue
+                # Procura imagem de referência
+                ref = None
+                for ext in ("jpg", "png", "jpeg", "bmp"):
+                    candidate = sub / f"{base}_reference.{ext}"
+                    if candidate.exists():
+                        ref = candidate
+                        break
+                if not ref:
+                    # tenta qualquer *_reference.*
+                    for p in sub.glob("*_reference.*"):
+                        ref = p
+                        break
+                if not ref:
+                    continue
+                # Caminho relativo ao projeto
+                rel_path = str((self.project_root / "modelos" / name / ref.name).relative_to(self.project_root)).replace('\\', '/')
+                now = datetime.now().isoformat()
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO modelos (nome, image_path, criado_em, atualizado_em)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (base, rel_path, now, now)
+                    )
+                    # não cria slots aqui
+                    # não cria pastas novas aqui
+                    # apenas referencia pastas existentes
+                    print(f"Modelo bootstrap criado a partir da pasta: nome='{base}', ref='{rel_path}'")
+                except Exception as e:
+                    print(f"Falha ao bootstrap modelo da pasta {name}: {e}")
+        except Exception:
+            pass
     
     def delete_modelo(self, modelo_id: int):
         """Remove um modelo e todos os seus slots.

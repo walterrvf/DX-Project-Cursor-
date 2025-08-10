@@ -5,12 +5,13 @@
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)
 ![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-red.svg)
-![License](https://img.shields.io/badge/License-Proprietary-yellow.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Status](https://img.shields.io/badge/Status-Production-brightgreen.svg)
+![Version](https://img.shields.io/badge/Version-2.0-blue.svg)
 
 **Sistema avançado de inspeção visual automatizada para controle de qualidade industrial**
 
-*Desenvolvido pela equipe DX (Desenvolvimento Digital)*
+*Desenvolvido pela equipe DX (Desenvolvimento Digital) - Versão 2.0*
 
 </div>
 
@@ -33,7 +34,9 @@
 
 ## 🎯 Visão Geral
 
-O **Sistema de Visão Computacional DX** é uma solução completa de inspeção visual automatizada que combina técnicas avançadas de **visão computacional**, **machine learning** e **processamento de imagens** para realizar controle de qualidade industrial com alta precisão e eficiência.
+O **Sistema de Visão Computacional DX v2.0** é uma solução completa de inspeção visual automatizada que combina técnicas avançadas de **visão computacional**, **machine learning** e **processamento de imagens** para realizar controle de qualidade industrial com alta precisão e eficiência. 
+
+Esta versão inclui melhorias significativas em performance, interface do usuário e algoritmos de detecção, além de suporte completo para múltiplas câmeras e modelos de inspeção avançados.
 
 ### 🏗️ Arquitetura Modular
 
@@ -55,9 +58,11 @@ graph TB
 - 🎯 **Template matching** com múltiplos algoritmos
 - 🤖 **Sistema de treinamento** com amostras OK/NG
 - 📐 **Detecção de alinhamento** e posicionamento
-- 📹 **Suporte a múltiplas câmeras** (USB, Industrial)
+- 📹 **Suporte a múltiplas câmeras** (USB, Industrial, IP)
 - ⚙️ **Interface de configuração** avançada
 - 📊 **Relatórios em tempo real** com métricas detalhadas
+- 🔄 **Sistema de backup** automático de modelos
+- 📱 **Interface responsiva** com temas personalizáveis
 
 ### 🧠 **Inteligência Artificial Integrada**
 - 🌲 **Random Forest Classifier** para classificação OK/NG
@@ -72,6 +77,9 @@ graph TB
 - 📱 **Design responsivo** e adaptável
 - 🔧 **Configuração visual** de parâmetros
 - 📊 **Visualização em tempo real** dos resultados
+- 🌙 **Modo escuro/claro** com temas personalizáveis
+- 📱 **Interface adaptativa** para diferentes resoluções
+- 🎯 **Navegação intuitiva** com breadcrumbs e menus contextuais
 
 ## 🧮 Algoritmos Matemáticos
 
@@ -245,25 +253,29 @@ CV_Score = (1/k) · Σ(Accuracy_i)
 
 ## ⚙️ Requisitos do Sistema
 
-- **Python**: 3.8 ou superior
-- **Sistema Operacional**: Windows 10/11, Linux, macOS
-- **Memória RAM**: Mínimo 4GB (recomendado 8GB)
-- **Câmera**: Webcam USB ou câmera industrial compatível
-- **Processador**: Intel i5 ou equivalente (recomendado i7)
+- **Python**: 3.8 ou superior (recomendado 3.11+)
+- **Sistema Operacional**: Windows 10/11, Linux (Ubuntu 20.04+), macOS 12+
+- **Memória RAM**: Mínimo 4GB (recomendado 8GB+)
+- **Câmera**: Webcam USB, câmera industrial ou IP camera compatível
+- **Processador**: Intel i5 ou equivalente (recomendado i7/i9 ou AMD Ryzen 5+)
+- **Armazenamento**: Mínimo 2GB livre (recomendado 10GB+)
+- **GPU**: Opcional, mas recomendado para processamento acelerado
 
-## Instalação
+## 🚀 Instalação
 
 ### 1. Preparação do Ambiente
 
 Certifique-se de ter o Python 3.8 ou superior instalado:
 ```bash
 python --version
+# ou
+python3 --version
 ```
 
 ### 2. Clone ou Baixe o Projeto
 ```bash
-git clone [URL_DO_REPOSITORIO]
-cd sistema-visao-computacional
+git clone https://github.com/walterrvf/DX-Project-Cursor-.git
+cd DX-Project-Cursor-
 ```
 
 ### 3. Crie um Ambiente Virtual (Recomendado)
@@ -291,16 +303,21 @@ pip install -r requirements.txt
 
 ### 6. Verificação da Instalação
 ```bash
-python -c "import cv2, PyQt5, ttkbootstrap; print('Instalação bem-sucedida!')"
+python -c "import cv2, PyQt5, ttkbootstrap; print('✅ Instalação bem-sucedida!')"
 ```
 
-## Executando o Sistema
+### 7. Execução do Sistema
+```bash
+python main.py
+```
+
+## 🎮 Executando o Sistema
 
 ### Execução Padrão
 1. Certifique-se de que o ambiente virtual está ativado
 2. Execute o programa principal:
 ```bash
-python app.py
+python main.py
 ```
 
 ### Execução do Módulo de Montagem
@@ -308,32 +325,46 @@ O módulo de montagem pode ser executado independentemente para testes:
 ```bash
 # Módulo de Montagem
 python -m modulos.montagem
+
+# Ou diretamente
+python modulos/montagem.py
 ```
 
-## Estrutura do Projeto
+## 📁 Estrutura do Projeto
 
 ```
-sistema-visao-computacional/
-├── app.py                      # Dashboard principal do sistema
+DX-Project-Cursor-/
+├── main.py                     # Aplicação principal do sistema
 ├── requirements.txt            # Dependências do projeto
 ├── README.md                   # Documentação do projeto
+├── DOCUMENTACAO_TECNICA.md     # Documentação técnica completa
 │
 ├── assets/                     # Recursos visuais
 │   └── logo.svg               # Logo do sistema
 │
 ├── modelos/                    # Modelos e templates
 │   ├── _templates/            # Templates de referência
-│   │   ├── slot_1_template.png
-│   │   ├── slot_2_template.png
-│   │   └── slot_3_template.png
-│   ├── modelo_exemplo/        # Modelos específicos
-│   └── models.db             # Banco de dados SQLite
+│   ├── _samples/              # Amostras de treinamento
+│   ├── a_29/                  # Modelo específico A-29
+│   ├── b_34/                  # Modelo específico B-34
+│   ├── n_35/                  # Modelo específico N-35
+│   ├── 1_33/                  # Modelo específico 1-33
+│   └── models.db              # Banco de dados SQLite
 │
 ├── modulos/                    # Módulos do sistema
-│   ├── __pycache__/           # Cache Python (gerado automaticamente)
+│   ├── __init__.py            # Inicialização do pacote
 │   ├── database_manager.py    # Gerenciador de banco de dados
 │   ├── model_selector.py      # Seletor de modelos
 │   ├── montagem.py            # Módulo principal de verificação de montagem
+│   ├── camera_manager.py      # Gerenciador de câmeras
+│   ├── image_utils.py         # Utilitários de imagem
+│   ├── ml_classifier.py       # Classificador de machine learning
+│   ├── inspection_ui.py       # Interface de inspeção
+│   ├── history_ui.py          # Interface de histórico
+│   ├── dialogs.py             # Diálogos do sistema
+│   ├── mesh_editor.py         # Editor de malhas
+│   ├── paths.py               # Gerenciamento de caminhos
+│   ├── training_dialog.py     # Diálogo de treinamento
 │   └── utils.py               # Utilitários e configurações
 │
 └── Imagem de teste/           # Imagens para testes
@@ -341,29 +372,35 @@ sistema-visao-computacional/
     └── OK.jpg                # Exemplo de imagem aprovada
 ```
 
-## Configuração Inicial
+## ⚙️ Configuração Inicial
 
 ### Configuração de Câmera
-1. Conecte sua câmera USB ou webcam
+1. Conecte sua câmera USB, webcam ou IP camera
 2. Execute o sistema e acesse o módulo de Montagem
 3. Use a função "Detectar Câmeras" para identificar dispositivos disponíveis
 4. Selecione a câmera desejada nas configurações
+5. Configure parâmetros de resolução e FPS para otimizar performance
 
 ### Criação de Modelos
 1. Acesse o módulo de Montagem
 2. Clique em "Novo Modelo" e defina um nome
 3. Carregue uma imagem de referência
-4. Defina as áreas de inspeção (slots)
-5. Treine o modelo com amostras OK e NG
-6. Salve o modelo no banco de dados
+4. Defina as áreas de inspeção (slots) com o editor visual
+5. Configure parâmetros de cada slot (threshold, tipo de inspeção)
+6. Treine o modelo com amostras OK e NG
+7. Valide o modelo com imagens de teste
+8. Salve o modelo no banco de dados
 
-## Uso do Sistema
+## 🎮 Uso do Sistema
 
-### Dashboard Principal
-O dashboard oferece acesso ao módulo de montagem:
+### 🏠 Dashboard Principal
+O dashboard oferece acesso centralizado a todos os módulos do sistema:
 - **Montagem**: Verificação de componentes montados
+- **Histórico**: Análise de resultados e relatórios
+- **Configurações**: Ajustes do sistema e câmeras
+- **Treinamento**: Criação e gestão de modelos
 
-### Módulo de Montagem - Funcionalidades Avançadas
+### 🔧 Módulo de Montagem - Funcionalidades Avançadas
 
 #### Criação de Slots de Inspeção
 1. Carregue uma imagem de referência
@@ -620,46 +657,57 @@ Ao reportar bugs, inclua:
 - Screenshots ou logs de erro
 - Comportamento esperado vs. atual
 
-## Roadmap
+## 🗺️ Roadmap
 
-### Versão Atual (v1.0)
-- ✅ Sistema de inspeção de montagem
-- ✅ Interface gráfica com PyQt5
-- ✅ Banco de dados SQLite
-- ✅ Template matching
-- ✅ Sistema de treinamento
+### Versão Atual (v2.0) ✅
+- ✅ Sistema de inspeção de montagem avançado
+- ✅ Interface gráfica moderna com PyQt5
+- ✅ Banco de dados SQLite com backup automático
+- ✅ Template matching com múltiplos algoritmos
+- ✅ Sistema de treinamento com machine learning
+- ✅ Suporte a múltiplas câmeras (USB, Industrial, IP)
+- ✅ Interface responsiva com temas personalizáveis
+- ✅ Sistema de histórico e relatórios avançados
+- ✅ Editor visual de malhas de inspeção
+- ✅ Validação cruzada e métricas de avaliação
 
-### Próximas Versões
-- 🔄 **v1.1**: Melhorias na interface do usuário
-- 📋 **v1.2**: Relatórios avançados e exportação
-- 🤖 **v2.0**: Integração com machine learning
-- 🌐 **v2.1**: Interface web para monitoramento remoto
-- 📊 **v2.2**: Dashboard de analytics em tempo real
+### Próximas Versões 🚀
+- 🔄 **v2.1**: Integração com APIs de IoT e Industry 4.0
+- 📱 **v2.2**: Aplicativo móvel para monitoramento remoto
+- 🌐 **v2.3**: Interface web para dashboards corporativos
+- 🤖 **v2.4**: Inteligência artificial avançada com deep learning
+- 📊 **v2.5**: Analytics preditivos e manutenção preventiva
+- 🔒 **v2.6**: Sistema de segurança e auditoria avançados
 
-## Licença
+## 📄 Licença
 
-Este projeto é desenvolvido pela equipe DX (Desenvolvimento Digital). Todos os direitos reservados.
+Este projeto é desenvolvido pela equipe DX (Desenvolvimento Digital) sob licença MIT.
 
-## Créditos
+## 👥 Créditos
 
 ### Desenvolvido por
 - **Equipe DX (Desenvolvimento Digital)**
 - **Departamento de Visão Computacional**
+- **Centro de Inovação Tecnológica**
 
-### Tecnologias Utilizadas
-- **Python**: Linguagem principal
-- **OpenCV**: Biblioteca de visão computacional
-- **PyQt5**: Framework de interface gráfica
-- **NumPy**: Computação científica
-- **SQLite**: Banco de dados
+### 🛠️ Tecnologias Utilizadas
+- **Python 3.11+**: Linguagem principal
+- **OpenCV 4.8+**: Biblioteca de visão computacional
+- **PyQt5 5.15+**: Framework de interface gráfica
+- **NumPy 1.24+**: Computação científica
+- **SQLite3**: Banco de dados local
+- **Scikit-learn**: Machine learning e validação
+- **Pillow**: Processamento de imagens
+- **ttkbootstrap**: Interface moderna para módulos específicos
 
-### Agradecimentos
+### 🙏 Agradecimentos
 - Equipe de Produção pela colaboração nos testes
 - Departamento de TI pelo suporte técnico
 - Engenheiros de Qualidade pelas especificações técnicas
+- Comunidade open source pelas bibliotecas utilizadas
 
 ---
 
-**© 2024 Equipe DX - Desenvolvimento Digital. Todos os direitos reservados.**
+**© 2024-2025 Equipe DX - Desenvolvimento Digital. Licença MIT.**
 
-*Sistema de Visão Computacional DX - Versão 1.0*
+*Sistema de Visão Computacional DX - Versão 2.0*

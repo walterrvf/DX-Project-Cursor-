@@ -14,29 +14,29 @@ DEFAULT_STYLES = {
     "show_timestamp": True,
     
     "fonts": {
-        "ok_font": "Arial 10 bold",
-        "ng_font": "Arial 10 bold",
-        "title_font": "Arial 28 bold",
-        "subtitle_font": "Arial 24",
-        "header_font": "Arial 16 bold",
-        "small_font": "Arial 7",
-        "tiny_font": "Arial 8",
+        "ok_font": "Segoe UI 10 bold",
+        "ng_font": "Segoe UI 10 bold",
+        "title_font": "Segoe UI 24 bold",
+        "subtitle_font": "Segoe UI 18",
+        "header_font": "Segoe UI 14 bold",
+        "small_font": "Segoe UI 9",
+        "tiny_font": "Segoe UI 8",
         "console_font": "Consolas 10"
     },
     
     "colors": {
-        "background_color": "#222222",
-        "text_color": "#ffffff",
+        "background_color": "#0F172A",
+        "text_color": "#E5E7EB",
         "ok_color": "#8cde81",
         "ng_color": "#e7472c",
         "selection_color": "#FFE66D",
         "button_color": "#FFFFFF",
         
         "canvas_colors": {
-            "canvas_bg": "#1E1E1E",
-            "canvas_dark_bg": "#121212",
-            "panel_bg": "#2A2A2A",
-            "dark_panel_bg": "#252837",
+            "canvas_bg": "#0B1220",
+            "canvas_dark_bg": "#0B1220",
+            "panel_bg": "#111827",
+            "dark_panel_bg": "#0B1220",
             "button_bg": "#3A3A3A",
             "button_active": "#4A4A4A",
             "modern_bg": "#1E293B"
@@ -320,6 +320,10 @@ def get_font(font_path, config=None):
         value = config
         for key in keys:
             value = value[key]
+        # Converte strings "Family Size [style...]" em tupla Tk-friendly
+        if isinstance(value, str):
+            parsed = _parse_font_string(value)
+            return parsed
         return value
     except (KeyError, TypeError):
         # Fallback para fontes padrão
@@ -333,7 +337,34 @@ def get_font(font_path, config=None):
             'fonts.tiny_font': 'Arial 8',
             'fonts.console_font': 'Consolas 10'
         }
-        return fallback_fonts.get(font_path, 'Arial 10')
+        return _parse_font_string(fallback_fonts.get(font_path, 'Arial 10'))
+
+
+def _parse_font_string(font_value: str):
+    """Converte string de fonte (ex: 'Segoe UI 14 bold') para tupla Tk ('Segoe UI', 14, 'bold')."""
+    try:
+        if not isinstance(font_value, str):
+            return font_value
+        tokens = font_value.strip().split()
+        # Procura primeiro token que é número (tamanho)
+        size_index = None
+        for i, tk in enumerate(tokens):
+            try:
+                int(tk)
+                size_index = i
+                break
+            except ValueError:
+                continue
+        if size_index is None:
+            # Sem tamanho explícito: retorna string original
+            return font_value
+        family = ' '.join(tokens[:size_index]) or 'Arial'
+        size = int(tokens[size_index])
+        styles = tokens[size_index + 1:]
+        # Retorna tupla: (family, size, *styles)
+        return (family, size, *styles) if styles else (family, size)
+    except Exception:
+        return ('Arial', 10)
 
 
 def update_color(color_path, new_color, save_to_file=True):
