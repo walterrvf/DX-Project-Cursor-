@@ -1,0 +1,1225 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoVerify DX - Sistema de Inspeção Visual</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --secondary-color: #F59E0B;
+            --success-color: #22C55E;
+            --danger-color: #EF4444;
+            --dark-bg: #1E1E1E;
+            --panel-bg: #2A2A2A;
+        }
+        
+        body {
+            background-color: var(--dark-bg);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            background-color: var(--panel-bg) !important;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .card {
+            background-color: var(--panel-bg);
+            border: 1px solid #444;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+        
+        .image-container {
+            position: relative;
+            border: 2px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #000;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .slot-overlay {
+            position: absolute;
+            border: 2px solid var(--primary-color);
+            background-color: rgba(99, 102, 241, 0.2);
+            cursor: pointer;
+        }
+        
+        .slot-overlay.selected {
+            border-color: var(--secondary-color);
+            background-color: rgba(245, 158, 11, 0.3);
+        }
+        
+        .slot-overlay.ok {
+            border-color: var(--success-color);
+            background-color: rgba(34, 197, 94, 0.2);
+        }
+        
+        .slot-overlay.ng {
+            border-color: var(--danger-color);
+            background-color: rgba(239, 68, 68, 0.2);
+        }
+        
+        .camera-stream {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-indicator.online {
+            background-color: var(--success-color);
+        }
+        
+        .status-indicator.offline {
+            background-color: var(--danger-color);
+        }
+        
+        .tab-content {
+            padding: 20px 0;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #ccc;
+            background-color: var(--panel-bg);
+            border-color: #444;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: white;
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .form-control, .form-select {
+            background-color: var(--panel-bg);
+            border-color: #444;
+            color: white;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background-color: var(--panel-bg);
+            border-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+        }
+        
+        .list-group-item {
+            background-color: var(--panel-bg);
+            border-color: #444;
+            color: white;
+        }
+        
+        .list-group-item:hover {
+            background-color: #333;
+        }
+        
+        .alert {
+            border: none;
+        }
+        
+        .progress {
+            background-color: #333;
+        }
+        
+        .modal-content {
+            background-color: var(--panel-bg);
+            color: white;
+        }
+        
+        .modal-header {
+            border-bottom-color: #444;
+        }
+        
+        .modal-footer {
+            border-top-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-eye me-2"></i>
+                AutoVerify DX - Web Interface
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <span id="connection-status" class="status-indicator offline"></span>
+                    <span id="connection-text">Desconectado</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-3">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor" type="button" role="tab">
+                    <i class="fas fa-edit me-2"></i>Editor de Malha
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="inspection-tab" data-bs-toggle="tab" data-bs-target="#inspection" type="button" role="tab">
+                    <i class="fas fa-search me-2"></i>Inspeção
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">
+                    <i class="fas fa-history me-2"></i>Histórico
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab">
+                    <i class="fas fa-cog me-2"></i>Configurações
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="mainTabContent">
+            <!-- Editor de Malha -->
+            <div class="tab-pane fade show active" id="editor" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-image me-2"></i>Imagem de Referência</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="image-container" class="image-container">
+                                    <div class="text-muted text-center">
+                                        <i class="fas fa-image fa-3x mb-3"></i>
+                                        <p>Carregue uma imagem ou capture da câmera</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <!-- Controles de Imagem -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-upload me-2"></i>Carregar Imagem</h6>
+                            </div>
+                            <div class="card-body">
+                                <input type="file" class="form-control mb-2" id="image-upload" accept="image/*">
+                                <button class="btn btn-primary w-100" onclick="uploadImage()">
+                                    <i class="fas fa-upload me-2"></i>Upload
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Controles de Câmera -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-camera me-2"></i>Câmera</h6>
+                            </div>
+                            <div class="card-body">
+                                <select class="form-select mb-2" id="camera-select">
+                                    <option value="">Selecione uma câmera</option>
+                                </select>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-success" id="start-camera" onclick="startCamera()">
+                                        <i class="fas fa-play me-2"></i>Iniciar
+                                    </button>
+                                    <button class="btn btn-danger" id="stop-camera" onclick="stopCamera()" disabled>
+                                        <i class="fas fa-stop me-2"></i>Parar
+                                    </button>
+                                    <button class="btn btn-primary" id="capture-camera" onclick="captureFromCamera()" disabled>
+                                        <i class="fas fa-camera me-2"></i>Capturar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Controles de Modelo -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-database me-2"></i>Modelo</h6>
+                            </div>
+                            <div class="card-body">
+                                <select class="form-select mb-2" id="model-select">
+                                    <option value="">Selecione um modelo</option>
+                                </select>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-primary" onclick="loadModel()">
+                                        <i class="fas fa-folder-open me-2"></i>Carregar
+                                    </button>
+                                    <button class="btn btn-success" onclick="saveModel()">
+                                        <i class="fas fa-save me-2"></i>Salvar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Controles de Slot -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-vector-square me-2"></i>Slots</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2 mb-3">
+                                    <button class="btn btn-primary" onclick="addSlot()">
+                                        <i class="fas fa-plus me-2"></i>Adicionar Slot
+                                    </button>
+                                    <button class="btn btn-warning" onclick="editSlot()" id="edit-slot-btn" disabled>
+                                        <i class="fas fa-edit me-2"></i>Editar Slot
+                                    </button>
+                                    <button class="btn btn-danger" onclick="deleteSlot()" id="delete-slot-btn" disabled>
+                                        <i class="fas fa-trash me-2"></i>Remover Slot
+                                    </button>
+                                </div>
+                                <div id="slots-list" class="list-group">
+                                    <!-- Lista de slots será preenchida dinamicamente -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inspeção -->
+            <div class="tab-pane fade" id="inspection" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-search me-2"></i>Inspeção Visual</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="inspection-container" class="image-container">
+                                    <div class="text-muted text-center">
+                                        <i class="fas fa-search fa-3x mb-3"></i>
+                                        <p>Execute uma inspeção para ver os resultados</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <!-- Controles de Inspeção -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-play me-2"></i>Executar Inspeção</h6>
+                            </div>
+                            <div class="card-body">
+                                <button class="btn btn-success w-100 mb-2" onclick="runInspection()">
+                                    <i class="fas fa-play me-2"></i>Iniciar Inspeção
+                                </button>
+                                <div class="progress mb-2" style="display: none;" id="inspection-progress">
+                                    <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Resultados -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Resultados</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="inspection-results">
+                                    <p class="text-muted">Nenhuma inspeção executada</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Histórico -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>Histórico de Inspeções</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="history-content">
+                            <p class="text-muted">Nenhum histórico disponível</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configurações -->
+            <div class="tab-pane fade" id="config" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-palette me-2"></i>Configurações Visuais</h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Configurações de estilo -->
+                                <div class="mb-3">
+                                    <label class="form-label">Cor de Fundo</label>
+                                    <input type="color" class="form-control" id="bg-color">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Cor dos Slots</label>
+                                    <input type="color" class="form-control" id="slot-color">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Configurações de Processamento</h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Configurações de processamento -->
+                                <div class="mb-3">
+                                    <label class="form-label">Limiar de Correlação</label>
+                                    <input type="range" class="form-range" id="thr-corr" min="0" max="1" step="0.01">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Pixels Mínimos</label>
+                                    <input type="number" class="form-control" id="min-px" min="1" max="100">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Modal para Salvar Modelo -->
+    <div class="modal fade" id="saveModelModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-save me-2"></i>Salvar Modelo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome do Modelo</label>
+                        <input type="text" class="form-control" id="model-name" placeholder="Digite o nome do modelo">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-control" id="model-description" rows="3" placeholder="Descrição opcional"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmSaveModel()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Slot -->
+    <div class="modal fade" id="editSlotModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar Slot</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">X</label>
+                                <input type="number" class="form-control" id="slot-x">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Y</label>
+                                <input type="number" class="form-control" id="slot-y">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Largura</label>
+                                <input type="number" class="form-control" id="slot-w">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Altura</label>
+                                <input type="number" class="form-control" id="slot-h">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select" id="slot-tipo">
+                            <option value="clip">Clip</option>
+                            <option value="hole">Hole</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Limiar de Detecção (%)</label>
+                        <input type="range" class="form-range" id="slot-threshold" min="0" max="100" value="80">
+                        <div class="text-center">
+                            <span id="threshold-value">80%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmEditSlot()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Estado global da aplicação
+        let appState = {
+            currentImage: null,
+            currentModel: null,
+            slots: [],
+            selectedSlotId: null,
+            cameras: [],
+            selectedCamera: null,
+            cameraActive: false
+        };
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        async function initializeApp() {
+            try {
+                // Carrega câmeras disponíveis
+                await loadCameras();
+                
+                // Carrega modelos disponíveis
+                await loadModels();
+                
+                // Carrega configurações
+                await loadConfig();
+                
+                // Atualiza status de conexão
+                updateConnectionStatus(true);
+                
+                console.log('Aplicação inicializada com sucesso');
+            } catch (error) {
+                console.error('Erro ao inicializar aplicação:', error);
+                showAlert('Erro ao inicializar aplicação', 'danger');
+            }
+        }
+
+        // Funções de câmera
+        async function loadCameras() {
+            try {
+                const response = await fetch('/api/cameras');
+                const data = await response.json();
+                
+                appState.cameras = data.cameras;
+                appState.selectedCamera = data.selected;
+                
+                const select = document.getElementById('camera-select');
+                select.innerHTML = '<option value="">Selecione uma câmera</option>';
+                
+                data.cameras.forEach(camera => {
+                    const option = document.createElement('option');
+                    option.value = camera;
+                    option.textContent = `Câmera ${camera}`;
+                    if (camera === data.selected) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Erro ao carregar câmeras:', error);
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const cameraId = document.getElementById('camera-select').value;
+                if (!cameraId) {
+                    showAlert('Selecione uma câmera primeiro', 'warning');
+                    return;
+                }
+                
+                // Seleciona câmera
+                await fetch('/api/camera/select', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({camera_id: parseInt(cameraId)})
+                });
+                
+                // Inicia captura
+                const response = await fetch('/api/camera/start', {method: 'POST'});
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.cameraActive = true;
+                    document.getElementById('start-camera').disabled = true;
+                    document.getElementById('stop-camera').disabled = false;
+                    document.getElementById('capture-camera').disabled = false;
+                    
+                    // Inicia stream de vídeo
+                    startVideoStream();
+                    
+                    showAlert('Câmera iniciada com sucesso', 'success');
+                } else {
+                    showAlert(data.message || 'Erro ao iniciar câmera', 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao iniciar câmera:', error);
+                showAlert('Erro ao iniciar câmera', 'danger');
+            }
+        }
+
+        async function stopCamera() {
+            try {
+                const response = await fetch('/api/camera/stop', {method: 'POST'});
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.cameraActive = false;
+                    document.getElementById('start-camera').disabled = false;
+                    document.getElementById('stop-camera').disabled = true;
+                    document.getElementById('capture-camera').disabled = true;
+                    
+                    // Para stream de vídeo
+                    stopVideoStream();
+                    
+                    showAlert('Câmera parada', 'info');
+                }
+            } catch (error) {
+                console.error('Erro ao parar câmera:', error);
+                showAlert('Erro ao parar câmera', 'danger');
+            }
+        }
+
+        async function captureFromCamera() {
+            try {
+                const response = await fetch('/api/camera/capture');
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.currentImage = data.image;
+                    displayImage(data.image);
+                    showAlert('Imagem capturada com sucesso', 'success');
+                } else {
+                    showAlert(data.error || 'Erro ao capturar imagem', 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao capturar da câmera:', error);
+                showAlert('Erro ao capturar da câmera', 'danger');
+            }
+        }
+
+        function startVideoStream() {
+            const container = document.getElementById('image-container');
+            const img = document.createElement('img');
+            img.src = '/api/camera/stream';
+            img.className = 'camera-stream';
+            img.alt = 'Stream da câmera';
+            
+            container.innerHTML = '';
+            container.appendChild(img);
+        }
+
+        function stopVideoStream() {
+            const container = document.getElementById('image-container');
+            container.innerHTML = `
+                <div class="text-muted text-center">
+                    <i class="fas fa-image fa-3x mb-3"></i>
+                    <p>Carregue uma imagem ou capture da câmera</p>
+                </div>
+            `;
+        }
+
+        // Funções de upload
+        async function uploadImage() {
+            const fileInput = document.getElementById('image-upload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showAlert('Selecione um arquivo primeiro', 'warning');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.currentImage = data.image;
+                    displayImage(data.image);
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro no upload:', error);
+                showAlert('Erro ao fazer upload da imagem', 'danger');
+            }
+        }
+
+        function displayImage(imageData) {
+            const container = document.getElementById('image-container');
+            const img = document.createElement('img');
+            img.src = imageData;
+            img.alt = 'Imagem carregada';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '100%';
+            
+            container.innerHTML = '';
+            container.appendChild(img);
+            
+            // Adiciona slots se existirem
+            renderSlots();
+        }
+
+        // Funções de modelo
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('model-select');
+                    select.innerHTML = '<option value="">Selecione um modelo</option>';
+                    
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = model.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar modelos:', error);
+            }
+        }
+
+        async function loadModel() {
+            const modelId = document.getElementById('model-select').value;
+            if (!modelId) {
+                showAlert('Selecione um modelo primeiro', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/model/load', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({model_id: parseInt(modelId)})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.currentModel = data.model;
+                    appState.slots = data.model.slots || [];
+                    
+                    // Carrega imagem de referência se disponível
+                    if (data.model.reference_image) {
+                        appState.currentImage = data.model.reference_image;
+                        displayImage(data.model.reference_image);
+                    }
+                    
+                    updateSlotsList();
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar modelo:', error);
+                showAlert('Erro ao carregar modelo', 'danger');
+            }
+        }
+
+        function saveModel() {
+            const modal = new bootstrap.Modal(document.getElementById('saveModelModal'));
+            modal.show();
+        }
+
+        async function confirmSaveModel() {
+            const name = document.getElementById('model-name').value;
+            const description = document.getElementById('model-description').value;
+            
+            if (!name.trim()) {
+                showAlert('Digite um nome para o modelo', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/model/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        name: name.trim(),
+                        description: description.trim()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('saveModelModal'));
+                    modal.hide();
+                    
+                    // Limpa campos
+                    document.getElementById('model-name').value = '';
+                    document.getElementById('model-description').value = '';
+                    
+                    // Recarrega lista de modelos
+                    await loadModels();
+                    
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar modelo:', error);
+                showAlert('Erro ao salvar modelo', 'danger');
+            }
+        }
+
+        // Funções de slot
+        async function addSlot() {
+            if (!appState.currentImage) {
+                showAlert('Carregue uma imagem primeiro', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/slot/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        x: 50,
+                        y: 50,
+                        w: 100,
+                        h: 100,
+                        tipo: 'clip',
+                        detection_threshold: 80
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.slots.push(data.slot);
+                    updateSlotsList();
+                    renderSlots();
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao adicionar slot:', error);
+                showAlert('Erro ao adicionar slot', 'danger');
+            }
+        }
+
+        function editSlot() {
+            if (!appState.selectedSlotId) {
+                showAlert('Selecione um slot primeiro', 'warning');
+                return;
+            }
+            
+            const slot = appState.slots.find(s => s.id === appState.selectedSlotId);
+            if (!slot) {
+                showAlert('Slot não encontrado', 'danger');
+                return;
+            }
+            
+            // Preenche campos do modal
+            document.getElementById('slot-x').value = slot.x;
+            document.getElementById('slot-y').value = slot.y;
+            document.getElementById('slot-w').value = slot.w;
+            document.getElementById('slot-h').value = slot.h;
+            document.getElementById('slot-tipo').value = slot.tipo;
+            document.getElementById('slot-threshold').value = slot.detection_threshold;
+            document.getElementById('threshold-value').textContent = slot.detection_threshold + '%';
+            
+            const modal = new bootstrap.Modal(document.getElementById('editSlotModal'));
+            modal.show();
+        }
+
+        async function confirmEditSlot() {
+            const slotData = {
+                id: appState.selectedSlotId,
+                x: parseInt(document.getElementById('slot-x').value),
+                y: parseInt(document.getElementById('slot-y').value),
+                w: parseInt(document.getElementById('slot-w').value),
+                h: parseInt(document.getElementById('slot-h').value),
+                tipo: document.getElementById('slot-tipo').value,
+                detection_threshold: parseInt(document.getElementById('slot-threshold').value)
+            };
+            
+            try {
+                const response = await fetch('/api/slot/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(slotData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Atualiza slot no estado
+                    const slotIndex = appState.slots.findIndex(s => s.id === appState.selectedSlotId);
+                    if (slotIndex !== -1) {
+                        appState.slots[slotIndex] = data.slot;
+                    }
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editSlotModal'));
+                    modal.hide();
+                    
+                    updateSlotsList();
+                    renderSlots();
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao editar slot:', error);
+                showAlert('Erro ao editar slot', 'danger');
+            }
+        }
+
+        async function deleteSlot() {
+            if (!appState.selectedSlotId) {
+                showAlert('Selecione um slot primeiro', 'warning');
+                return;
+            }
+            
+            if (!confirm('Tem certeza que deseja remover este slot?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/slot/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: appState.selectedSlotId})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    appState.slots = appState.slots.filter(s => s.id !== appState.selectedSlotId);
+                    appState.selectedSlotId = null;
+                    
+                    updateSlotsList();
+                    renderSlots();
+                    updateSlotButtons();
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro ao remover slot:', error);
+                showAlert('Erro ao remover slot', 'danger');
+            }
+        }
+
+        function selectSlot(slotId) {
+            appState.selectedSlotId = slotId;
+            updateSlotsList();
+            renderSlots();
+            updateSlotButtons();
+            
+            fetch('/api/slot/select', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: slotId})
+            });
+        }
+
+        function updateSlotsList() {
+            const container = document.getElementById('slots-list');
+            container.innerHTML = '';
+            
+            appState.slots.forEach(slot => {
+                const item = document.createElement('div');
+                item.className = `list-group-item d-flex justify-content-between align-items-center ${
+                    slot.id === appState.selectedSlotId ? 'active' : ''
+                }`;
+                item.style.cursor = 'pointer';
+                item.onclick = () => selectSlot(slot.id);
+                
+                item.innerHTML = `
+                    <div>
+                        <strong>Slot ${slot.id}</strong><br>
+                        <small>Tipo: ${slot.tipo} | Posição: ${slot.x},${slot.y} | Tamanho: ${slot.w}x${slot.h}</small>
+                    </div>
+                    <span class="badge bg-primary rounded-pill">${slot.detection_threshold}%</span>
+                `;
+                
+                container.appendChild(item);
+            });
+        }
+
+        function updateSlotButtons() {
+            const hasSelection = appState.selectedSlotId !== null;
+            document.getElementById('edit-slot-btn').disabled = !hasSelection;
+            document.getElementById('delete-slot-btn').disabled = !hasSelection;
+        }
+
+        function renderSlots() {
+            const container = document.getElementById('image-container');
+            
+            // Remove slots existentes
+            container.querySelectorAll('.slot-overlay').forEach(el => el.remove());
+            
+            // Adiciona novos slots
+            appState.slots.forEach(slot => {
+                const overlay = document.createElement('div');
+                overlay.className = `slot-overlay ${
+                    slot.id === appState.selectedSlotId ? 'selected' : ''
+                }`;
+                overlay.style.left = slot.x + 'px';
+                overlay.style.top = slot.y + 'px';
+                overlay.style.width = slot.w + 'px';
+                overlay.style.height = slot.h + 'px';
+                overlay.onclick = () => selectSlot(slot.id);
+                
+                // Adiciona label do slot
+                const label = document.createElement('div');
+                label.style.position = 'absolute';
+                label.style.top = '-20px';
+                label.style.left = '0';
+                label.style.fontSize = '12px';
+                label.style.fontWeight = 'bold';
+                label.style.color = 'white';
+                label.style.textShadow = '1px 1px 2px rgba(0,0,0,0.8)';
+                label.textContent = `Slot ${slot.id}`;
+                overlay.appendChild(label);
+                
+                container.appendChild(overlay);
+            });
+        }
+
+        // Funções de inspeção
+        async function runInspection() {
+            if (!appState.currentImage) {
+                showAlert('Carregue uma imagem primeiro', 'warning');
+                return;
+            }
+            
+            if (appState.slots.length === 0) {
+                showAlert('Adicione pelo menos um slot primeiro', 'warning');
+                return;
+            }
+            
+            // Mostra progresso
+            const progressBar = document.getElementById('inspection-progress');
+            progressBar.style.display = 'block';
+            progressBar.querySelector('.progress-bar').style.width = '0%';
+            
+            try {
+                // Simula progresso
+                for (let i = 0; i <= 100; i += 10) {
+                    progressBar.querySelector('.progress-bar').style.width = i + '%';
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                const response = await fetch('/api/inspection/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayInspectionResults(data.results, data.result_image);
+                    showAlert('Inspeção concluída com sucesso', 'success');
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Erro na inspeção:', error);
+                showAlert('Erro ao executar inspeção', 'danger');
+            } finally {
+                progressBar.style.display = 'none';
+            }
+        }
+
+        function displayInspectionResults(results, resultImage) {
+            // Exibe imagem com resultados
+            const container = document.getElementById('inspection-container');
+            const img = document.createElement('img');
+            img.src = resultImage;
+            img.alt = 'Resultado da inspeção';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '100%';
+            
+            container.innerHTML = '';
+            container.appendChild(img);
+            
+            // Exibe resultados detalhados
+            const resultsContainer = document.getElementById('inspection-results');
+            resultsContainer.innerHTML = '';
+            
+            let okCount = 0;
+            let ngCount = 0;
+            
+            results.forEach(result => {
+                if (result.status === 'OK') okCount++;
+                else ngCount++;
+                
+                const item = document.createElement('div');
+                item.className = `alert alert-${result.status === 'OK' ? 'success' : 'danger'} py-2`;
+                item.innerHTML = `
+                    <strong>Slot ${result.slot_id}:</strong> ${result.status}<br>
+                    <small>Confiança: ${(result.confidence * 100).toFixed(1)}%</small>
+                `;
+                resultsContainer.appendChild(item);
+            });
+            
+            // Resumo
+            const summary = document.createElement('div');
+            summary.className = 'alert alert-info';
+            summary.innerHTML = `
+                <h6><i class="fas fa-chart-pie me-2"></i>Resumo</h6>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="text-success">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                            <div><strong>${okCount}</strong></div>
+                            <div>OK</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-danger">
+                            <i class="fas fa-times-circle fa-2x"></i>
+                            <div><strong>${ngCount}</strong></div>
+                            <div>NG</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            resultsContainer.insertBefore(summary, resultsContainer.firstChild);
+        }
+
+        // Funções de configuração
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Aplica configurações na interface
+                    const config = data.config;
+                    
+                    if (config.thr_corr !== undefined) {
+                        document.getElementById('thr-corr').value = config.thr_corr;
+                    }
+                    
+                    if (config.min_px !== undefined) {
+                        document.getElementById('min-px').value = config.min_px;
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar configurações:', error);
+            }
+        }
+
+        // Funções utilitárias
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-status');
+            const text = document.getElementById('connection-text');
+            
+            if (connected) {
+                indicator.className = 'status-indicator online';
+                text.textContent = 'Conectado';
+            } else {
+                indicator.className = 'status-indicator offline';
+                text.textContent = 'Desconectado';
+            }
+        }
+
+        function showAlert(message, type = 'info') {
+            // Remove alertas existentes
+            document.querySelectorAll('.alert-floating').forEach(el => el.remove());
+            
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show alert-floating`;
+            alert.style.position = 'fixed';
+            alert.style.top = '20px';
+            alert.style.right = '20px';
+            alert.style.zIndex = '9999';
+            alert.style.minWidth = '300px';
+            
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(alert);
+            
+            // Remove automaticamente após 5 segundos
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+
+        // Event listeners
+        document.getElementById('slot-threshold').addEventListener('input', function() {
+            document.getElementById('threshold-value').textContent = this.value + '%';
+        });
+    </script>
+</body>
+</html>
+    

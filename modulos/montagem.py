@@ -16,20 +16,20 @@ try:
     # Quando importado como módulo
     from .database_manager import DatabaseManager
     from .model_selector import ModelSelectorDialog, SaveModelDialog
-    from .utils import load_style_config, save_style_config, apply_style_config, get_style_config_path
+    from .utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
     from .ml_classifier import MLSlotClassifier
 except ImportError:
     # Quando executado diretamente
     try:
         from database_manager import DatabaseManager
         from model_selector import ModelSelectorDialog, SaveModelDialog
-        from utils import load_style_config, save_style_config, apply_style_config, get_style_config_path
+        from utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
         from ml_classifier import MLSlotClassifier
     except ImportError:
         # Quando executado a partir do diretório raiz
         from modulos.database_manager import DatabaseManager
         from modulos.model_selector import ModelSelectorDialog, SaveModelDialog
-        from modulos.utils import load_style_config, save_style_config, apply_style_config, get_style_config_path
+        from modulos.utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group
         from modulos.ml_classifier import MLSlotClassifier
 
 # ---------- parâmetros globais ------------------------------------------------
@@ -74,15 +74,8 @@ ORB_FEATURES = 5000
 ORB_SCALE_FACTOR = 1.2
 ORB_N_LEVELS = 8
 
-# Cores para desenho no canvas (Editor) - DESIGN MODERNO 2024
-COLOR_CLIP = "#6366F1"  # Indigo moderno
-COLOR_SELECTED = "#F59E0B"  # Amber vibrante
-COLOR_DRAWING = "#10B981"  # Emerald
-
-# Cores para desenho no canvas (Inspeção) - DESIGN MODERNO 2024
-COLOR_PASS = "#22C55E"  # Green-500
-COLOR_FAIL = "#EF4444"  # Red-500
-COLOR_ALIGN_FAIL = "#F97316"  # Orange-500
+# Cores são agora carregadas do arquivo de configuração centralizado
+# Veja config/style_config.json para personalizar as cores
 
 # Caminho para o arquivo de configurações de estilo
 STYLE_CONFIG_PATH = get_style_config_path()
@@ -142,50 +135,171 @@ def detect_cameras(max_cameras=5, callback=None):
     
     return available_cameras
 
-def capture_image_from_camera(camera_index=0):
+# Cache global para instâncias de câmera para evitar reinicializações desnecessárias
+_camera_cache = {}
+_camera_last_used = {}
+
+def get_cached_camera(camera_index=0, force_new=False):
+    """
+    Obtém uma instância de câmera do cache ou cria uma nova.
+    Evita reinicializações desnecessárias durante o treinamento.
+    """
+    import time
+    
+    # Se forçar nova instância ou não existe no cache
+    if force_new or camera_index not in _camera_cache:
+        # Limpa câmera anterior se existir
+        if camera_index in _camera_cache:
+            try:
+                _camera_cache[camera_index].release()
+            except:
+                pass
+            del _camera_cache[camera_index]
+        
+        try:
+            # Detecta o sistema operacional
+            import platform
+            is_windows = platform.system() == 'Windows'
+            
+            # Usa DirectShow no Windows para melhor compatibilidade
+            if is_windows:
+                cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+            else:
+                cap = cv2.VideoCapture(camera_index)
+            
+            if not cap.isOpened():
+                print(f"Erro: Não foi possível abrir a câmera {camera_index}")
+                return None
+            
+            # Configurações otimizadas
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Buffer mínimo para reduzir latência
+            cap.set(cv2.CAP_PROP_FPS, 30)
+            
+            # Resolução baseada no índice da câmera
+            if camera_index > 0:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            else:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            
+            _camera_cache[camera_index] = cap
+            print(f"Nova instância de câmera criada para índice {camera_index}")
+            
+        except Exception as e:
+            print(f"Erro ao criar instância da câmera {camera_index}: {e}")
+            return None
+    
+    # Atualiza timestamp de último uso
+    _camera_last_used[camera_index] = time.time()
+    return _camera_cache[camera_index]
+
+def release_cached_camera(camera_index=0):
+    """
+    Libera uma câmera específica do cache.
+    """
+    if camera_index in _camera_cache:
+        try:
+            _camera_cache[camera_index].release()
+            print(f"Câmera {camera_index} liberada do cache")
+        except Exception as e:
+            print(f"Erro ao liberar câmera {camera_index}: {e}")
+        finally:
+            del _camera_cache[camera_index]
+            if camera_index in _camera_last_used:
+                del _camera_last_used[camera_index]
+
+def cleanup_unused_cameras(max_idle_time=300):  # 5 minutos
+    """
+    Limpa câmeras não utilizadas há muito tempo para liberar recursos.
+    """
+    import time
+    current_time = time.time()
+    cameras_to_remove = []
+    
+    for camera_index, last_used in _camera_last_used.items():
+        if current_time - last_used > max_idle_time:
+            cameras_to_remove.append(camera_index)
+    
+    for camera_index in cameras_to_remove:
+        release_cached_camera(camera_index)
+        print(f"Câmera {camera_index} removida do cache por inatividade")
+
+def schedule_camera_cleanup(window, interval_ms=60000):  # 1 minuto
+    """
+    Agenda limpeza automática de câmeras não utilizadas.
+    
+    Args:
+        window: Janela Tkinter para agendar a limpeza
+        interval_ms: Intervalo em milissegundos para executar a limpeza
+    """
+    try:
+        cleanup_unused_cameras()
+        # Agenda próxima limpeza
+        window.after(interval_ms, lambda: schedule_camera_cleanup(window, interval_ms))
+    except Exception as e:
+        print(f"Erro na limpeza automática de câmeras: {e}")
+        # Reagenda mesmo com erro
+        window.after(interval_ms, lambda: schedule_camera_cleanup(window, interval_ms))
+
+def release_all_cached_cameras():
+    """
+    Libera todas as câmeras do cache. Útil para limpeza completa.
+    """
+    cameras_to_remove = list(_camera_cache.keys())
+    for camera_index in cameras_to_remove:
+        release_cached_camera(camera_index)
+    print(f"Todas as câmeras do cache foram liberadas ({len(cameras_to_remove)} câmeras)")
+
+def capture_image_from_camera(camera_index=0, use_cache=True):
     """
     Captura uma única imagem da webcam especificada.
     Retorna a imagem capturada ou None em caso de erro.
     Compatível com Windows e Raspberry Pi.
+    
+    Args:
+        camera_index: Índice da câmera
+        use_cache: Se True, usa cache de câmera para evitar reinicializações
     """
     try:
-        # Detecta o sistema operacional
-        import platform
-        is_windows = platform.system() == 'Windows'
-        
-        # Usa DirectShow no Windows para melhor compatibilidade
-        # No Raspberry Pi, usa a API padrão
-        if is_windows:
-            cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+        if use_cache:
+            cap = get_cached_camera(camera_index)
+            if cap is None:
+                return None
         else:
-            cap = cv2.VideoCapture(camera_index)
-        
-        # Usa resolução nativa para câmeras externas (1920x1080) ou padrão para webcam interna
-        if camera_index > 0:
+            # Modo legado - cria nova instância sempre
+            import platform
+            is_windows = platform.system() == 'Windows'
+            
+            if is_windows:
+                cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+            else:
+                cap = cv2.VideoCapture(camera_index)
+            
+            if not cap.isOpened():
+                print(f"Erro: Não foi possível abrir a câmera {camera_index}")
+                return None
+            
+            # Configurações para modo legado
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        else:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            cap.set(cv2.CAP_PROP_FPS, 30)
         
-        cap.set(cv2.CAP_PROP_FPS, 30)
-        
-        if not cap.isOpened():
-            print(f"Erro: Não foi possível abrir a câmera {camera_index}")
-            return None
-        
-        # Aguarda um pouco para a câmera se estabilizar
-        for _ in range(5):
+        # Limpa buffer antigo para obter frame mais recente
+        for _ in range(3):
             ret, frame = cap.read()
             if not ret:
                 break
         
         # Captura a imagem final
         ret, frame = cap.read()
-        cap.release()
+        
+        # Libera apenas se não estiver usando cache
+        if not use_cache:
+            cap.release()
         
         if ret and frame is not None and frame.size > 0:
-            print(f"Imagem capturada com sucesso da câmera {camera_index}")
+            print(f"Imagem capturada com sucesso da câmera {camera_index} (cache: {use_cache})")
             return frame
         else:
             print(f"Erro: Não foi possível capturar imagem da câmera {camera_index}")
@@ -193,6 +307,19 @@ def capture_image_from_camera(camera_index=0):
             
     except Exception as e:
         print(f"Erro ao capturar imagem da câmera {camera_index}: {e}")
+        # Em caso de erro, tenta recriar a câmera se estiver usando cache
+        if use_cache:
+            try:
+                print(f"Tentando recriar câmera {camera_index} após erro...")
+                cap = get_cached_camera(camera_index, force_new=True)
+                if cap:
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        print(f"Câmera {camera_index} recriada com sucesso")
+                        return frame
+            except Exception as retry_error:
+                print(f"Erro ao recriar câmera {camera_index}: {retry_error}")
+        
         return None
 
 def cv2_to_tk(img_bgr, max_w=None, max_h=None, scale_percent=None):
@@ -826,12 +953,14 @@ class EditSlotDialog(Toplevel):
             
             # Inicializa configurações de estilo se não existirem
             if 'style_config' not in self.slot_data:
+                # Carrega configuração de estilo para obter cores centralizadas
+                current_style_config = load_style_config()
                 self.slot_data['style_config'] = {
-                    'bg_color': '#1E1E1E',  # Cor de fundo padrão
-                    'text_color': '#FFFFFF',  # Cor do texto padrão
-                    'ok_color': '#95E1D3',  # Cor para OK
-                    'ng_color': '#F38BA8',  # Cor para NG
-                    'selection_color': '#FFE66D',  # Cor de seleção
+                    'bg_color': get_color('colors.canvas_colors.canvas_bg', current_style_config),  # Cor de fundo padrão
+                    'text_color': get_color('colors.text_color', current_style_config),  # Cor do texto padrão
+                    'ok_color': get_color('colors.ok_color', current_style_config),  # Cor para OK
+                    'ng_color': get_color('colors.ng_color', current_style_config),  # Cor para NG
+                    'selection_color': get_color('colors.selection_color', current_style_config),  # Cor de seleção
                     'ok_font': 'Arial 12 bold',  # Fonte para OK
                     'ng_font': 'Arial 12 bold'   # Fonte para NG
                 }
@@ -840,7 +969,7 @@ class EditSlotDialog(Toplevel):
             self.title(f"Editando Slot {slot_data['id']}")
             self.geometry("400x650")
             self.resizable(False, False)
-            self.configure(bg='#2E2E2E')  # Cor de fundo escura para toda a janela
+            self.configure(bg=get_color('colors.dialog_colors.window_bg'))  # Cor de fundo escura para toda a janela
             
             # Configuração modal otimizada
             self.transient(parent)
@@ -1174,18 +1303,40 @@ class SlotTrainingDialog(Toplevel):
         self.ml_classifier = MLSlotClassifier(slot_id=str(slot_data['id']))
         self.use_ml = False  # Flag para usar ML ou método tradicional
         
-        # Define o diretório para salvar as amostras
+        # Define o diretório para salvar as amostras (escopo por PROGRAMA/MODELO)
         template_path = self.slot_data.get('template_path')
         if template_path:
+            # Se o slot já tem template, usa a pasta do template (que é específica do modelo)
             template_dir = os.path.dirname(template_path)
             self.samples_dir = os.path.join(template_dir, f"slot_{slot_data['id']}_samples")
         else:
-            # Cria diretório padrão se template_path não estiver definido
-            # Usa o diretório do projeto como base
-            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            samples_base_dir = os.path.join(project_dir, "modelos", "_samples")
-            self.samples_dir = os.path.join(samples_base_dir, f"slot_{slot_data['id']}_samples")
-            print(f"AVISO: template_path não definido. Usando diretório padrão: {self.samples_dir}")
+            # Sem template ainda: usa a pasta de templates do MODELO atual para isolar por programa
+            try:
+                model_name = None
+                model_id = None
+                if hasattr(self.montagem_instance, 'current_model') and self.montagem_instance.current_model:
+                    model = self.montagem_instance.current_model
+                    model_name = model.get('nome') or model.get('name')
+                if hasattr(self.montagem_instance, 'current_model_id') and self.montagem_instance.current_model_id:
+                    model_id = self.montagem_instance.current_model_id
+                if model_name and model_id is not None:
+                    # Usa helpers do módulo para garantir caminho consistente por modelo
+                    model_templates_dir = get_model_template_dir(model_name, model_id)
+                    self.samples_dir = os.path.join(str(model_templates_dir), f"slot_{slot_data['id']}_samples")
+                else:
+                    # Fallback final: ainda isola por model_id se disponível, para evitar mistura
+                    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    base = os.path.join(project_dir, "modelos", "_samples")
+                    suffix = f"model_{model_id}" if model_id is not None else "model_unknown"
+                    self.samples_dir = os.path.join(base, suffix, f"slot_{slot_data['id']}_samples")
+                print(f"Diretório de amostras configurado: {self.samples_dir}")
+            except Exception as e:
+                print(f"Erro ao resolver diretório de amostras por modelo: {e}")
+                # Recuo para um diretório local por segurança
+                project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                base = os.path.join(project_dir, "modelos", "_samples", "model_unknown")
+                self.samples_dir = os.path.join(base, f"slot_{slot_data['id']}_samples")
+                print(f"AVISO: usando diretório de amostras de fallback: {self.samples_dir}")
             
         # Cria diretórios se não existirem
         try:
@@ -1208,6 +1359,9 @@ class SlotTrainingDialog(Toplevel):
         self.center_window()
         self.apply_modal_grab()
         
+        # Configura protocolo de fechamento para limpeza de recursos
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
     def apply_modal_grab(self):
         """Aplica grab modal para manter foco na janela."""
         self.transient(self.master)
@@ -1228,6 +1382,26 @@ class SlotTrainingDialog(Toplevel):
         y = max(0, (screen_height - height) // 2 - 30)  # Ajuste para barra de tarefas
         
         self.geometry(f"{width}x{height}+{x}+{y}")
+    
+    def on_closing(self):
+        """Método chamado quando o diálogo é fechado - não manipula driver/câmera."""
+        try:
+            # Não libera nem reinicializa câmeras aqui para não interferir no driver
+            # Limpa grab modal
+            try:
+                self.grab_release()
+            except Exception:
+                pass
+            
+            # Fecha o diálogo
+            self.destroy()
+        except Exception as e:
+            print(f"Erro ao fechar diálogo de treinamento: {e}")
+            # Força fechamento mesmo com erro
+            try:
+                self.destroy()
+            except Exception:
+                pass
         
     def setup_ui(self):
         """Configura a interface do diálogo de treinamento."""
@@ -1296,7 +1470,7 @@ class SlotTrainingDialog(Toplevel):
         canvas_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
         # Canvas para exibir imagem atual com scrollbars
-        self.canvas = Canvas(canvas_frame, bg="#1E1E1E")
+        self.canvas = Canvas(canvas_frame, bg=get_color('colors.canvas_colors.canvas_bg'))
         
         # Scrollbars para o canvas
         v_scrollbar_canvas = ttk.Scrollbar(canvas_frame, orient="vertical", command=self.canvas.yview)
@@ -1338,7 +1512,7 @@ class SlotTrainingDialog(Toplevel):
         self.history_notebook.add(self.ok_frame, text="✅ Amostras OK (0)")
         
         # Scrollable frame para amostras OK
-        self.ok_canvas = Canvas(self.ok_frame, bg="#f0f8f0")
+        self.ok_canvas = Canvas(self.ok_frame, bg=get_color('colors.special_colors.ok_canvas_bg'))  # Cor específica para OK
         self.ok_scrollbar = ttk.Scrollbar(self.ok_frame, orient="vertical", command=self.ok_canvas.yview)
         self.ok_scrollable_frame = ttk.Frame(self.ok_canvas)
         
@@ -1361,7 +1535,7 @@ class SlotTrainingDialog(Toplevel):
         self.history_notebook.add(self.ng_frame, text="❌ Amostras NG (0)")
         
         # Scrollable frame para amostras NG
-        self.ng_canvas = Canvas(self.ng_frame, bg="#f8f0f0")
+        self.ng_canvas = Canvas(self.ng_frame, bg=get_color('colors.special_colors.ng_canvas_bg'))  # Cor específica para NG
         self.ng_scrollbar = ttk.Scrollbar(self.ng_frame, orient="vertical", command=self.ng_canvas.yview)
         self.ng_scrollable_frame = ttk.Frame(self.ng_canvas)
         
@@ -1431,22 +1605,32 @@ class SlotTrainingDialog(Toplevel):
         self.load_existing_samples()
         
     def capture_from_webcam(self):
-        """Captura imagem da webcam para treinamento."""
+        """Captura imagem da webcam para treinamento usando frame em segundo plano quando disponível."""
         try:
-            # Usa a mesma função de captura da montagem
-            camera_index = 0
-            if hasattr(self.montagem_instance, 'camera_combo') and self.montagem_instance.camera_combo.get():
-                camera_index = int(self.montagem_instance.camera_combo.get())
-            
-            captured_image = capture_image_from_camera(camera_index)
+            # Preferir o frame em segundo plano da janela de montagem para evitar mexer no driver
+            if (hasattr(self.montagem_instance, 'live_capture') and 
+                self.montagem_instance.live_capture and 
+                hasattr(self.montagem_instance, 'latest_frame') and 
+                self.montagem_instance.latest_frame is not None):
+                captured_image = self.montagem_instance.latest_frame.copy()
+                print("Usando frame de segundo plano da montagem para captura de treinamento")
+            else:
+                # Fallback: usa cache de câmera (não reinicia o driver)
+                camera_index = 0
+                if hasattr(self.montagem_instance, 'camera_combo') and self.montagem_instance.camera_combo.get():
+                    camera_index = int(self.montagem_instance.camera_combo.get())
+                print("Captura em segundo plano indisponível, usando cache da câmera para captura pontual")
+                captured_image = capture_image_from_camera(camera_index, use_cache=True)
             
             if captured_image is not None:
                 self.process_captured_image(captured_image)
+                print(f"Imagem capturada para treinamento do slot {self.slot_data['id']}")
             else:
                 messagebox.showerror("Erro", "Falha ao capturar imagem da webcam.")
                 
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao capturar da webcam: {str(e)}")
+            print(f"Erro detalhado na captura para treinamento: {e}")
             
     def load_image_file(self):
         """Carrega imagem de arquivo para treinamento."""
@@ -1664,10 +1848,10 @@ class SlotTrainingDialog(Toplevel):
             # Seleciona o frame correto
             if label == "OK":
                 parent_frame = self.ok_scrollable_frame
-                bg_color = "#e8f5e8"
+                bg_color = get_color('colors.special_colors.ok_result_bg')
             else:
                 parent_frame = self.ng_scrollable_frame
-                bg_color = "#f5e8e8"
+                bg_color = get_color('colors.special_colors.ng_result_bg')
             
             # Cria frame para a amostra
             sample_frame = ttk.Frame(parent_frame)
@@ -1996,11 +2180,10 @@ class SlotTrainingDialog(Toplevel):
                 # Salva no banco de dados se possível
                 try:
                     if hasattr(self.montagem_instance, 'db_manager') and self.montagem_instance.db_manager:
-                        # Atualiza slot no banco
+                        # Atualiza slot no banco (modelo_id primeiro, depois os dados do slot)
                         self.montagem_instance.db_manager.update_slot(
-                            self.slot_data['id'],
                             self.montagem_instance.current_model_id,
-                            **self.slot_data
+                            self.slot_data
                         )
                 except Exception as db_error:
                     print(f"Aviso: Não foi possível salvar no banco de dados: {db_error}")
@@ -2528,7 +2711,7 @@ class SystemConfigDialog(Toplevel):
         bg_color_frame.pack(fill=X, pady=2)
         
         ttk.Label(bg_color_frame, text="Cor de Fundo:").pack(side=LEFT, padx=5)
-        self.bg_color_var = ttk.StringVar(value=self.style_config.get("background_color", "#1E1E1E"))
+        self.bg_color_var = ttk.StringVar(value=get_color('colors.background_color', self.style_config))
         bg_color_entry = ttk.Entry(bg_color_frame, textvariable=self.bg_color_var, width=10)
         bg_color_entry.pack(side=LEFT, padx=5)
         
@@ -2545,7 +2728,7 @@ class SystemConfigDialog(Toplevel):
         text_color_frame.pack(fill=X, pady=2)
         
         ttk.Label(text_color_frame, text="Cor do Texto:").pack(side=LEFT, padx=5)
-        self.text_color_var = ttk.StringVar(value=self.style_config.get("text_color", "#FFFFFF"))
+        self.text_color_var = ttk.StringVar(value=get_color('colors.text_color', self.style_config))
         text_color_entry = ttk.Entry(text_color_frame, textvariable=self.text_color_var, width=10)
         text_color_entry.pack(side=LEFT, padx=5)
         
@@ -2562,7 +2745,7 @@ class SystemConfigDialog(Toplevel):
         ok_color_frame.pack(fill=X, pady=2)
         
         ttk.Label(ok_color_frame, text="Cor OK:").pack(side=LEFT, padx=5)
-        self.ok_color_var = ttk.StringVar(value=self.style_config.get("ok_color", "#8cde81"))
+        self.ok_color_var = ttk.StringVar(value=get_color('colors.ok_color', self.style_config))
         ok_color_entry = ttk.Entry(ok_color_frame, textvariable=self.ok_color_var, width=10)
         ok_color_entry.pack(side=LEFT, padx=5)
         
@@ -2579,7 +2762,7 @@ class SystemConfigDialog(Toplevel):
         ng_color_frame.pack(fill=X, pady=2)
         
         ttk.Label(ng_color_frame, text="Cor NG:").pack(side=LEFT, padx=5)
-        self.ng_color_var = ttk.StringVar(value=self.style_config.get("ng_color", "#e7472c"))
+        self.ng_color_var = ttk.StringVar(value=get_color('colors.ng_color', self.style_config))
         ng_color_entry = ttk.Entry(ng_color_frame, textvariable=self.ng_color_var, width=10)
         ng_color_entry.pack(side=LEFT, padx=5)
         
@@ -2628,14 +2811,21 @@ class SystemConfigDialog(Toplevel):
                 messagebox.showwarning("Aviso", "Erro ao reinicializar detector ORB. O alinhamento pode não funcionar.")
             
             # Salvar configurações de estilo
-            style_config = {}
+            style_config = load_style_config()  # Carrega config atual
+            
+            # Atualiza configurações de fonte
             style_config["slot_font_size"] = self.slot_font_size_var.get()
             style_config["result_font_size"] = self.result_font_size_var.get()
             style_config["button_font_size"] = self.button_font_size_var.get()
-            style_config["background_color"] = self.bg_color_var.get()
-            style_config["text_color"] = self.text_color_var.get()
-            style_config["ok_color"] = self.ok_color_var.get()
-            style_config["ng_color"] = self.ng_color_var.get()
+            
+            # Atualiza cores na estrutura centralizada
+            if "colors" not in style_config:
+                style_config["colors"] = {}
+            
+            style_config["colors"]["background_color"] = self.bg_color_var.get()
+            style_config["colors"]["text_color"] = self.text_color_var.get()
+            style_config["colors"]["ok_color"] = self.ok_color_var.get()
+            style_config["colors"]["ng_color"] = self.ng_color_var.get()
             
             # Salvar configurações de HUD e Inspeção
             style_config["hud_font_size"] = self.hud_font_size_var.get()
@@ -2682,10 +2872,10 @@ class SystemConfigDialog(Toplevel):
         self.slot_font_size_var.set(10)
         self.result_font_size_var.set(10)
         self.button_font_size_var.set(9)
-        self.bg_color_var.set("#1E1E1E")
-        self.text_color_var.set("#FFFFFF")
-        self.ok_color_var.set("#8cde81")
-        self.ng_color_var.set("#e7472c")
+        self.bg_color_var.set(get_color('colors.background_color'))
+        self.text_color_var.set(get_color('colors.text_color'))
+        self.ok_color_var.set(get_color('colors.ok_color'))
+        self.ng_color_var.set(get_color('colors.ng_color'))
     
     def cancel(self):
         """Cancela a edição"""
@@ -2750,6 +2940,9 @@ class MontagemWindow(ttk.Frame):
         # Inicia câmera em segundo plano após inicialização completa
         if self.available_cameras:
             self.after(500, lambda: self.start_background_camera_direct(self.available_cameras[0]))
+        
+        # Inicia limpeza automática de câmeras em cache
+        schedule_camera_cleanup(self.master)
     
     def configure_modern_styles(self):
         """Configura estilos modernos para a interface."""
@@ -2757,78 +2950,78 @@ class MontagemWindow(ttk.Frame):
         
         # Estilo para frames principais
         style.configure("Modern.TFrame", 
-                       background="#1a1d29",
+                       background=get_color('colors.dialog_colors.frame_bg'),
                        relief="flat")
         
         # Estilo para cards/painéis
         style.configure("Card.TFrame",
-                       background="#252837",
+                       background=get_color('colors.dialog_colors.left_panel_bg'),
                        relief="flat",
                        borderwidth=1)
         
         # Estilo para painel principal do canvas
         style.configure("Canvas.TFrame",
-                       background="#2d3142",
+                       background=get_color('colors.dialog_colors.center_panel_bg'),
                        relief="flat")
         
         # Estilo para painel direito
         style.configure("RightPanel.TFrame",
-                       background="#252837",
+                       background=get_color('colors.dialog_colors.right_panel_bg'),
                        relief="flat")
         
         # Estilo para botões modernos
         style.configure("Modern.TButton",
-                       background="#6366F1",
+                       background=get_color('colors.button_colors.modern_bg'),
                        foreground="white",
                        borderwidth=0,
                        focuscolor="none",
                        padding=(12, 8))
         
         style.map("Modern.TButton",
-                 background=[("active", "#5855eb"),
-                           ("pressed", "#4f46e5")])
+                 background=[("active", get_color('colors.button_colors.modern_active')),
+                       ("pressed", get_color('colors.button_colors.modern_pressed'))])
         
         # Estilo para botões de sucesso
         style.configure("Success.TButton",
-                       background="#10B981",
+                       background=get_color('colors.button_colors.success_bg'),
                        foreground="white",
                        borderwidth=0,
                        focuscolor="none",
                        padding=(12, 8))
         
         style.map("Success.TButton",
-                 background=[("active", "#059669"),
-                           ("pressed", "#047857")])
+                 background=[("active", get_color('colors.button_colors.success_active')),
+                       ("pressed", get_color('colors.button_colors.success_pressed'))])
         
         # Estilo para botões de perigo
         style.configure("Danger.TButton",
-                       background="#EF4444",
+                       background=get_color('colors.button_colors.danger_bg'),
                        foreground="white",
                        borderwidth=0,
                        focuscolor="none",
                        padding=(12, 8))
         
         style.map("Danger.TButton",
-                 background=[("active", "#dc2626"),
-                           ("pressed", "#b91c1c")])
+                 background=[("active", get_color('colors.button_colors.danger_active')),
+                       ("pressed", get_color('colors.button_colors.danger_pressed'))])
         
         # Estilo para labels modernos
         style.configure("Modern.TLabel",
-                       background="#252837",
-                       foreground="#e5e7eb",
+                       background=get_color('colors.dialog_colors.listbox_bg'),
+            foreground=get_color('colors.dialog_colors.listbox_fg'),
                        font=("Segoe UI", 10))
         
         # Estilo para LabelFrames modernos
         style.configure("Modern.TLabelframe",
-                       background="#252837",
-                       foreground="#f3f4f6",
+                       background=get_color('colors.dialog_colors.listbox_bg'),
+            foreground=get_color('colors.dialog_colors.listbox_fg'),
                        borderwidth=1,
                        relief="solid",
                        labelmargins=(10, 5, 10, 5))
         
         style.configure("Modern.TLabelframe.Label",
-                       background="#252837",
-                       foreground="#f3f4f6",
+                       background=get_color('colors.dialog_colors.listbox_bg'),
+            foreground=get_color('colors.dialog_colors.listbox_fg'),
                        font=("Segoe UI", 10, "bold"))
         
     def start_background_camera_direct(self, camera_index):
@@ -3003,11 +3196,11 @@ class MontagemWindow(ttk.Frame):
         # Configurando estilo moderno para os botões de rádio
         self.style = ttk.Style()
         self.style.configure("Modern.TRadiobutton", 
-                           background="#252837", 
-                           foreground="#e5e7eb",
+                           background=get_color('colors.dialog_colors.listbox_bg'),
+            foreground=get_color('colors.dialog_colors.listbox_fg'),
                            font=("Segoe UI", 9))
         self.style.map("Modern.TRadiobutton",
-                      background=[('active', '#374151'), ('selected', '#6366F1')],
+                      background=[('active', get_color('colors.dialog_colors.listbox_active_bg')), ('selected', get_color('colors.dialog_colors.listbox_select_bg'))],
                       foreground=[('active', 'white'), ('selected', 'white')])
         
         self.btn_rect_mode = ttk.Radiobutton(mode_buttons_frame, text="📐 Retângulo", 
@@ -3026,8 +3219,8 @@ class MontagemWindow(ttk.Frame):
         self.tool_status_var = StringVar(value="🔧 Modo: Retângulo")
         status_label = ttk.Label(tools_frame, textvariable=self.tool_status_var, 
                                font=("Segoe UI", 8), 
-                               foreground="#9CA3AF",
-                               background="#252837")
+                               foreground=get_color('colors.status_colors.muted_text'),
+            background=get_color('colors.dialog_colors.listbox_bg'))
         status_label.pack(padx=10, pady=(0, 8))
         
         # Seção de Slots com design moderno
@@ -3094,7 +3287,7 @@ class MontagemWindow(ttk.Frame):
         
         # Canvas com design moderno
         self.canvas = Canvas(canvas_container, 
-                           bg="#1E293B",  # Cor de fundo moderna (slate-800)
+                           bg=get_color('colors.canvas_colors.modern_bg'),  # Cor de fundo moderna
                            highlightthickness=0,
                            relief="flat",
                            yscrollcommand=v_scrollbar.set,
@@ -3537,7 +3730,8 @@ class MontagemWindow(ttk.Frame):
             if not self.live_capture or self.latest_frame is None:
                 # Fallback para captura única se não há captura contínua
                 camera_index = int(self.camera_combo.get()) if self.camera_combo.get() else 0
-                captured_image = capture_image_from_camera(camera_index)
+                # Usa cache de câmera para evitar reinicializações
+                captured_image = capture_image_from_camera(camera_index, use_cache=True)
             else:
                 # Usa o frame mais recente da captura contínua
                 captured_image = self.latest_frame.copy()
@@ -3747,10 +3941,10 @@ class MontagemWindow(ttk.Frame):
             
             # Escolhe cor baseada na seleção
             if slot['id'] == self.selected_slot_id:
-                color = style_config["selection_color"]
+                color = get_color('colors.selection_color', style_config)
                 width = 3
             else:
-                color = COLOR_CLIP
+                color = get_color('colors.editor_colors.clip_color')
                 width = 2
             
             # Obtém rotação do slot
@@ -3768,7 +3962,7 @@ class MontagemWindow(ttk.Frame):
                 
                 # Desenha área de exclusão em vermelho
                 self.canvas.create_rectangle(ex_x1, ex_y1, ex_x2, ex_y2,
-                                            outline="#FF4444", width=2, tags="slot")
+                                            outline=get_color('colors.editor_colors.delete_color'), width=2, tags="slot")
             
             # Adiciona texto com ID (já usando x1, y1 corrigidos com offsets)
             # Carrega as configurações de estilo
@@ -3784,7 +3978,7 @@ class MontagemWindow(ttk.Frame):
             edit_y2 = y1 + edit_size + 2
             
             edit_btn = self.canvas.create_rectangle(edit_x1, edit_y1, edit_x2, edit_y2,
-                                                   fill="#4CAF50", outline="white", width=1,
+                                                   fill=get_color('colors.inspection_colors.pass_color'), outline=get_color('colors.special_colors.white_text'), width=1,
                                                    tags=("slot", f"edit_btn_{slot['id']}"))
             
             # Adiciona ícone de edição (pequeno "E")
@@ -3951,9 +4145,9 @@ class MontagemWindow(ttk.Frame):
         
         # Define cor baseada no modo
         if self.current_drawing_mode == "exclusion":
-            outline_color = "#FF4444"  # Vermelho para exclusão
+            outline_color = get_color('colors.editor_colors.delete_color')  # Vermelho para exclusão
         else:
-            outline_color = COLOR_DRAWING
+            outline_color = get_color('colors.editor_colors.drawing_color')
         
         # Desenha retângulo (para rectangle e exclusion)
         self.current_rect = self.canvas.create_rectangle(
@@ -4259,7 +4453,7 @@ class MontagemWindow(ttk.Frame):
                     # Salva no banco de dados se há um modelo carregado
                     if self.current_model_id is not None:
                         try:
-                            self.db_manager.update_slot(slot['db_id'], slot)
+                            self.db_manager.update_slot(self.current_model_id, slot)
                         except Exception as e:
                             print(f"Erro ao salvar slot no banco: {e}")
                             messagebox.showwarning("Aviso", "Slot atualizado na interface, mas não foi salvo no banco de dados.")
@@ -4384,7 +4578,7 @@ class MontagemWindow(ttk.Frame):
         
         title_label = ttk.Label(title_frame, text=f"Editar Slot {slot_data['id']}", 
                                font=('Arial', 10, 'bold'),
-                               foreground=self.style_config["text_color"])
+                               foreground=get_color('colors.text_color', self.style_config))
         title_label.pack(pady=(0, 5))
         
         # Frame com scrollbar para os campos
@@ -4419,7 +4613,7 @@ class MontagemWindow(ttk.Frame):
             entry.pack(side='left', padx=(5, 0))
             
             # Tooltip simples
-            tip_label = ttk.Label(row_frame, text=tooltip, font=("Arial", 8), foreground="#888888")
+            tip_label = ttk.Label(row_frame, text=tooltip, font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             tip_label.pack(side='left', padx=(5, 0))
         
         # Seção: Detecção (para slots do tipo clip)
@@ -4449,7 +4643,7 @@ class MontagemWindow(ttk.Frame):
             
             # Tooltip para explicar cada método
             method_tip = ttk.Label(method_frame, text="Selecione o método de detecção", 
-                                  font=("Arial", 8), foreground="#888888")
+                                  font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             method_tip.pack(side='left', padx=(5, 0))
             
             # Atualiza o tooltip baseado na seleção
@@ -4472,7 +4666,7 @@ class MontagemWindow(ttk.Frame):
             preview_frame.pack(fill='x', pady=5, padx=5)
             
             # Canvas para exibir o preview
-            self.preview_canvas = Canvas(preview_frame, bg="#1E1E1E", width=200, height=150)
+            self.preview_canvas = Canvas(preview_frame, bg=get_color('colors.special_colors.preview_canvas_bg'), width=200, height=150)
             self.preview_canvas.pack(fill='both', expand=True, padx=5, pady=5)
             
             # Definir variáveis antes da função update_preview_filter
@@ -4627,7 +4821,7 @@ class MontagemWindow(ttk.Frame):
             threshold_var.trace("w", update_preview_filter)
             
             threshold_tip = ttk.Label(threshold_frame, text="Valor entre 0.0 e 1.0", 
-                                    font=("Arial", 8), foreground="#888888")
+                                    font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             threshold_tip.pack(side='left', padx=(5, 0))
             
             # Porcentagem para OK
@@ -4645,7 +4839,7 @@ class MontagemWindow(ttk.Frame):
             ok_threshold_var.trace("w", update_preview_filter)
             
             ok_threshold_tip = ttk.Label(ok_threshold_frame, text="Porcentagem para considerar OK (0-100)", 
-                                       font=("Arial", 8), foreground="#888888")
+                                       font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             ok_threshold_tip.pack(side='left', padx=(5, 0))
             
             # Limiar de correlação
@@ -4664,7 +4858,7 @@ class MontagemWindow(ttk.Frame):
             correlation_threshold_var.trace("w", update_preview_filter)
             
             correlation_threshold_tip = ttk.Label(correlation_threshold_frame, text="Limiar de correlação (0.0-1.0)", 
-                                                 font=("Arial", 8), foreground="#888888")
+                                                 font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             correlation_threshold_tip.pack(side='left', padx=(5, 0))
         
         # Botões de ação
@@ -4900,7 +5094,7 @@ class MontagemWindow(ttk.Frame):
             # Salva no banco de dados se há um modelo carregado
             if self.current_model_id is not None:
                 try:
-                    self.db_manager.update_slot(slot_data['db_id'], slot_data)
+                    self.db_manager.update_slot(self.current_model_id, slot_data)
                 except Exception as e:
                     print(f"Erro ao salvar slot no banco: {e}")
             
@@ -5248,7 +5442,7 @@ class MontagemWindow(ttk.Frame):
         h = slot['h'] * self.scale_factor
         
         handle_size = 8
-        handle_color = "#FF4444"
+        handle_color = get_color('colors.editor_colors.handle_color')
         
         # Handles de redimensionamento (cantos e meio das bordas)
         handles = [
@@ -5495,7 +5689,7 @@ class MontagemWindow(ttk.Frame):
         
         # Texto
         text_widget = Text(text_frame, wrap="word", yscrollcommand=scrollbar.set,
-                          font=("Consolas", 10), bg="#F8F9FA", fg="#2C3E50")
+                          font=get_font('console_font'), bg=get_color('colors.special_colors.console_bg'), fg=get_color('colors.special_colors.console_fg'))
         text_widget.pack(side=LEFT, fill=BOTH, expand=True)
         scrollbar.config(command=text_widget.yview)
         
@@ -5533,6 +5727,14 @@ class MontagemWindow(ttk.Frame):
         """Limpa recursos ao fechar a aplicação."""
         if self.live_capture:
             self.stop_live_capture()
+        
+        # Libera todas as câmeras em cache
+        try:
+            release_all_cached_cameras()
+            print("Cache de câmeras limpo ao fechar aplicação")
+        except Exception as e:
+            print(f"Erro ao limpar cache de câmeras: {e}")
+        
         self.master.destroy()
 
 
@@ -5616,15 +5818,15 @@ class InspecaoWindow(ttk.Frame):
         style_config = load_style_config()
         
         # Cores industriais Keyence com personalização
-        self.bg_color = style_config["background_color"]  # Fundo escuro mais profundo
-        self.panel_color = "#2A2A2A"  # Cor dos painéis
-        self.accent_color = style_config["button_color"]  # Cor de destaque
-        self.success_color = style_config["ok_color"]  # Verde brilhante industrial
-        self.warning_color = "#FFCC00"  # Amarelo industrial
-        self.danger_color = style_config["ng_color"]  # Vermelho industrial
-        self.text_color = style_config["text_color"]  # Texto branco
-        self.button_bg = "#3A3A3A"  # Cor de fundo dos botões
-        self.button_active = "#4A4A4A"  # Cor quando botão ativo
+        self.bg_color = get_color('colors.background_color', style_config)  # Fundo escuro mais profundo
+        self.panel_color = get_color('colors.canvas_colors.panel_bg', style_config)  # Cor dos painéis
+        self.accent_color = get_color('colors.button_color', style_config)  # Cor de destaque
+        self.success_color = get_color('colors.ok_color', style_config)  # Verde brilhante industrial
+        self.warning_color = get_color('colors.status_colors.warning_bg', style_config)  # Amarelo industrial
+        self.danger_color = get_color('colors.ng_color', style_config)  # Vermelho industrial
+        self.text_color = get_color('colors.text_color', style_config)  # Texto branco
+        self.button_bg = get_color('colors.canvas_colors.button_bg')  # Cor de fundo dos botões
+        self.button_active = get_color('colors.canvas_colors.button_active')  # Cor quando botão ativo
         
         # Configurar estilos
         self.style.configure('TFrame', background=self.bg_color)
@@ -5643,21 +5845,21 @@ class InspecaoWindow(ttk.Frame):
         # Estilo para botão de inspeção (destaque)
         self.style.configure('Inspect.TButton', font=style_config["ok_font"], background=self.accent_color)
         self.style.map('Inspect.TButton',
-                       background=[('active', '#FF7733'), ('pressed', '#CC4400')])
+                       background=[('active', get_color('colors.button_colors.inspect_active')), ('pressed', get_color('colors.button_colors.inspect_pressed'))])
         
         # Estilos para resultados
-        self.style.configure('Success.TFrame', background='#333333')
-        self.style.configure('Danger.TFrame', background='#440000')
+        self.style.configure('Success.TFrame', background=get_color('colors.inspection_colors.pass_bg'))
+        self.style.configure('Danger.TFrame', background=get_color('colors.inspection_colors.fail_bg'))
         
         # Estilos para Entry e Combobox
-        self.style.configure('TEntry', fieldbackground='#2A2A2A', foreground=self.text_color)
+        self.style.configure('TEntry', fieldbackground=get_color('colors.dialog_colors.entry_bg'), foreground=self.text_color)
         self.style.map('TEntry',
-                       fieldbackground=[('readonly', '#2A2A2A')],
+                       fieldbackground=[('readonly', get_color('colors.dialog_colors.entry_readonly_bg'))],
                        foreground=[('readonly', self.text_color)])
         
-        self.style.configure('TCombobox', fieldbackground='#2A2A2A', foreground=self.text_color, selectbackground='#3A3A3A')
+        self.style.configure('TCombobox', fieldbackground=get_color('colors.dialog_colors.entry_bg'), foreground=self.text_color, selectbackground=get_color('colors.dialog_colors.combobox_select_bg'))
         self.style.map('TCombobox',
-                       fieldbackground=[('readonly', '#2A2A2A')],
+                       fieldbackground=[('readonly', get_color('colors.dialog_colors.entry_readonly_bg'))],
                        foreground=[('readonly', self.text_color)])
         
         # Configurar cores para a interface - usando style em vez de configure diretamente
@@ -5725,26 +5927,26 @@ class InspecaoWindow(ttk.Frame):
                 
                 # Texto DX em estilo grande
                 dx_label = ttk.Label(logo_frame, text="DX", 
-                                    font=("Arial", 28, "bold"), foreground="#28a745",
+                                    font=get_font('title_font'), foreground=get_color('colors.special_colors.green_text'),
                                     background=self.accent_color)
                 dx_label.pack(side="left", padx=(20, 5))
                 
                 # Ícone de olho simulado
                 eye_label = ttk.Label(logo_frame, text="👁", 
-                                    font=("Arial", 24), foreground="#28a745",
+                                    font=get_font('subtitle_font'), foreground=get_color('colors.special_colors.green_text'),
                                     background=self.accent_color)
                 eye_label.pack(side="left", padx=5)
                 
                 # Texto PROJECT
                 project_label = ttk.Label(logo_frame, text="PROJECT", 
-                                        font=("Arial", 16, "bold"), foreground="#28a745",
+                                        font=get_font('header_font'), foreground=get_color('colors.special_colors.green_text'),
                                         background=self.accent_color)
                 project_label.pack(side="left", padx=(5, 20))
             
         except Exception as e:
             # Fallback para texto simples se houver erro
             header_label = ttk.Label(header_frame, text="DX PROJECT - VISUAL INSPECTION", 
-                                    font=style_config["ok_font"], foreground="#28a745",
+                                    font=get_font('ok_font'), foreground=get_color('colors.special_colors.green_text'),
                                     background=self.accent_color)
             header_label.pack(pady=10, fill=X)
         
@@ -5802,7 +6004,7 @@ class InspecaoWindow(ttk.Frame):
         info_frame.pack(fill=X, padx=5, pady=2)
         
         ttk.Label(info_frame, text="A imagem será ajustada automaticamente", 
-                 font=("Arial", 7), foreground="#AAAAAA")\
+                 font=get_font('small_font'), foreground=get_color('colors.special_colors.gray_text'))\
             .pack(side=LEFT, padx=(0, 5))
         
         # Botão para iniciar/parar captura contínua
@@ -5836,8 +6038,8 @@ class InspecaoWindow(ttk.Frame):
         # Label grande para resultado NG/OK
         self.result_display_label = ttk.Label(inspection_frame, text="--", 
                                             font=("Arial", 36, "bold"), 
-                                            foreground="#CCCCCC", 
-                                            background="#2A2A2A",
+                                            foreground=get_color('colors.status_colors.muted_text'), 
+                                            background=get_color('colors.status_colors.muted_bg'),
                                             anchor="center",
                                             relief="raised",
                                             borderwidth=4,
@@ -5862,7 +6064,7 @@ class InspecaoWindow(ttk.Frame):
         h_scrollbar.pack(side=BOTTOM, fill=X)
         
         # Canvas com fundo escuro estilo industrial - Ampliado para ocupar toda a área
-        self.canvas = Canvas(canvas_container, bg="#121212",
+        self.canvas = Canvas(canvas_container, bg=get_color('colors.canvas_colors.canvas_dark_bg'),
                            yscrollcommand=v_scrollbar.set,
                            xscrollcommand=h_scrollbar.set)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
@@ -5910,18 +6112,15 @@ class InspecaoWindow(ttk.Frame):
         
         # Configurar estilo da Treeview para parecer com sistemas Keyence
         self.style.configure("Treeview", 
-                           background="#222222", 
                            foreground=self.text_color, 
-                           fieldbackground="#222222",
                            borderwidth=1,
                            relief="solid")
         self.style.configure("Treeview.Heading", 
                            font=style_config["ok_font"], 
-                           background="#444444", 
-                           foreground="#FFFFFF")
+                           foreground=get_color('colors.special_colors.white_text'))
         self.style.map("Treeview", 
-                      background=[("selected", style_config["selection_color"])],
-                      foreground=[("selected", "#000000")])
+                      background=[("selected", get_color('colors.selection_color', style_config))],
+                      foreground=[("selected", get_color('colors.special_colors.black_bg'))])
         
         # Altura reduzida para 4 linhas em vez de 8
         self.results_listbox = ttk.Treeview(list_container, yscrollcommand=scrollbar_results.set, height=4)
@@ -5941,8 +6140,8 @@ class InspecaoWindow(ttk.Frame):
         self.results_listbox.heading("detalhes", text="DETALHES")
         
         # Configurar tags para resultados
-        self.results_listbox.tag_configure("pass", background="#333333", foreground="#FFFFFF")
-        self.results_listbox.tag_configure("fail", background="#440000", foreground="#FFFFFF")
+        self.results_listbox.tag_configure("pass", background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'))
+        self.results_listbox.tag_configure("fail", background=get_color('colors.inspection_colors.fail_bg'), foreground=get_color('colors.special_colors.white_text'))
         
         # Dicionário para armazenar widgets de status
         self.status_widgets = {}
@@ -6008,8 +6207,8 @@ class InspecaoWindow(ttk.Frame):
             if hasattr(self, 'result_display_label'):
                 self.result_display_label.config(
                     text="--",
-                    foreground="#CCCCCC",
-                    background="#2A2A2A"
+                    foreground=get_color('colors.status_colors.muted_text'),
+                    background=get_color('colors.status_colors.muted_bg')
                 )
             
             # Criar painel de resumo de status
@@ -6045,16 +6244,16 @@ class InspecaoWindow(ttk.Frame):
                 if hasattr(self, 'result_display_label'):
                     self.result_display_label.config(
                         text="--",
-                        foreground="#CCCCCC",
-                        background="#2A2A2A"
+                        foreground=get_color('colors.status_colors.muted_text'),
+                        background=get_color('colors.status_colors.muted_bg')
                     )
                 
                 # Resetar o label grande de resultado
                 if hasattr(self, 'result_display_label'):
                     self.result_display_label.config(
                         text="--",
-                        foreground="#CCCCCC",
-                        background="#2A2A2A"
+                        foreground=get_color('colors.status_colors.muted_text'),
+                        background=get_color('colors.status_colors.muted_bg')
                     )
                 
                 self.update_display()
@@ -6149,8 +6348,8 @@ class InspecaoWindow(ttk.Frame):
             if hasattr(self, 'result_display_label'):
                 self.result_display_label.config(
                     text="--",
-                    foreground="#CCCCCC",
-                    background="#2A2A2A"
+                    foreground=get_color('colors.status_colors.muted_text'),
+                    background=get_color('colors.status_colors.muted_bg')
                 )
             self.update_results_list()
             
@@ -6291,8 +6490,8 @@ class InspecaoWindow(ttk.Frame):
                 if hasattr(self, 'result_display_label'):
                     self.result_display_label.config(
                         text="--",
-                        foreground="#CCCCCC",
-                        background="#2A2A2A"
+                        foreground=get_color('colors.status_colors.muted_text'),
+                        background=get_color('colors.status_colors.muted_bg')
                     )
                 
             # Atualiza a lista de resultados
@@ -6986,15 +7185,15 @@ class InspecaoWindow(ttk.Frame):
                             xr, yr, wr, hr = slot['x'], slot['y'], slot['w'], slot['h']
                             xa, ya = xr * self.scale_factor + self.x_offset, yr * self.scale_factor + self.y_offset
                             wa, ha = wr * self.scale_factor, hr * self.scale_factor
-                            self.canvas.create_rectangle(xa, ya, xa+wa, ya+ha, outline=COLOR_ALIGN_FAIL, width=2, tags="result_overlay")
+                            self.canvas.create_rectangle(xa, ya, xa+wa, ya+ha, outline=get_color('colors.inspection_colors.align_fail_color'), width=2, tags="result_overlay")
                             # Carrega as configurações de estilo
                             try:
                                 style_config = load_style_config()
-                                self.canvas.create_text(xa + wa/2, ya + ha/2, text=f"S{slot['id']}\nFAIL", fill=COLOR_ALIGN_FAIL, font=style_config["ng_font"], tags="result_overlay", justify="center")
+                                self.canvas.create_text(xa + wa/2, ya + ha/2, text=f"S{slot['id']}\nFAIL", fill=get_color('colors.inspection_colors.align_fail_color'), font=style_config["ng_font"], tags="result_overlay", justify="center")
                             except Exception as style_error:
                                 print(f"Erro ao carregar configurações de estilo: {style_error}")
                                 # Fallback para fonte padrão
-                                self.canvas.create_text(xa + wa/2, ya + ha/2, text=f"S{slot['id']}\nFAIL", fill=COLOR_ALIGN_FAIL, tags="result_overlay", justify="center")
+                                self.canvas.create_text(xa + wa/2, ya + ha/2, text=f"S{slot['id']}\nFAIL", fill=get_color('colors.inspection_colors.align_fail_color'), tags="result_overlay", justify="center")
                     except Exception as draw_error:
                         print(f"Erro ao desenhar slots de referência: {draw_error}")
                 return
@@ -7014,8 +7213,8 @@ class InspecaoWindow(ttk.Frame):
                 if hasattr(self, 'result_display_label'):
                     self.result_display_label.config(
                         text="--",
-                        foreground="#CCCCCC",
-                        background="#2A2A2A"
+                        foreground=get_color('colors.status_colors.muted_text'),
+                        background=get_color('colors.status_colors.muted_bg')
                     )
                 
                 # Adicionar modelo_id aos resultados se disponível
@@ -7079,7 +7278,7 @@ class InspecaoWindow(ttk.Frame):
                         slot_id = result.get('slot_id', '?')
                         
                         # Cores no estilo Keyence
-                        fill_color = COLOR_PASS if is_ok else COLOR_FAIL
+                        fill_color = get_color('colors.inspection_colors.pass_color') if is_ok else get_color('colors.inspection_colors.fail_color')
                         
                         if corners is not None:
                             try:
@@ -7099,7 +7298,7 @@ class InspecaoWindow(ttk.Frame):
                                     # Carrega as configurações de estilo
                                     style_config = load_style_config()
                                     self.canvas.create_text(status_x + 20, status_y + 8,
-                                                          text=f"S{slot_id}", fill="#FFFFFF", anchor="center", tags="result_overlay",
+                                                          text=f"S{slot_id}", fill=get_color('colors.special_colors.white_text'), anchor="center", tags="result_overlay",
                                                           font=style_config["ok_font"])
                                     
                                     # Adiciona indicador de status
@@ -7113,7 +7312,7 @@ class InspecaoWindow(ttk.Frame):
                                     print(f"Erro ao carregar estilo ou criar texto: {style_error}")
                                     # Fallback para texto simples sem estilo
                                     self.canvas.create_text(status_x + 20, status_y + 8,
-                                                          text=f"S{slot_id}", fill="#FFFFFF", anchor="center", tags="result_overlay")
+                                                          text=f"S{slot_id}", fill=get_color('colors.special_colors.white_text'), anchor="center", tags="result_overlay")
                                     self.canvas.create_text(canvas_corners[0][0] + 60, canvas_corners[0][1] - 12,
                                                           text="OK" if is_ok else "NG", fill=fill_color, anchor="nw", tags="result_overlay")
                             except Exception as corner_error:
@@ -7191,16 +7390,16 @@ class InspecaoWindow(ttk.Frame):
                 # Armazenamos uma referência direta ao status_bar durante a criação
                 if hasattr(self, 'status_bar'):
                     if overall_ok:
-                        self.status_bar.config(background="#00AA00", foreground="#FFFFFF")
+                        self.status_bar.config(background=get_color('colors.status_colors.success_bg'), foreground=get_color('colors.text_color'))
                     else:
-                        self.status_bar.config(background="#CC0000", foreground="#FFFFFF")
+                        self.status_bar.config(background=get_color('colors.status_colors.error_bg'), foreground=get_color('colors.text_color'))
                         
                 # Atualizar cor do indicador de status de inspeção usando referência direta
                 if hasattr(self, 'inspection_status_label'):
                     if overall_ok:
-                        self.inspection_status_label.config(foreground="#00AA00")
+                        self.inspection_status_label.config(foreground=get_color('colors.status_colors.success_bg'))
                     else:
-                        self.inspection_status_label.config(foreground="#CC0000")
+                        self.inspection_status_label.config(foreground=get_color('colors.status_colors.error_bg'))
             except Exception as e:
                 print(f"Erro ao atualizar status_bar: {e}")
             
@@ -7228,7 +7427,7 @@ class InspecaoWindow(ttk.Frame):
             
             # Label para status (OK/NG) com estilo industrial Keyence
             self.status_label = ttk.Label(status_row, text="--", font=style_config["ok_font"], 
-                                        background="#333333", foreground="#FFFFFF", 
+                                        background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'), 
                                         width=6, anchor="center", padding=3)
             self.status_label.pack(side=LEFT, padx=5)
             
@@ -7241,7 +7440,7 @@ class InspecaoWindow(ttk.Frame):
             
             # Label para score com estilo industrial Keyence
             self.score_label = ttk.Label(details_row, text="--", font=style_config["ok_font"], 
-                                       background="#333333", foreground="#FFFFFF", 
+                                       background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'), 
                                        width=8, anchor="center", padding=3)
             self.score_label.pack(side=LEFT, padx=5)
             
@@ -7249,7 +7448,7 @@ class InspecaoWindow(ttk.Frame):
             
             # Label para ID do modelo com estilo industrial Keyence
             self.id_label = ttk.Label(details_row, text="--", font=style_config["ok_font"], 
-                                    background="#333333", foreground="#FFFFFF", 
+                                    background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'), 
                                     anchor="center", padding=3)
             self.id_label.pack(side=LEFT, padx=5, fill=X, expand=True)
             return
@@ -7300,22 +7499,22 @@ class InspecaoWindow(ttk.Frame):
             
             # Label do ID do slot com estilo industrial Keyence
             id_label = ttk.Label(slot_frame, text=f"SLOT {slot['id']}", 
-                                font=('Arial', 8, 'bold'), background="#1E1E1E", foreground="#FFFFFF")
+                                font=get_font('small_font'), background=get_color('colors.special_colors.black_bg'), foreground=get_color('colors.special_colors.white_text'))
             id_label.pack(pady=2, fill=X)
             
             # Label do status (OK/NG) com estilo industrial Keyence
             status_label = ttk.Label(slot_frame, text="---", 
-                                   font=('Arial', 14, 'bold'),
-                                   foreground="#7F8C8D",
-                                   background="#2A2A2A",
+                                   font=get_font('header_font'),
+                                   foreground=get_color('colors.status_colors.inactive_text'),
+                                   background=get_color('colors.status_colors.muted_bg'),
                                    anchor="center")
             status_label.pack(pady=2, fill=X)
             
             # Label do score com estilo industrial Keyence
             score_label = ttk.Label(slot_frame, text="", 
-                                  font=('Arial', 9, 'bold'),
-                                  background="#1E1E1E",
-                                  foreground="#CCCCCC")
+                                  font=get_font('small_font'),
+                                  background=get_color('colors.special_colors.black_bg'),
+                                  foreground=get_color('colors.status_colors.muted_text'))
             score_label.pack(pady=1, fill=X)
             
             # Armazenar referências
@@ -7335,8 +7534,8 @@ class InspecaoWindow(ttk.Frame):
         for slot_id, widgets in self.status_widgets.items():
             if all(key in widgets for key in ['status_label', 'score_label', 'frame']):
                 try:
-                    widgets['status_label'].config(text="---", foreground="#7F8C8D", background="#2A2A2A")
-                    widgets['score_label'].config(text="---", background="#1E1E1E", foreground="#CCCCCC")
+                    widgets['status_label'].config(text="---", foreground=get_color('colors.status_colors.inactive_text'), background=get_color('colors.status_colors.muted_bg'))
+                    widgets['score_label'].config(text="---", background=get_color('colors.special_colors.black_bg'), foreground=get_color('colors.status_colors.muted_text'))
                     widgets['frame'].config(relief="raised", borderwidth=2, padding=2)
                 except Exception as e:
                     print(f"Erro ao resetar widget do slot {slot_id}: {e}")
@@ -7357,21 +7556,21 @@ class InspecaoWindow(ttk.Frame):
                 try:
                     if result['passou']:
                         # Estilo industrial para OK (cor personalizada)
-                        widgets['status_label'].config(text="OK", foreground="#FFFFFF", background=style_config["ok_color"])
+                        widgets['status_label'].config(text="OK", foreground=get_color('colors.special_colors.white_text'), background=get_color('colors.ok_color', style_config))
                         widgets['frame'].config(relief="raised", borderwidth=3)
-                        widgets['id_label'].config(background="#003300", foreground="#FFFFFF")
+                        widgets['id_label'].config(background=get_color('colors.inspection_colors.ok_detail_bg'), foreground=get_color('colors.special_colors.white_text'))
                     else:
                         # Estilo industrial para NG (cor personalizada)
-                        widgets['status_label'].config(text="NG", foreground="#FFFFFF", background=style_config["ng_color"])
+                        widgets['status_label'].config(text="NG", foreground=get_color('colors.special_colors.white_text'), background=get_color('colors.ng_color', style_config))
                         widgets['frame'].config(relief="raised", borderwidth=3)
-                        widgets['id_label'].config(background="#330000", foreground="#FFFFFF")
+                        widgets['id_label'].config(background=get_color('colors.inspection_colors.ng_detail_bg'), foreground=get_color('colors.special_colors.white_text'))
                     
                     # Atualizar score com estilo industrial
                     score_text = f"{result['score']:.3f}"
                     if result['passou']:
-                        widgets['score_label'].config(text=score_text, background="#003300", foreground="#FFFFFF")
+                        widgets['score_label'].config(text=score_text, background=get_color('colors.inspection_colors.ok_detail_bg'), foreground=get_color('colors.special_colors.white_text'))
                     else:
-                        widgets['score_label'].config(text=score_text, background="#330000", foreground="#FFFFFF")
+                        widgets['score_label'].config(text=score_text, background=get_color('colors.inspection_colors.ng_detail_bg'), foreground=get_color('colors.special_colors.white_text'))
                 except Exception as e:
                     print(f"Erro ao atualizar widget do slot {slot_id}: {e}")
     
@@ -7388,22 +7587,22 @@ class InspecaoWindow(ttk.Frame):
         
         # Estilo OK - cor personalizada
         self.results_listbox.tag_configure("pass", 
-                                         foreground="#FFFFFF", 
-                                         background=style_config["ok_color"], 
+                                         foreground=get_color('colors.special_colors.white_text'), 
+                                         background=get_color('colors.ok_color', style_config), 
                                          font=style_config["ok_font"])
         
         # Estilo NG - cor personalizada
         self.results_listbox.tag_configure("fail", 
-                                         foreground="#FFFFFF", 
-                                         background=style_config["ng_color"], 
+                                         foreground=get_color('colors.special_colors.white_text'), 
+                                         background=get_color('colors.ng_color', style_config), 
                                          font=style_config["ng_font"])
         
         # Estilo cabeçalho - cinza industrial Keyence
         # Carrega as configurações de estilo
         style_config = load_style_config()
         self.results_listbox.tag_configure("header", 
-                                         foreground="#FFFFFF", 
-                                         background="#333333", 
+                                         foreground=get_color('colors.special_colors.white_text'), 
+                                         background=get_color('colors.inspection_colors.pass_bg'), 
                                          font=style_config["ok_font"])
         
         # === VARIÁVEIS PARA RESUMO GERAL ===
@@ -7448,13 +7647,13 @@ class InspecaoWindow(ttk.Frame):
                 # Atualizar labels com estilo Keyence
                 self.status_label.config(
                     text=overall_status,
-                    background="#00AA00" if overall_status == "OK" else "#CC0000",
+                    background=get_color('colors.status_colors.success_bg') if overall_status == "OK" else get_color('colors.status_colors.error_bg'),
                     foreground="#FFFFFF"
                 )
                 
                 self.score_label.config(
                     text=f"{passed_slots}/{total_slots}",
-                    background="#00AA00" if passed_slots == total_slots else "#CC0000",
+                    background=get_color('colors.status_colors.success_bg') if passed_slots == total_slots else get_color('colors.status_colors.error_bg'),
                     foreground="#FFFFFF"
                 )
                 
@@ -7472,20 +7671,20 @@ class InspecaoWindow(ttk.Frame):
                     self.result_display_label.config(
                         text="OK",
                         foreground="#FFFFFF",
-                        background=style_config["ok_color"]
+                        background=get_color('colors.ok_color', style_config)
                     )
                 else:
                     self.result_display_label.config(
                         text="NG",
                         foreground="#FFFFFF",
-                        background=style_config["ng_color"]
+                        background=get_color('colors.ng_color', style_config)
                     )
             else:
                 # Resetar para estado inicial quando não há resultados
                 self.result_display_label.config(
                     text="--",
-                    foreground="#CCCCCC",
-                    background="#2A2A2A"
+                    foreground=get_color('colors.status_colors.muted_text'),
+                    background=get_color('colors.status_colors.muted_bg')
                 )
     
     def draw_inspection_results(self):
@@ -7507,13 +7706,13 @@ class InspecaoWindow(ttk.Frame):
             
             # Cores estilo industrial
             if result['passou']:
-                outline_color = style_config["ok_color"]  # Cor de OK personalizada
-                fill_color = style_config["ok_color"]     # Mesma cor para o fundo
-                text_color = "#FFFFFF"                    # Texto branco
+                outline_color = get_color('colors.ok_color', style_config)  # Cor de OK personalizada
+                fill_color = get_color('colors.ok_color', style_config)     # Mesma cor para o fundo
+                text_color = get_color('colors.special_colors.white_text')                    # Texto branco
             else:
-                outline_color = style_config["ng_color"]  # Cor de NG personalizada
-                fill_color = style_config["ng_color"]     # Mesma cor para o fundo
-                text_color = "#FFFFFF"                    # Texto branco
+                outline_color = get_color('colors.ng_color', style_config)  # Cor de NG personalizada
+                fill_color = get_color('colors.ng_color', style_config)     # Mesma cor para o fundo
+                text_color = get_color('colors.special_colors.white_text')                    # Texto branco
             
             # Desenha retângulo com estilo industrial
             self.canvas.create_rectangle(x1, y1, x2, y2,
@@ -7603,6 +7802,12 @@ def create_main_window():
     # Configura fechamento de janelas OpenCV
     def on_closing():
         cv2.destroyAllWindows()
+        # Limpa cache de câmeras antes de fechar
+        try:
+            release_all_cached_cameras()
+            print("Cache de câmeras limpo ao fechar aplicação principal")
+        except Exception as e:
+            print(f"Erro ao limpar cache de câmeras na aplicação principal: {e}")
         root.destroy()
     
     root.protocol("WM_DELETE_WINDOW", on_closing)
@@ -7680,10 +7885,10 @@ class HistoricoFotosWindow(ttk.Frame):
         style_config = load_style_config()
         
         # Cores industriais
-        self.bg_color = style_config["background_color"]
-        self.panel_color = "#2A2A2A"
-        self.accent_color = style_config["button_color"]
-        self.text_color = style_config["text_color"]
+        self.bg_color = get_color('colors.background_color', style_config)
+        self.panel_color = get_color('colors.canvas_colors.panel_bg', style_config)
+        self.accent_color = get_color('colors.button_color', style_config)
+        self.text_color = get_color('colors.text_color', style_config)
         
         # Diretório para salvar as fotos do histórico
         self.historico_dir = MODEL_DIR / "historico_fotos"
@@ -7803,7 +8008,7 @@ class HistoricoFotosWindow(ttk.Frame):
             for widget in parent_frame.winfo_children():
                 widget.destroy()
                 
-            canvas = Canvas(parent_frame, bg="#121212")
+            canvas = Canvas(parent_frame, bg=get_color('colors.canvas_colors.canvas_dark_bg'))
             scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=canvas.yview)
             scrollable_frame = ttk.Frame(canvas)
             
@@ -7972,8 +8177,8 @@ class HistoricoFotosWindow(ttk.Frame):
             # Mensagem quando não há fotos
             ttk.Label(frame, 
                      text="Nenhuma foto nesta categoria", 
-                     font=("Arial", 12), 
-                     foreground="#AAAAAA").pack(pady=20)
+                     font=get_font('subtitle_font'), 
+                     foreground=get_color('colors.special_colors.gray_text')).pack(pady=20)
             return
         
         # Criar grid para exibir fotos (3 colunas)
@@ -8055,20 +8260,20 @@ class HistoricoFotosWindow(ttk.Frame):
                 programa = foto_info.get('programa', 'Desconhecido')
                 
                 # Cor baseada na categoria
-                categoria_cor = "#00AA00" if categoria == "ok" else \
-                               "#AA0000" if categoria == "ng" else \
-                               "#0000AA" if categoria == "capturas" else "#AAAAAA"
+                categoria_cor = get_color('colors.status_colors.success_bg') if categoria == "ok" else \
+                           get_color('colors.status_colors.error_bg') if categoria == "ng" else \
+                           get_color('colors.status_colors.info_bg') if categoria == "capturas" else get_color('colors.status_colors.neutral_bg')
                 
                 categoria_texto = "APROVADO" if categoria == "ok" else \
                                  "REPROVADO" if categoria == "ng" else \
                                  "CAPTURA MANUAL" if categoria == "capturas" else "DESCONHECIDO"
                 
                 ttk.Label(info_frame, text=f"📊 Status: {categoria_texto}", 
-                         font=("Arial", 10, "bold"), foreground=categoria_cor).pack(anchor="w")
-                ttk.Label(info_frame, text=f"🔧 Programa: {programa}", font=("Arial", 10)).pack(anchor="w")
-                ttk.Label(info_frame, text=f"📅 Data: {data_str}", font=("Arial", 10)).pack(anchor="w")
-                ttk.Label(info_frame, text=f"🕒 Hora: {hora_str}", font=("Arial", 10)).pack(anchor="w")
-                ttk.Label(info_frame, text=f"📏 Dimensões: {img_width}x{img_height}", font=("Arial", 9)).pack(anchor="w")
+                         font=get_font('small_font'), foreground=categoria_cor).pack(anchor="w")
+                ttk.Label(info_frame, text=f"🔧 Programa: {programa}", font=get_font('small_font')).pack(anchor="w")
+                ttk.Label(info_frame, text=f"📅 Data: {data_str}", font=get_font('small_font')).pack(anchor="w")
+                ttk.Label(info_frame, text=f"🕒 Hora: {hora_str}", font=get_font('small_font')).pack(anchor="w")
+                ttk.Label(info_frame, text=f"📏 Dimensões: {img_width}x{img_height}", font=get_font('tiny_font')).pack(anchor="w")
                 
                 # Botões de ação
                 btn_frame = ttk.Frame(card_frame)

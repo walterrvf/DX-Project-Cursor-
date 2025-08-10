@@ -2,13 +2,125 @@
     "slot_font_size": 10,
     "result_font_size": 10,
     "button_font_size": 9,
-    "background_color": "#1E1E1E",
-    "text_color": "#ffffff",
-    "ok_color": "#8cde81",
-    "ng_color": "#e7472c",
     "hud_font_size": 12,
-    "hud_opacity": 77,
-    "hud_position": "bottom-right",
+    "hud_opacity": 82,
+    "hud_position": "top-right",
     "show_fps": true,
-    "show_timestamp": true
+    "show_timestamp": true,
+    
+    "fonts": {
+        "ok_font": "Arial 10 bold",
+        "ng_font": "Arial 10 bold",
+        "title_font": "Arial 28 bold",
+        "subtitle_font": "Arial 24",
+        "header_font": "Arial 16 bold",
+        "small_font": "Arial 7",
+        "tiny_font": "Arial 8",
+        "console_font": "Consolas 10"
+    },
+    
+    "colors": {
+        "background_color": "#222222",
+        "text_color": "#ffffff",
+        "ok_color": "#8cde81",
+        "ng_color": "#e7472c",
+        "selection_color": "#FFE66D",
+        "button_color": "#FFFFFF",
+        
+        "canvas_colors": {
+            "canvas_bg": "#1E1E1E",
+            "canvas_dark_bg": "#121212",
+            "panel_bg": "#2A2A2A",
+            "dark_panel_bg": "#252837",
+            "button_bg": "#3A3A3A",
+            "button_active": "#4A4A4A",
+            "modern_bg": "#1E293B"
+        },
+        
+        "editor_colors": {
+            "clip_color": "#6366F1",
+            "selected_color": "#F59E0B",
+            "drawing_color": "#10B981",
+            "delete_color": "#FF4444",
+            "handle_color": "#FF4444"
+        },
+        
+        "inspection_colors": {
+            "pass_color": "#22C55E",
+            "fail_color": "#EF4444",
+            "align_fail_color": "#F97316",
+            "pass_bg": "#333333",
+            "fail_bg": "#440000",
+            "ok_detail_bg": "#003300",
+            "ng_detail_bg": "#330000"
+        },
+        
+        "status_colors": {
+            "success_bg": "#00AA00",
+            "error_bg": "#CC0000",
+            "warning_bg": "#FFCC00",
+            "info_bg": "#0000AA",
+            "neutral_bg": "#AAAAAA",
+            "inactive_text": "#7F8C8D",
+            "inactive_bg": "#2A2A2A",
+            "muted_text": "#CCCCCC",
+            "muted_bg": "#2A2A2A"
+        },
+        
+        "ui_colors": {
+            "primary": "#6366F1",
+            "secondary": "#F59E0B",
+            "success": "#22C55E",
+            "danger": "#EF4444",
+            "warning": "#F97316",
+            "info": "#3B82F6",
+            "light": "#F8F9FA",
+            "dark": "#1E1E1E",
+            "muted": "#6C757D"
+        },
+        
+        "dialog_colors": {
+            "window_bg": "#2E2E2E",
+            "frame_bg": "#1a1d29",
+            "left_panel_bg": "#252837",
+            "center_panel_bg": "#2d3142",
+            "right_panel_bg": "#252837",
+            "listbox_bg": "#252837",
+            "listbox_fg": "#e5e7eb",
+            "listbox_select_bg": "#6366F1",
+            "listbox_active_bg": "#374151",
+            "entry_bg": "#2A2A2A",
+            "entry_readonly_bg": "#2A2A2A",
+            "combobox_select_bg": "#3A3A3A"
+        },
+        
+        "button_colors": {
+            "modern_bg": "#6366F1",
+            "modern_active": "#5855eb",
+            "modern_pressed": "#4f46e5",
+            "success_bg": "#10B981",
+            "success_active": "#059669",
+            "success_pressed": "#047857",
+            "danger_bg": "#EF4444",
+            "danger_active": "#dc2626",
+            "danger_pressed": "#b91c1c",
+            "inspect_active": "#FF7733",
+            "inspect_pressed": "#CC4400"
+        },
+        
+        "special_colors": {
+            "ok_canvas_bg": "#f0f8f0",
+            "ng_canvas_bg": "#f8f0f0",
+            "ok_result_bg": "#e8f5e8",
+            "ng_result_bg": "#f5e8e8",
+            "preview_canvas_bg": "#1E1E1E",
+            "console_bg": "#F8F9FA",
+            "console_fg": "#2C3E50",
+            "tooltip_fg": "#888888",
+            "green_text": "#28a745",
+            "gray_text": "#AAAAAA",
+            "white_text": "#FFFFFF",
+            "black_bg": "#000000"
+        }
+    }
 }
