@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Arquivo principal para executar o Sistema de Inspeção Visual Honda.
+Arquivo principal para executar o Sistema de Inspeção Visual.
 Abre diretamente o módulo montagem.py com todas as funcionalidades.
 """
 
@@ -18,7 +18,7 @@ def main():
         # Importar e executar o módulo montagem
         from montagem import create_main_window
         
-        print("🚀 Iniciando Sistema de Inspeção Visual Honda...")
+        print("🚀 Iniciando Sistema de Inspeção Visual...")
         print("📝 Carregando módulo principal: montagem.py")
         
         # Criar e executar a janela principal

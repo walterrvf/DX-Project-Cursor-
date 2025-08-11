@@ -2763,6 +2763,80 @@ class MontagemWindow(ttk.Frame):
         help_window.grab_set()
         
         # Texto de ajuda
+        help_text = """
+# Editor de Malha - Ajuda
+
+## Como usar:
+
+### 1. Carregar Imagem
+- Clique em "Carregar Imagem" para selecionar uma imagem de referência
+- Formatos suportados: JPG, PNG, BMP, TIFF
+
+### 2. Criar Slots
+- Clique e arraste no canvas para desenhar um retângulo
+- Apenas slots do tipo 'clip' são suportados
+- Será salvo um template da região para template matching
+
+### 3. Gerenciar Slots
+- Clique em um slot para selecioná-lo
+- Use "Editar Slot" para modificar configurações
+- Use "Deletar Slot" para remover um slot
+- Use "Limpar Slots" para remover todos os slots
+
+### 4. Salvar/Carregar Modelos
+- Use "Salvar Modelo" para salvar a configuração atual
+- Use "Carregar Modelo" para carregar uma configuração existente
+- Os modelos são salvos em formato JSON
+
+### 5. Cores dos Slots
+- Clips: Vermelho coral
+- Selecionado: Amarelo dourado
+- Desenhando: Verde claro
+
+## Dicas:
+- Slots muito pequenos (< 10x10 pixels) não são aceitos
+- Templates de clips são salvos automaticamente
+- Use zoom e scroll para trabalhar com imagens grandes
+- Modelos salvam caminhos relativos para portabilidade
+"""
+        
+        # Frame principal
+        main_frame = ttk.Frame(help_window)
+        main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        # Área de texto com scroll
+        text_frame = ttk.Frame(main_frame)
+        text_frame.pack(fill=BOTH, expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        
+        # Texto
+        try:
+            from modulos.utils import get_font, get_color
+            text_widget = Text(text_frame, wrap="word", yscrollcommand=scrollbar.set,
+                              font=get_font('console_font'), bg=get_color('colors.special_colors.console_bg'), fg=get_color('colors.special_colors.console_fg'))
+        except:
+            text_widget = Text(text_frame, wrap="word", yscrollcommand=scrollbar.set,
+                              font=("Consolas", 10), bg="#2b2b2b", fg="#ffffff")
+        
+        text_widget.pack(side=LEFT, fill=BOTH, expand=True)
+        scrollbar.config(command=text_widget.yview)
+        
+        # Insere texto
+        text_widget.insert("1.0", help_text)
+        text_widget.config(state=DISABLED)
+        
+        # Botão fechar
+        ttk.Button(main_frame, text="Fechar", 
+                  command=help_window.destroy).pack(pady=(10, 0))
+        
+        # Centralizar janela
+        help_window.update_idletasks()
+        x = (help_window.winfo_screenwidth() // 2) - (help_window.winfo_width() // 2)
+        y = (help_window.winfo_screenwidth() // 2) - (help_window.winfo_height() // 2)
+        help_window.geometry(f"+{x}+{y}")
 
     def validate_slot_reference(self, slot_id):
         """Valida se a referência do slot está correta para o modelo atual."""
@@ -2817,76 +2891,7 @@ class MontagemWindow(ttk.Frame):
         except Exception as e:
             print(f"❌ Erro na limpeza de templates órfãos: {e}")
 
-        help_text = """
-# Editor de Malha - Ajuda
 
-## Como usar:
-
-### 1. Carregar Imagem
-- Clique em "Carregar Imagem" para selecionar uma imagem de referência
-- Formatos suportados: JPG, PNG, BMP, TIFF
-
-### 2. Criar Slots
-- Clique e arraste no canvas para desenhar um retângulo
-- Apenas slots do tipo 'clip' são suportados
-- Será salvo um template da região para template matching
-
-### 3. Gerenciar Slots
-- Clique em um slot para selecioná-lo
-- Use "Editar Slot" para modificar configurações
-- Use "Deletar Slot" para remover um slot
-- Use "Limpar Slots" para remover todos os slots
-
-### 4. Salvar/Carregar Modelos
-- Use "Salvar Modelo" para salvar a configuração atual
-- Use "Carregar Modelo" para carregar uma configuração existente
-- Os modelos são salvos em formato JSON
-
-### 5. Cores dos Slots
-- Clips: Vermelho coral
-- Selecionado: Amarelo dourado
-- Desenhando: Verde claro
-
-## Dicas:
-- Slots muito pequenos (< 10x10 pixels) não são aceitos
-- Templates de clips são salvos automaticamente
-- Use zoom e scroll para trabalhar com imagens grandes
-- Modelos salvam caminhos relativos para portabilidade
-"""
-        
-        # Frame principal
-        help_window = ttk.Toplevel(self.master)
-        help_window.title("Ajuda - Montagem")
-        main_frame = ttk.Frame(help_window)
-        main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
-        
-        # Área de texto com scroll
-        text_frame = ttk.Frame(main_frame)
-        text_frame.pack(fill=BOTH, expand=True)
-        
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(text_frame)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        
-        # Texto
-        text_widget = Text(text_frame, wrap="word", yscrollcommand=scrollbar.set,
-                          font=get_font('console_font'), bg=get_color('colors.special_colors.console_bg'), fg=get_color('colors.special_colors.console_fg'))
-        text_widget.pack(side=LEFT, fill=BOTH, expand=True)
-        scrollbar.config(command=text_widget.yview)
-        
-        # Insere texto
-        text_widget.insert("1.0", help_text)
-        text_widget.config(state=DISABLED)
-        
-        # Botão fechar
-        ttk.Button(main_frame, text="Fechar", 
-                  command=help_window.destroy).pack(pady=(10, 0))
-        
-        # Centralizar janela
-        help_window.update_idletasks()
-        x = (help_window.winfo_screenwidth() // 2) - (help_window.winfo_width() // 2)
-        y = (help_window.winfo_screenheight() // 2) - (help_window.winfo_height() // 2)
-        help_window.geometry(f"+{x}+{y}")
     
     def open_system_config(self):
         """Abre a janela de configuração do sistema."""
@@ -2899,6 +2904,41 @@ class MontagemWindow(ttk.Frame):
             PREVIEW_H = cfg['PREVIEW_H']
             THR_CORR = cfg['THR_CORR']
             MIN_PX = cfg['MIN_PX']
+            
+            # Aplicar configurações de aparência
+            try:
+                style_config = load_style_config()
+                
+                # Atualizar cores do sistema
+                if 'BG_COLOR' in cfg:
+                    style_config['colors']['canvas_colors']['modern_bg'] = cfg['BG_COLOR']
+                    style_config['colors']['canvas_colors']['canvas_bg'] = cfg['BG_COLOR']
+                
+                if 'TEXT_COLOR' in cfg:
+                    style_config['colors']['text_color'] = cfg['TEXT_COLOR']
+                    style_config['colors']['special_colors']['gray_text'] = cfg['TEXT_COLOR']
+                
+                if 'ACCENT_COLOR' in cfg:
+                    style_config['colors']['accent_color'] = cfg['ACCENT_COLOR']
+                    style_config['colors']['selection_color'] = cfg['ACCENT_COLOR']
+                
+                # Atualizar configurações de fonte
+                if 'FONT_SIZE' in cfg:
+                    style_config['fonts']['console_font'] = f"{cfg['FONT_FAMILY']} {cfg['FONT_SIZE']}"
+                    style_config['fonts']['small_font'] = f"{cfg['FONT_FAMILY']} {max(8, cfg['FONT_SIZE'] - 2)}"
+                    style_config['fonts']['subtitle_font'] = f"{cfg['FONT_FAMILY']} {cfg['FONT_SIZE'] + 6}"
+                
+                # Salvar configurações
+                save_style_config(style_config)
+                
+                # Aplicar configurações imediatamente
+                apply_style_config(style_config)
+                
+                print("✅ Configurações de aparência aplicadas com sucesso!")
+                
+            except Exception as e:
+                print(f"❌ Erro ao aplicar configurações de aparência: {e}")
+        
         config_dialog = SystemConfigDialog(
             self.master,
             ORB_FEATURES,

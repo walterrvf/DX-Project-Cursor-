@@ -1156,8 +1156,11 @@ class InspecaoWindow(ttk.Frame):
             self.status_var.set(f"Erro ao capturar da webcam: {str(e)}")
     
     def save_to_photo_history(self, image):
-        """Salva a imagem capturada no histórico de fotos."""
+        """Salva a imagem capturada no histórico de fotos com otimização."""
         try:
+            # Importar otimizador de imagens
+            from modulos.image_optimizer import optimize_image_for_history
+            
             # Cria o diretório de histórico se não existir
             historico_dir = MODEL_DIR / "historico_fotos"
             historico_dir.mkdir(exist_ok=True)
@@ -1185,12 +1188,27 @@ class InspecaoWindow(ttk.Frame):
             file_name = f"foto_{model_name}_{timestamp}.png"
             file_path = capturas_dir / file_name
             
-            # Salva a imagem
-            cv2.imwrite(str(file_path), image)
+            # Salva a imagem com otimização (original + histórico + thumbnail)
+            result = optimize_image_for_history(image, str(file_path))
             
-            print(f"Foto salva no histórico: {file_path}")
+            if result['success']:
+                print(f"Foto salva no histórico com otimização:")
+                print(f"  Original: {result['original']}")
+                print(f"  Histórico: {result['history']}")
+                print(f"  Thumbnail: {result['thumbnail']}")
+            else:
+                # Fallback para salvamento simples se a otimização falhar
+                cv2.imwrite(str(file_path), image)
+                print(f"Foto salva no histórico (fallback): {file_path}")
+                
         except Exception as e:
             print(f"Erro ao salvar foto no histórico: {e}")
+            # Fallback para salvamento simples em caso de erro
+            try:
+                cv2.imwrite(str(file_path), image)
+                print(f"Foto salva no histórico (fallback após erro): {file_path}")
+            except Exception as fallback_error:
+                print(f"Erro no fallback: {fallback_error}")
     
     def save_inspection_result_to_history(self, status, passed, total):
         """Salva a imagem com os resultados da inspeção no histórico de fotos."""
@@ -1286,10 +1304,24 @@ class InspecaoWindow(ttk.Frame):
             
             file_path = target_dir / file_name
             
-            # Salva a imagem
-            cv2.imwrite(str(file_path), img_result)
-            
-            print(f"Resultado de inspeção salvo no histórico: {file_path}")
+            # Salva a imagem com otimização
+            try:
+                from modulos.image_optimizer import optimize_image_for_history
+                result = optimize_image_for_history(img_result, str(file_path))
+                
+                if result['success']:
+                    print(f"Resultado de inspeção salvo no histórico com otimização:")
+                    print(f"  Original: {result['original']}")
+                    print(f"  Histórico: {result['history']}")
+                    print(f"  Thumbnail: {result['thumbnail']}")
+                else:
+                    # Fallback para salvamento simples
+                    cv2.imwrite(str(file_path), img_result)
+                    print(f"Resultado de inspeção salvo no histórico (fallback): {file_path}")
+            except Exception as opt_error:
+                print(f"Erro na otimização, usando fallback: {opt_error}")
+                cv2.imwrite(str(file_path), img_result)
+                print(f"Resultado de inspeção salvo no histórico (fallback após erro): {file_path}")
         except Exception as e:
             print(f"Erro ao salvar resultado de inspeção no histórico: {e}")
     

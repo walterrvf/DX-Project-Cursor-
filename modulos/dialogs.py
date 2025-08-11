@@ -5,23 +5,27 @@ import cv2
 import numpy as np
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import LEFT, BOTH, DISABLED, NORMAL, X
-from tkinter import Canvas, filedialog, messagebox, Toplevel, StringVar
+from tkinter import Canvas, filedialog, messagebox, Toplevel, StringVar, colorchooser
 from PIL import Image, ImageTk
 
 try:
-    from utils import load_style_config, get_color, get_font, save_style_config, apply_style_config
-    from ml_classifier import MLSlotClassifier
-    from camera_manager import capture_image_from_camera
-    from paths import get_template_dir, get_model_template_dir
-    from inspection import find_image_transform
-    from image_utils import cv2_to_tk
+    from modulos.utils import load_style_config, get_color, get_font, save_style_config, apply_style_config
+    from modulos.ml_classifier import MLSlotClassifier
+    from modulos.camera_manager import capture_image_from_camera
+    from modulos.paths import get_template_dir, get_model_template_dir
+    from modulos.inspection import find_image_transform
+    from modulos.image_utils import cv2_to_tk
 except Exception:
-    from utils import load_style_config, get_color, get_font, save_style_config, apply_style_config
-    from ml_classifier import MLSlotClassifier
-    from camera_manager import capture_image_from_camera
-    from paths import get_template_dir, get_model_template_dir
-    from inspection import find_image_transform
-    from image_utils import cv2_to_tk
+    try:
+        from utils import load_style_config, get_color, get_font, save_style_config, apply_style_config
+        from ml_classifier import MLSlotClassifier
+        from camera_manager import capture_image_from_camera
+        from paths import get_template_dir, get_model_template_dir
+        from inspection import find_image_transform
+        from image_utils import cv2_to_tk
+    except Exception:
+        # Fallback for when running as standalone
+        pass
 
 
 class EditSlotDialog(Toplevel):
@@ -648,25 +652,59 @@ class SystemConfigDialog(Toplevel):
 
     def center_window(self):
         self.update_idletasks()
-        width = 550; height = 750
+        # Aumentar altura para acomodar todo o conteúdo
+        width = 600
+        height = 800
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Configurar tamanho mínimo
+        self.minsize(500, 600)
 
     def setup_ui(self, ORB_FEATURES, ORB_SCALE_FACTOR, ORB_N_LEVELS, PREVIEW_W, PREVIEW_H, THR_CORR, MIN_PX):
-        container = ttk.Frame(self); container.pack(fill=BOTH, expand=True, padx=10, pady=10)
-        canvas = Canvas(container, width=530, height=700)
+        # Container principal com scroll
+        container = ttk.Frame(self)
+        container.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        # Canvas com scrollbar
+        canvas = Canvas(container, bg='#2b2b2b', highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas, width=520)
-        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        
+        # Frame scrollável
+        scrollable_frame = ttk.Frame(canvas)
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        # Configurar canvas
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Empacotar elementos
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-
-        main_frame = ttk.Frame(scrollable_frame); main_frame.pack(fill=BOTH, expand=True)
+        
+        # Configurar scroll com mouse
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def _on_enter(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _on_leave(event):
+            canvas.unbind_all("<MouseWheel>")
+        
+        scrollable_frame.bind("<Enter>", _on_enter)
+        scrollable_frame.bind("<Leave>", _on_leave)
+        
+        # Frame principal dentro do scroll
+        main_frame = ttk.Frame(scrollable_frame)
+        main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         # ORB configs
-        orb_frame = ttk.LabelFrame(main_frame, text="Configurações ORB (Alinhamento de Imagem)"); orb_frame.pack(fill=X, pady=(0, 10))
+        orb_frame = ttk.LabelFrame(main_frame, text="Configurações ORB (Alinhamento de Imagem)")
+        orb_frame.pack(fill=X, pady=(0, 15))
         ttk.Label(orb_frame, text="Número de Features:").pack(anchor="w", padx=5, pady=2)
         self.orb_features_var = ttk.IntVar(value=ORB_FEATURES)
         features_frame = ttk.Frame(orb_frame); features_frame.pack(fill=X, padx=5, pady=5)
@@ -684,14 +722,16 @@ class SystemConfigDialog(Toplevel):
         levels_spin = ttk.Spinbox(orb_frame, from_=4, to=16, textvariable=self.n_levels_var, width=10); levels_spin.pack(anchor='w', padx=5, pady=5)
 
         # Visualização
-        canvas_frame = ttk.LabelFrame(main_frame, text="Configurações de Visualização"); canvas_frame.pack(fill=X, pady=(0, 10))
+        canvas_frame = ttk.LabelFrame(main_frame, text="Configurações de Visualização")
+        canvas_frame.pack(fill=X, pady=(0, 15))
         ttk.Label(canvas_frame, text="Largura Máxima do Preview:").pack(anchor='w', padx=5, pady=2)
         self.preview_w_var = ttk.IntVar(value=PREVIEW_W); w_spin = ttk.Spinbox(canvas_frame, from_=400, to=1600, increment=100, textvariable=self.preview_w_var, width=10); w_spin.pack(anchor='w', padx=5, pady=5)
         ttk.Label(canvas_frame, text="Altura Máxima do Preview:").pack(anchor='w', padx=5, pady=(10, 2))
         self.preview_h_var = ttk.IntVar(value=PREVIEW_H); h_spin = ttk.Spinbox(canvas_frame, from_=300, to=1200, increment=100, textvariable=self.preview_h_var, width=10); h_spin.pack(anchor='w', padx=5, pady=5)
 
         # Detecção
-        detection_frame = ttk.LabelFrame(main_frame, text="Configurações Padrão de Detecção"); detection_frame.pack(fill=X, pady=(0, 10))
+        detection_frame = ttk.LabelFrame(main_frame, text="Configurações Padrão de Detecção")
+        detection_frame.pack(fill=X, pady=(0, 15))
         ttk.Label(detection_frame, text="Limiar de Correlação Padrão (Clips):").pack(anchor='w', padx=5, pady=2)
         self.thr_corr_var = ttk.DoubleVar(value=THR_CORR)
         corr_frame = ttk.Frame(detection_frame); corr_frame.pack(fill=X, padx=5, pady=5)
@@ -703,14 +743,106 @@ class SystemConfigDialog(Toplevel):
         px_spin = ttk.Spinbox(detection_frame, from_=1, to=1000, textvariable=self.min_px_var, width=10); px_spin.pack(anchor='w', padx=5, pady=5)
 
         # Cores e fontes
-        appearance_frame = ttk.LabelFrame(main_frame, text="Configurações de Aparência por Local"); appearance_frame.pack(fill=X, pady=(0, 10))
-        # Exemplo mínimo: apenas salvar sem UI detalhada para fontes/cores
+        appearance_frame = ttk.LabelFrame(main_frame, text="Configurações de Aparência do Sistema")
+        appearance_frame.pack(fill=X, pady=(0, 15))
+        
+        # Configurações de cores
+        colors_frame = ttk.Frame(appearance_frame)
+        colors_frame.pack(fill=X, padx=10, pady=10)
+        
+        # Cor de fundo principal
+        ttk.Label(colors_frame, text="Cor de Fundo Principal:").pack(anchor="w", pady=(5, 2))
+        bg_frame = ttk.Frame(colors_frame)
+        bg_frame.pack(fill=X, pady=2)
+        self.bg_color_var = StringVar(value="#2b2b2b")
+        bg_color_entry = ttk.Entry(bg_frame, textvariable=self.bg_color_var, width=12)
+        bg_color_entry.pack(side=LEFT, padx=(0, 10))
+        ttk.Button(bg_frame, text="Escolher", command=self.choose_bg_color).pack(side=LEFT)
+        
+        # Cor do texto principal
+        ttk.Label(colors_frame, text="Cor do Texto Principal:").pack(anchor="w", pady=(15, 2))
+        text_frame = ttk.Frame(colors_frame)
+        text_frame.pack(fill=X, pady=2)
+        self.text_color_var = StringVar(value="#ffffff")
+        text_color_entry = ttk.Entry(text_frame, textvariable=self.text_color_var, width=12)
+        text_color_entry.pack(side=LEFT, padx=(0, 10))
+        ttk.Button(text_frame, text="Escolher", command=self.choose_text_color).pack(side=LEFT)
+        
+        # Cor de destaque
+        ttk.Label(colors_frame, text="Cor de Destaque:").pack(anchor="w", pady=(15, 2))
+        accent_frame = ttk.Frame(colors_frame)
+        accent_frame.pack(fill=X, pady=2)
+        self.accent_color_var = StringVar(value="#007acc")
+        accent_color_entry = ttk.Entry(accent_frame, textvariable=self.accent_color_var, width=12)
+        accent_color_entry.pack(side=LEFT, padx=(0, 10))
+        ttk.Button(accent_frame, text="Escolher", command=self.choose_accent_color).pack(side=LEFT)
+        
+        # Configurações de fonte
+        font_frame = ttk.Frame(appearance_frame)
+        font_frame.pack(fill=X, padx=10, pady=15)
+        ttk.Label(font_frame, text="Configurações de Fonte:").pack(anchor="w", pady=(5, 10))
+        
+        # Tamanho da fonte principal
+        size_frame = ttk.Frame(font_frame)
+        size_frame.pack(fill=X, pady=5)
+        ttk.Label(size_frame, text="Tamanho da Fonte Principal:").pack(side=LEFT, padx=(0, 15))
+        self.font_size_var = ttk.IntVar(value=10)
+        font_size_spin = ttk.Spinbox(size_frame, from_=8, to=20, textvariable=self.font_size_var, width=10)
+        font_size_spin.pack(side=LEFT)
+        
+        # Família da fonte
+        family_frame = ttk.Frame(font_frame)
+        family_frame.pack(fill=X, pady=5)
+        ttk.Label(family_frame, text="Família da Fonte:").pack(side=LEFT, padx=(0, 15))
+        self.font_family_var = StringVar(value="Segoe UI")
+        font_family_combo = ttk.Combobox(family_frame, textvariable=self.font_family_var, 
+                                        values=["Segoe UI", "Arial", "Helvetica", "Consolas", "Courier New"], 
+                                        state="readonly", width=18)
+        font_family_combo.pack(side=LEFT)
 
-        button_frame = ttk.Frame(main_frame); button_frame.pack(fill=X, pady=(20, 10), padx=10)
-        ttk.Button(button_frame, text="Salvar", command=self.save_config).pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
-        ttk.Button(button_frame, text="Restaurar Padrões", command=self.restore_defaults).pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
-        ttk.Button(button_frame, text="Cancelar", command=self.cancel).pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
+        # Separador antes dos botões
+        separator = ttk.Separator(main_frame, orient='horizontal')
+        separator.pack(fill=X, pady=(20, 15))
+        
+        # Frame dos botões
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=X, pady=(0, 15), padx=10)
+        
+        # Botões com melhor espaçamento
+        ttk.Button(button_frame, text="Salvar", command=self.save_config, style="Accent.TButton").pack(side=LEFT, padx=(0, 10), pady=10, expand=True, fill=X)
+        ttk.Button(button_frame, text="Restaurar Padrões", command=self.restore_defaults).pack(side=LEFT, padx=(0, 10), pady=10, expand=True, fill=X)
+        ttk.Button(button_frame, text="Cancelar", command=self.cancel).pack(side=LEFT, pady=10, expand=True, fill=X)
 
+    def choose_bg_color(self):
+        """Abre seletor de cor para fundo principal."""
+        try:
+            from tkinter import colorchooser
+            color = colorchooser.askcolor(title="Escolher Cor de Fundo Principal", color=self.bg_color_var.get())
+            if color[1]:
+                self.bg_color_var.set(color[1])
+        except Exception as e:
+            print(f"Erro ao escolher cor: {e}")
+    
+    def choose_text_color(self):
+        """Abre seletor de cor para texto principal."""
+        try:
+            from tkinter import colorchooser
+            color = colorchooser.askcolor(title="Escolher Cor do Texto Principal", color=self.text_color_var.get())
+            if color[1]:
+                self.text_color_var.set(color[1])
+        except Exception as e:
+            print(f"Erro ao escolher cor: {e}")
+    
+    def choose_accent_color(self):
+        """Abre seletor de cor para destaque."""
+        try:
+            from tkinter import colorchooser
+            color = colorchooser.askcolor(title="Escolher Cor de Destaque", color=self.accent_color_var.get())
+            if color[1]:
+                self.accent_color_var.set(color[1])
+        except Exception as e:
+            print(f"Erro ao escolher cor: {e}")
+    
     def save_config(self):
         try:
             cfg = {
@@ -721,6 +853,12 @@ class SystemConfigDialog(Toplevel):
                 'PREVIEW_H': int(self.preview_h_var.get()),
                 'THR_CORR': float(self.thr_corr_var.get()),
                 'MIN_PX': int(self.min_px_var.get()),
+                # Configurações de aparência
+                'BG_COLOR': self.bg_color_var.get(),
+                'TEXT_COLOR': self.text_color_var.get(),
+                'ACCENT_COLOR': self.accent_color_var.get(),
+                'FONT_SIZE': int(self.font_size_var.get()),
+                'FONT_FAMILY': self.font_family_var.get(),
             }
             if callable(self.on_save_callback):
                 self.on_save_callback(cfg)
@@ -731,16 +869,33 @@ class SystemConfigDialog(Toplevel):
             messagebox.showerror("Erro", f"Erro ao salvar configurações: {str(e)}")
 
     def restore_defaults(self):
-        self.orb_features_var.set(5000)
-        self.scale_factor_var.set(1.2)
-        self.n_levels_var.set(8)
-        self.preview_w_var.set(800)
-        self.preview_h_var.set(600)
-        self.thr_corr_var.set(0.1)
-        self.min_px_var.set(10)
-        self.corr_label.config(text="0.10")
-        self.features_label.config(text="5000")
-        self.scale_label.config(text="1.20")
+        """Restaura as configurações padrão."""
+        try:
+            # Restaurar valores padrão
+            self.orb_features_var.set(5000)
+            self.scale_factor_var.set(1.2)
+            self.n_levels_var.set(8)
+            self.preview_w_var.set(800)
+            self.preview_h_var.set(600)
+            self.thr_corr_var.set(0.1)
+            self.min_px_var.set(10)
+            
+            # Restaurar configurações de aparência padrão
+            self.bg_color_var.set("#2b2b2b")
+            self.text_color_var.set("#ffffff")
+            self.accent_color_var.set("#007acc")
+            self.font_size_var.set(10)
+            self.font_family_var.set("Segoe UI")
+            
+            # Atualizar labels
+            self.corr_label.config(text="0.10")
+            self.features_label.config(text="5000")
+            self.scale_label.config(text="1.20")
+            
+            messagebox.showinfo("Sucesso", "Configurações padrão restauradas!")
+        except Exception as e:
+            print(f"Erro ao restaurar padrões: {e}")
+            messagebox.showerror("Erro", f"Erro ao restaurar padrões: {e}")
 
     def cancel(self):
         self.destroy()

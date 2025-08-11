@@ -1038,19 +1038,8 @@ class InspecaoWindow(ttk.Frame):
 class HistoricoFotosWindow(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        from history_ui import HistoricoFotosWindow as _HistoricoFotosWindow
-        # Importante: instanciar o delegado com 'self' para renderizar dentro desta aba
-        self._delegate = _HistoricoFotosWindow(self)
-        # Renderiza o conteúdo do delegado dentro deste frame
-        try:
-            if hasattr(self._delegate, 'setup_ui'):
-                self._delegate.setup_ui()
-            self._delegate_widget = getattr(self._delegate, 'root', None) or self._delegate if isinstance(self._delegate, ttk.Frame) else None
-            if self._delegate_widget is not None:
-                self._delegate_widget.pack(fill=BOTH, expand=True)
-        except Exception:
-            pass
-        # Inicializa atributos mínimos usados no setup local
+        
+        # Inicializar atributos mínimos usados no setup local
         try:
             self.style = ttk.Style()
         except Exception:
@@ -1064,6 +1053,30 @@ class HistoricoFotosWindow(ttk.Frame):
             self.programa_selecionado = ttk.StringVar(value="Todos")
         except Exception:
             self.programa_selecionado = None
+        
+        # Inicializar banco de dados
+        try:
+            from database_manager import DatabaseManager
+            self.db_manager = DatabaseManager()
+        except Exception as e:
+            print(f"Erro ao inicializar banco de dados: {e}")
+            self.db_manager = None
+        
+        # Inicializar lista de programas disponíveis
+        self.programas_disponiveis = ["Todos"]
+        
+        # Inicializar listas de fotos (vazias inicialmente)
+        self.fotos_historico = []
+        self.fotos_ok = []
+        self.fotos_ng = []
+        self.fotos_capturas = []
+        
+        # Inicializar listas filtradas
+        self.fotos_filtradas = []
+        self.fotos_ok_filtradas = []
+        self.fotos_ng_filtradas = []
+        self.fotos_capturas_filtradas = []
+        
         # Diretórios do histórico
         try:
             from paths import get_model_dir
@@ -1095,10 +1108,16 @@ class HistoricoFotosWindow(ttk.Frame):
         header_frame.pack(fill=X, pady=(0, 15))
         
         # Logo e título
+        try:
+            text_color = get_color('colors.text_color')
+            bg_color = get_color('colors.background_color')
+        except:
+            text_color = '#ffffff'
+            bg_color = '#222222'
         header_label = ttk.Label(header_frame, text="DX Project — Histórico de Inspeções", 
                                 font=("Segoe UI", 14, "bold"), 
-                                foreground=get_color('colors.text_color'),
-                                background=get_color('colors.background_color'))
+                                foreground=text_color,
+                                background=bg_color)
         header_label.pack(pady=10, fill=X)
         
         # Botões de controle
@@ -1114,7 +1133,25 @@ class HistoricoFotosWindow(ttk.Frame):
                                            textvariable=self.programa_selecionado,
                                            state="readonly")
         self.programa_combobox.pack(fill=X, padx=5, pady=5)
-        self.programa_combobox.bind("<<ComboboxSelected>>", self.filtrar_por_programa)
+        self.programa_combobox.bind("<<ComboboxSelected>>", self.aplicar_filtros)
+        
+        # Filtro por período
+        period_frame = ttk.LabelFrame(controls_frame, text="FILTRAR POR PERÍODO")
+        period_frame.pack(fill=X, padx=5, pady=5)
+        
+        self.periodo_var = ttk.StringVar(value="30")
+        periodo_combobox = ttk.Combobox(period_frame, 
+                                       textvariable=self.periodo_var,
+                                       values=["7", "30", "90", "365", "Todos"],
+                                       state="readonly")
+        periodo_combobox.pack(fill=X, padx=5, pady=5)
+        periodo_combobox.bind("<<ComboboxSelected>>", self.aplicar_filtros)
+        
+        try:
+            small_font = get_font('small_font')
+        except:
+            small_font = ('Arial', 7)
+        ttk.Label(period_frame, text="dias", font=small_font).pack()
         
         # Botão para atualizar histórico
         self.btn_atualizar = ttk.Button(controls_frame, text="ATUALIZAR HISTÓRICO", 
@@ -1150,11 +1187,643 @@ class HistoricoFotosWindow(ttk.Frame):
         self.capturas_fotos_frame = ttk.Frame(self.historico_notebook)
         self.historico_notebook.add(self.capturas_fotos_frame, text="Capturas Manuais")
         
+        # Aba para estatísticas
+        self.estatisticas_frame = ttk.Frame(self.historico_notebook)
+        self.historico_notebook.add(self.estatisticas_frame, text="Estatísticas")
+        
         # Criar scrollable frames para cada aba
         self.todas_scrollable_frame = self.criar_scrollable_frame(self.todas_fotos_frame, "todas")
         self.ok_scrollable_frame = self.criar_scrollable_frame(self.ok_fotos_frame, "ok")
         self.ng_scrollable_frame = self.criar_scrollable_frame(self.ng_fotos_frame, "ng")
         self.capturas_scrollable_frame = self.criar_scrollable_frame(self.capturas_fotos_frame, "capturas")
+        
+        # Configurar aba de estatísticas
+        self.setup_estatisticas_ui()
+        
+        # Não carregar dados automaticamente - apenas carregar programas disponíveis
+        self.carregar_programas_disponiveis()
+        
+        # Mostrar mensagem inicial
+        self.mostrar_mensagem_inicial()
+    
+    def setup_estatisticas_ui(self):
+        """Configura a interface de estatísticas."""
+        # Frame principal para estatísticas
+        stats_main_frame = ttk.Frame(self.estatisticas_frame)
+        stats_main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        # Estatísticas gerais
+        general_stats_frame = ttk.LabelFrame(stats_main_frame, text="ESTATÍSTICAS GERAIS")
+        general_stats_frame.pack(fill=X, pady=(0, 10))
+        
+        self.stats_labels = {}
+        stats_grid = ttk.Frame(general_stats_frame)
+        stats_grid.pack(fill=X, padx=10, pady=10)
+        
+        # Criar grid de estatísticas (2 colunas)
+        stats_items = [
+            ("Total de Inspeções:", "total_inspections"),
+            ("Taxa de Aprovação:", "approval_rate"),
+            ("Tempo Médio (s):", "avg_processing_time"),
+            ("Confiança Média:", "avg_confidence")
+        ]
+        
+        for i, (label_text, key) in enumerate(stats_items):
+            row = i // 2
+            col = i % 2
+            
+            # Label do nome da estatística
+            try:
+                font = get_font('small_font')
+            except:
+                font = ('Arial', 7)
+            label = ttk.Label(stats_grid, text=label_text, font=font)
+            label.grid(row=row, column=col*2, sticky="w", padx=(10 if col == 0 else 20), pady=5)
+            
+            # Label do valor da estatística
+            try:
+                color = get_color('colors.ui_colors.primary')
+            except:
+                color = '#6366F1'
+            value_label = ttk.Label(stats_grid, text="0", font=font, foreground=color)
+            value_label.grid(row=row, column=col*2+1, sticky="w", padx=5, pady=5)
+            
+            self.stats_labels[key] = value_label
+        
+        # Resumo por modelo
+        model_summary_frame = ttk.LabelFrame(stats_main_frame, text="RESUMO POR MODELO")
+        model_summary_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
+        
+        # Treeview para resumo por modelo
+        columns = ("Modelo", "Total", "OK", "NG", "Taxa OK", "Última Inspeção")
+        self.model_tree = ttk.Treeview(model_summary_frame, columns=columns, show="headings", height=8)
+        
+        # Configurar colunas
+        for col in columns:
+            self.model_tree.heading(col, text=col)
+            self.model_tree.column(col, width=120, anchor="center")
+        
+        # Scrollbar para a treeview
+        model_scrollbar = ttk.Scrollbar(model_summary_frame, orient="vertical", command=self.model_tree.yview)
+        self.model_tree.configure(yscrollcommand=model_scrollbar.set)
+        
+        self.model_tree.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0), pady=10)
+        model_scrollbar.pack(side=RIGHT, fill=Y, pady=10)
+    
+    def carregar_programas_disponiveis(self):
+        """Carrega apenas a lista de programas disponíveis sem carregar fotos."""
+        try:
+            if self.db_manager:
+                # Obter lista de modelos disponíveis
+                modelos = self.db_manager.list_modelos()
+                self.programas_disponiveis = ["Todos"]
+                
+                for modelo in modelos:
+                    if modelo['nome'] not in self.programas_disponiveis:
+                        self.programas_disponiveis.append(modelo['nome'])
+                
+                # Atualizar combobox de programas
+                if hasattr(self, 'programa_combobox'):
+                    self.programa_combobox['values'] = self.programas_disponiveis
+                    self.programa_combobox.current(0)  # Selecionar "Todos"
+                    
+        except Exception as e:
+            print(f"Erro ao carregar programas disponíveis: {e}")
+    
+    def mostrar_mensagem_inicial(self):
+        """Mostra mensagem inicial indicando que o usuário deve clicar em ATUALIZAR."""
+        try:
+            # Mostrar mensagem em todas as abas
+            for frame_name in ['todas', 'ok', 'ng', 'capturas']:
+                frame = getattr(self, f"{frame_name}_scrollable_frame")
+                if frame:
+                    # Limpar frame
+                    for widget in frame.winfo_children():
+                        widget.destroy()
+                    
+                    # Criar mensagem centralizada
+                    msg_frame = ttk.Frame(frame)
+                    msg_frame.pack(expand=True, fill=BOTH)
+                    
+                    try:
+                        font = get_font('subtitle_font')
+                        color = get_color('colors.special_colors.gray_text')
+                    except:
+                        font = ('Arial', 16)
+                        color = '#888888'
+                    
+                    ttk.Label(msg_frame, 
+                             text="📸 Histórico de Inspeções", 
+                             font=font, 
+                             foreground=color).pack(pady=(50, 20))
+                    
+                    try:
+                        small_font = get_font('small_font')
+                    except:
+                        small_font = ('Arial', 10)
+                    
+                    ttk.Label(msg_frame, 
+                             text="Clique em 'ATUALIZAR HISTÓRICO' para carregar os dados", 
+                             font=small_font, 
+                             foreground=color).pack(pady=10)
+                    
+                    ttk.Label(msg_frame, 
+                             text="Use os filtros acima para refinar sua busca", 
+                             font=small_font, 
+                             foreground=color).pack()
+            
+            # Mostrar estatísticas vazias
+            self.exibir_estatisticas()
+            
+        except Exception as e:
+            print(f"Erro ao mostrar mensagem inicial: {e}")
+    
+    def mostrar_mensagem_sem_fotos(self):
+        """Mostra mensagem quando não há fotos carregadas."""
+        try:
+            # Mostrar mensagem em todas as abas
+            for frame_name in ['todas', 'ok', 'ng', 'capturas']:
+                frame = getattr(self, f"{frame_name}_scrollable_frame")
+                if frame:
+                    # Limpar frame
+                    for widget in frame.winfo_children():
+                        widget.destroy()
+                    
+                    # Criar mensagem centralizada
+                    msg_frame = ttk.Frame(frame)
+                    msg_frame.pack(expand=True, fill=BOTH)
+                    
+                    try:
+                        font = get_font('subtitle_font')
+                        color = get_color('colors.special_colors.gray_text')
+                    except:
+                        font = ('Arial', 16)
+                        color = '#888888'
+                    
+                    ttk.Label(msg_frame, 
+                             text="📸 Nenhuma Foto Carregada", 
+                             font=font, 
+                             foreground=color).pack(pady=(50, 20))
+                    
+                    try:
+                        small_font = get_font('small_font')
+                    except:
+                        small_font = ('Arial', 10)
+                    
+                    ttk.Label(msg_frame, 
+                             text="Clique em 'ATUALIZAR HISTÓRICO' para carregar os dados", 
+                             font=small_font, 
+                             foreground=color).pack(pady=10)
+                    
+                    ttk.Label(msg_frame, 
+                             text="Use os filtros acima para refinar sua busca", 
+                             font=small_font, 
+                             foreground=color).pack()
+            
+        except Exception as e:
+            print(f"Erro ao mostrar mensagem sem fotos: {e}")
+    
+    def carregar_dados_iniciais(self):
+        """Carrega dados iniciais do histórico."""
+        try:
+            # Carregar fotos existentes (legado)
+            self.carregar_fotos_existentes()
+            
+            # Carregar dados do banco de dados
+            if self.db_manager:
+                self.carregar_dados_banco()
+            
+            # Exibir fotos
+            self.exibir_fotos()
+            
+            # Exibir estatísticas
+            self.exibir_estatisticas()
+            
+        except Exception as e:
+            print(f"Erro ao carregar dados iniciais: {e}")
+    
+    def carregar_dados_banco(self):
+        """Carrega dados do banco de dados."""
+        try:
+            if not self.db_manager:
+                return
+            
+            # Obter lista de modelos disponíveis
+            modelos = self.db_manager.list_modelos()
+            self.programas_disponiveis = ["Todos"]
+            
+            for modelo in modelos:
+                if modelo['nome'] not in self.programas_disponiveis:
+                    self.programas_disponiveis.append(modelo['nome'])
+            
+            # Atualizar combobox de programas
+            if hasattr(self, 'programa_combobox'):
+                self.programa_combobox['values'] = self.programas_disponiveis
+                self.programa_combobox.current(0)  # Selecionar "Todos"
+                
+        except Exception as e:
+            print(f"Erro ao carregar dados do banco: {e}")
+    
+    def carregar_fotos_existentes(self):
+        """Carrega as fotos existentes no diretório de histórico com suporte a versões otimizadas."""
+        try:
+            # Limpar listas existentes
+            self.fotos_historico = []
+            self.fotos_ok = []
+            self.fotos_ng = []
+            self.fotos_capturas = []
+            
+            # Função auxiliar para processar arquivos de uma pasta
+            def processar_arquivos(diretorio, categoria):
+                fotos = []
+                if diretorio.exists():
+                    # Processar arquivos PNG e JPG (versões otimizadas)
+                    for arquivo in diretorio.glob("*.*"):
+                        if arquivo.suffix.lower() not in ['.png', '.jpg', '.jpeg']:
+                            continue
+                            
+                        try:
+                            nome = arquivo.name
+                            timestamp_str = ""
+                            programa = "Desconhecido"
+                            
+                            # Extrair informações do nome do arquivo
+                            if categoria == "capturas" and nome.startswith("foto_"):
+                                # Formato: foto_modelo_YYYYMMDD_HHMMSS.png
+                                partes = nome[5:].split('.')[0].split('_')  # Remove "foto_" e extensão
+                                if len(partes) >= 2:
+                                    # O último ou os dois últimos elementos são a data/hora
+                                    if len(partes[-1]) == 6 and len(partes[-2]) == 8:  # HHMMSS e YYYYMMDD
+                                        timestamp_str = f"{partes[-2]}_{partes[-1]}"
+                                        programa = "_".join(partes[:-2]) if len(partes) > 2 else "Desconhecido"
+                                    else:
+                                        timestamp_str = partes[-1]
+                                        programa = "_".join(partes[:-1]) if len(partes) > 1 else "Desconhecido"
+                            elif (categoria == "ok" or categoria == "ng") and nome.startswith("inspecao_"):
+                                # Formato: inspecao_modelo_YYYYMMDD_HHMMSS.png
+                                partes = nome[9:].split('.')[0].split('_')  # Remove "inspecao_" e extensão
+                                if len(partes) >= 2:
+                                    # O último ou os dois últimos elementos são a data/hora
+                                    if len(partes[-1]) == 6 and len(partes[-2]) == 8:  # HHMMSS e YYYYMMDD
+                                        timestamp_str = f"{partes[-2]}_{partes[-1]}"
+                                        programa = "_".join(partes[:-2]) if len(partes) > 2 else "Desconhecido"
+                                    else:
+                                        timestamp_str = partes[-1]
+                                        programa = "_".join(partes[:-1]) if len(partes) > 1 else "Desconhecido"
+                            
+                            # Se encontrou um timestamp válido
+                            if timestamp_str:
+                                try:
+                                    timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                                    
+                                    # Adicionar programa à lista de programas disponíveis
+                                    if programa != "Desconhecido" and programa not in self.programas_disponiveis:
+                                        self.programas_disponiveis.append(programa)
+                                    
+                                    # Verificar se existe versão otimizada para histórico
+                                    arquivo_hist = arquivo.parent / f"{arquivo.stem}_hist.jpg"
+                                    arquivo_thumb = arquivo.parent / f"{arquivo.stem}_thumb.jpg"
+                                    
+                                    # Priorizar versões otimizadas para exibição
+                                    arquivo_exibicao = arquivo
+                                    if arquivo_hist.exists():
+                                        arquivo_exibicao = arquivo_hist
+                                    elif arquivo_thumb.exists():
+                                        arquivo_exibicao = arquivo_thumb
+                                    
+                                    foto_info = {
+                                        'arquivo': arquivo,
+                                        'arquivo_exibicao': arquivo_exibicao,
+                                        'timestamp': timestamp,
+                                        'categoria': categoria,
+                                        'programa': programa,
+                                        'tem_otimizada': arquivo_hist.exists() or arquivo_thumb.exists()
+                                    }
+                                    fotos.append(foto_info)
+                                except ValueError:
+                                    print(f"Formato de timestamp inválido: {timestamp_str}")
+                        except Exception as e:
+                            print(f"Erro ao processar arquivo {arquivo}: {e}")
+                return fotos
+            
+            # Processar arquivos de cada diretório
+            self.fotos_ok = processar_arquivos(self.ok_dir, "ok")
+            self.fotos_ng = processar_arquivos(self.ng_dir, "ng")
+            self.fotos_capturas = processar_arquivos(self.capturas_dir, "capturas")
+            
+            # Combinar todas as fotos
+            self.fotos_historico = self.fotos_ok + self.fotos_ng + self.fotos_capturas
+            
+            # Ordenar por timestamp (mais recente primeiro)
+            self.fotos_historico.sort(key=lambda x: x['timestamp'], reverse=True)
+            self.fotos_ok.sort(key=lambda x: x['timestamp'], reverse=True)
+            self.fotos_ng.sort(key=lambda x: x['timestamp'], reverse=True)
+            self.fotos_capturas.sort(key=lambda x: x['timestamp'], reverse=True)
+            
+        except Exception as e:
+            print(f"Erro ao carregar fotos existentes: {e}")
+    
+    def exibir_fotos(self):
+        """Exibe as fotos no histórico."""
+        try:
+            # Verificar se a interface foi inicializada
+            if not hasattr(self, "todas_scrollable_frame") or self.todas_scrollable_frame is None:
+                print("Interface não inicializada completamente. Tentando inicializar...")
+                self.setup_ui()
+                # Carregar fotos existentes
+                self.carregar_fotos_existentes()
+                # Atualizar combobox de programas
+                if self.programa_combobox is not None:
+                    self.programa_combobox['values'] = self.programas_disponiveis
+                    self.programa_combobox.current(0)  # Selecionar "Todos"
+                return
+                
+            # Verificar se há fotos carregadas
+            if not hasattr(self, 'fotos_historico') or not self.fotos_historico:
+                print("Nenhuma foto carregada. Clique em ATUALIZAR HISTÓRICO primeiro.")
+                # Mostrar mensagem nas abas
+                self.mostrar_mensagem_sem_fotos()
+                return
+            
+            # Usar listas filtradas se disponíveis, senão usar listas originais
+            if hasattr(self, 'fotos_filtradas') and self.fotos_filtradas:
+                fotos_todas = self.fotos_filtradas
+                fotos_ok = self.fotos_ok_filtradas
+                fotos_ng = self.fotos_ng_filtradas
+                fotos_capturas = self.fotos_capturas_filtradas
+                print(f"Usando fotos filtradas: {len(fotos_todas)} fotos")
+            else:
+                # Usar listas originais (sem filtros aplicados)
+                fotos_todas = self.fotos_historico
+                fotos_ok = self.fotos_ok
+                fotos_ng = self.fotos_ng
+                fotos_capturas = self.fotos_capturas
+                print(f"Usando fotos originais: {len(fotos_todas)} fotos")
+            
+            print(f"Total de fotos filtradas: {len(fotos_todas)}")
+            
+            # Exibir fotos em cada aba
+            self.exibir_fotos_em_aba(self.todas_scrollable_frame, fotos_todas, "todas")
+            self.exibir_fotos_em_aba(self.ok_scrollable_frame, fotos_ok, "ok")
+            self.exibir_fotos_em_aba(self.ng_scrollable_frame, fotos_ng, "ng")
+            self.exibir_fotos_em_aba(self.capturas_scrollable_frame, fotos_capturas, "capturas")
+        except Exception as e:
+            print(f"Erro ao exibir fotos: {e}")
+    
+    def exibir_estatisticas(self):
+        """Exibe as estatísticas das inspeções."""
+        try:
+            if not self.db_manager:
+                return
+            
+            # Verificar se há fotos carregadas
+            if not hasattr(self, 'fotos_historico') or not self.fotos_historico:
+                # Mostrar estatísticas vazias
+                self.stats_labels['total_inspections'].config(text="0")
+                self.stats_labels['approval_rate'].config(text="0%")
+                self.stats_labels['avg_processing_time'].config(text="0.0")
+                self.stats_labels['avg_confidence'].config(text="0.0")
+                
+                # Limpar treeview
+                for item in self.model_tree.get_children():
+                    self.model_tree.delete(item)
+                return
+            
+            # Obter programa selecionado
+            programa = self.programa_selecionado.get()
+            periodo = self.periodo_var.get()
+            
+            # Calcular estatísticas baseadas nas fotos carregadas
+            if hasattr(self, 'fotos_filtradas') and self.fotos_filtradas:
+                # Usar fotos filtradas
+                fotos_para_estatisticas = self.fotos_filtradas
+                print(f"Calculando estatísticas para {len(fotos_para_estatisticas)} fotos filtradas")
+            else:
+                # Usar todas as fotos carregadas
+                fotos_para_estatisticas = self.fotos_historico
+                print(f"Calculando estatísticas para {len(fotos_para_estatisticas)} fotos totais")
+            
+            # Calcular estatísticas manualmente
+            total_inspections = len(fotos_para_estatisticas)
+            ok_count = len([f for f in fotos_para_estatisticas if f.get('categoria') == 'ok'])
+            ng_count = len([f for f in fotos_para_estatisticas if f.get('categoria') == 'ng'])
+            
+            approval_rate = round((ok_count / total_inspections * 100) if total_inspections > 0 else 0, 1)
+            
+            # Calcular tempo médio e confiança média (se disponíveis)
+            avg_processing_time = "N/A"
+            avg_confidence = "N/A"
+            
+            # Atualizar labels de estatísticas
+            self.stats_labels['total_inspections'].config(text=str(total_inspections))
+            self.stats_labels['approval_rate'].config(text=f"{approval_rate}%")
+            self.stats_labels['avg_processing_time'].config(text=str(avg_processing_time))
+            self.stats_labels['avg_confidence'].config(text=str(avg_confidence))
+            
+            # Calcular resumo por modelo
+            modelos_stats = {}
+            for foto in fotos_para_estatisticas:
+                programa_foto = foto.get('programa', 'Desconhecido')
+                if programa_foto not in modelos_stats:
+                    modelos_stats[programa_foto] = {'total': 0, 'ok': 0, 'ng': 0}
+                
+                modelos_stats[programa_foto]['total'] += 1
+                if foto.get('categoria') == 'ok':
+                    modelos_stats[programa_foto]['ok'] += 1
+                elif foto.get('categoria') == 'ng':
+                    modelos_stats[programa_foto]['ng'] += 1
+            
+            # Limpar treeview
+            for item in self.model_tree.get_children():
+                self.model_tree.delete(item)
+            
+            # Preencher treeview com estatísticas calculadas
+            for modelo_nome, stats in modelos_stats.items():
+                if programa == "Todos" or modelo_nome == programa:
+                    approval_rate_modelo = round((stats['ok'] / stats['total'] * 100) if stats['total'] > 0 else 0, 1)
+                    self.model_tree.insert("", "end", values=(
+                        modelo_nome,
+                        stats['total'],
+                        stats['ok'],
+                        stats['ng'],
+                        f"{approval_rate_modelo}%",
+                        "N/A"  # Última inspeção não disponível nas fotos
+                    ))
+                    
+        except Exception as e:
+            print(f"Erro ao exibir estatísticas: {e}")
+    
+    def aplicar_filtros(self, event=None):
+        """Aplica filtros por programa e período às fotos já carregadas."""
+        try:
+            programa = self.programa_selecionado.get()
+            periodo = self.periodo_var.get()
+            
+            print(f"Filtros aplicados - Programa: {programa}, Período: {periodo} dias")
+            
+            # Verificar se o programa está na lista de programas disponíveis
+            if programa not in self.programas_disponiveis:
+                print(f"Programa {programa} não encontrado na lista de programas disponíveis")
+                return
+            
+            # Verificar se há fotos carregadas
+            if not hasattr(self, 'fotos_historico') or not self.fotos_historico:
+                print("Nenhuma foto carregada. Clique em ATUALIZAR HISTÓRICO primeiro.")
+                return
+                
+            # Aplicar filtros
+            self.aplicar_filtros_por_programa_e_data(programa, periodo)
+            
+            # Atualizar exibição de fotos
+            self.exibir_fotos()
+            
+            # Atualizar estatísticas
+            self.exibir_estatisticas()
+            
+        except Exception as e:
+            print(f"Erro ao aplicar filtros: {e}")
+    
+    def aplicar_filtros_por_programa_e_data(self, programa, periodo):
+        """Aplica filtros por programa e data às fotos já carregadas."""
+        try:
+            from datetime import datetime, timedelta
+            
+            # Calcular data limite se não for "Todos"
+            if periodo != "Todos":
+                dias = int(periodo)
+                data_limite = datetime.now() - timedelta(days=dias)
+            else:
+                data_limite = None
+            
+            # Filtrar fotos por programa e data
+            fotos_filtradas = []
+            
+            for foto in self.fotos_historico:
+                # Filtrar por programa
+                if programa != "Todos" and foto.get('programa') != programa:
+                    continue
+                
+                # Filtrar por data se aplicável
+                if data_limite and 'timestamp' in foto:
+                    if foto['timestamp'] < data_limite:
+                        continue
+                
+                fotos_filtradas.append(foto)
+            
+            # Atualizar listas filtradas
+            self.fotos_filtradas = fotos_filtradas
+            
+            # Separar por categoria
+            self.fotos_ok_filtradas = [f for f in fotos_filtradas if f.get('categoria') == 'ok']
+            self.fotos_ng_filtradas = [f for f in fotos_filtradas if f.get('categoria') == 'ng']
+            self.fotos_capturas_filtradas = [f for f in fotos_filtradas if f.get('categoria') == 'capturas']
+            
+            # Garantir que as listas filtradas existam
+            if not hasattr(self, 'fotos_filtradas'):
+                self.fotos_filtradas = []
+            if not hasattr(self, 'fotos_ok_filtradas'):
+                self.fotos_ok_filtradas = []
+            if not hasattr(self, 'fotos_ng_filtradas'):
+                self.fotos_ng_filtradas = []
+            if not hasattr(self, 'fotos_capturas_filtradas'):
+                self.fotos_capturas_filtradas = []
+            
+            print(f"Filtros aplicados: {len(fotos_filtradas)} fotos de {len(self.fotos_historico)} total")
+            
+        except Exception as e:
+            print(f"Erro ao aplicar filtros por programa e data: {e}")
+    
+    def filtrar_por_programa(self, event=None):
+        """Método legado - redireciona para aplicar_filtros."""
+        self.aplicar_filtros(event)
+    
+    def atualizar_historico(self):
+        """Atualiza a exibição do histórico de fotos."""
+        try:
+            # Carregar dados do banco de dados
+            if self.db_manager:
+                self.carregar_dados_banco()
+            
+            # Carregar fotos existentes
+            self.carregar_fotos_existentes()
+            
+            # Aplicar filtros atuais se houver
+            programa = self.programa_selecionado.get()
+            periodo = self.periodo_var.get()
+            
+            if programa != "Todos" or periodo != "30":
+                # Aplicar filtros atuais
+                self.aplicar_filtros_por_programa_e_data(programa, periodo)
+                print(f"Filtros aplicados após atualização: Programa={programa}, Período={periodo}")
+            
+            # Exibir fotos
+            self.exibir_fotos()
+            
+            # Exibir estatísticas
+            self.exibir_estatisticas()
+            
+            messagebox.showinfo("Sucesso", f"Histórico atualizado!\n{len(self.fotos_historico)} fotos carregadas")
+        except Exception as e:
+            print(f"Erro ao atualizar histórico: {e}")
+            messagebox.showerror("Erro", f"Erro ao atualizar histórico: {e}")
+    
+    def limpar_historico(self):
+        """Limpa o histórico de fotos."""
+        try:
+            if messagebox.askyesno("Confirmar", "Deseja realmente limpar todo o histórico de fotos?"):
+                # Limpar arquivos (incluindo versões otimizadas)
+                for diretorio in [self.ok_dir, self.ng_dir, self.capturas_dir]:
+                    if diretorio.exists():
+                        # Limpar arquivos PNG originais e suas versões otimizadas
+                        for arquivo in diretorio.glob("*.png"):
+                            try:
+                                # Deletar arquivo original
+                                arquivo.unlink()
+                                
+                                # Deletar versões otimizadas se existirem
+                                base_name = arquivo.stem
+                                hist_file = diretorio / f"{base_name}_hist.jpg"
+                                thumb_file = diretorio / f"{base_name}_thumb.jpg"
+                                
+                                if hist_file.exists():
+                                    hist_file.unlink()
+                                if thumb_file.exists():
+                                    thumb_file.unlink()
+                                    
+                            except Exception as e:
+                                print(f"Erro ao excluir arquivo {arquivo}: {e}")
+                        
+                        # Limpar arquivos JPG otimizados restantes
+                        for arquivo in diretorio.glob("*_hist.jpg"):
+                            try:
+                                arquivo.unlink()
+                            except Exception as e:
+                                print(f"Erro ao excluir arquivo otimizado {arquivo}: {e}")
+                        
+                        for arquivo in diretorio.glob("*_thumb.jpg"):
+                            try:
+                                arquivo.unlink()
+                            except Exception as e:
+                                print(f"Erro ao excluir thumbnail {arquivo}: {e}")
+                
+                # Limpar listas
+                self.fotos_historico = []
+                self.fotos_ok = []
+                self.fotos_ng = []
+                self.fotos_capturas = []
+                
+                # Limpar estatísticas
+                if self.db_manager:
+                    self.db_manager.clear_inspection_history()
+                
+                # Atualizar interface
+                self.exibir_fotos()
+                self.exibir_estatisticas()
+                
+                messagebox.showinfo("Sucesso", "Histórico limpo com sucesso!\nTodas as versões otimizadas também foram removidas.")
+        except Exception as e:
+            print(f"Erro ao limpar histórico: {e}")
+            messagebox.showerror("Erro", f"Erro ao limpar histórico: {e}")
     
     def criar_scrollable_frame(self, parent_frame, categoria):
         """Cria um frame com scrollbar para exibir fotos."""
@@ -1163,7 +1832,11 @@ class HistoricoFotosWindow(ttk.Frame):
             for widget in parent_frame.winfo_children():
                 widget.destroy()
                 
-            canvas = Canvas(parent_frame, bg=get_color('colors.canvas_colors.canvas_bg'))
+            try:
+                bg_color = get_color('colors.canvas_colors.canvas_bg')
+            except:
+                bg_color = '#1E1E1E'
+            canvas = Canvas(parent_frame, bg=bg_color)
             scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=canvas.yview)
             scrollable_frame = ttk.Frame(canvas)
             
@@ -1191,149 +1864,29 @@ class HistoricoFotosWindow(ttk.Frame):
             print(f"Erro ao criar frame scrollable para {categoria}: {e}")
             return None
     
-    def carregar_fotos_existentes(self):
-        """Carrega as fotos existentes no diretório de histórico."""
-        try:
-            # Limpar listas existentes
-            self.fotos_historico = []
-            self.fotos_ok = []
-            self.fotos_ng = []
-            self.fotos_capturas = []
-            self.programas_disponiveis = ["Todos"]
-            
-            # Função auxiliar para processar arquivos de uma pasta
-            def processar_arquivos(diretorio, categoria):
-                fotos = []
-                if diretorio.exists():
-                    for arquivo in diretorio.glob("*.png"):
-                        try:
-                            nome = arquivo.name
-                            timestamp_str = ""
-                            programa = "Desconhecido"
-                            
-                            # Extrair informações do nome do arquivo
-                            if categoria == "capturas" and nome.startswith("foto_"):
-                                # Formato: foto_modelo_YYYYMMDD_HHMMSS.png
-                                partes = nome[5:-4].split('_')  # Remove "foto_" e ".png"
-                                if len(partes) >= 2:
-                                    # O último ou os dois últimos elementos são a data/hora
-                                    if len(partes[-1]) == 6 and len(partes[-2]) == 8:  # HHMMSS e YYYYMMDD
-                                        timestamp_str = f"{partes[-2]}_{partes[-1]}"
-                                        programa = "_".join(partes[:-2]) if len(partes) > 2 else "Desconhecido"
-                                    else:
-                                        timestamp_str = partes[-1]
-                                        programa = "_".join(partes[:-1]) if len(partes) > 1 else "Desconhecido"
-                            elif (categoria == "ok" or categoria == "ng") and nome.startswith("inspecao_"):
-                                # Formato: inspecao_modelo_YYYYMMDD_HHMMSS.png
-                                partes = nome[9:-4].split('_')  # Remove "inspecao_" e ".png"
-                                if len(partes) >= 2:
-                                    # O último ou os dois últimos elementos são a data/hora
-                                    if len(partes[-1]) == 6 and len(partes[-2]) == 8:  # HHMMSS e YYYYMMDD
-                                        timestamp_str = f"{partes[-2]}_{partes[-1]}"
-                                        programa = "_".join(partes[:-2]) if len(partes) > 2 else "Desconhecido"
-                                    else:
-                                        timestamp_str = partes[-1]
-                                        programa = "_".join(partes[:-1]) if len(partes) > 1 else "Desconhecido"
-                            
-                            # Se encontrou um timestamp válido
-                            if timestamp_str:
-                                try:
-                                    timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                                    
-                                    # Adicionar programa à lista de programas disponíveis
-                                    if programa != "Desconhecido" and programa not in self.programas_disponiveis:
-                                        self.programas_disponiveis.append(programa)
-                                    
-                                    foto_info = {
-                                        'arquivo': arquivo,
-                                        'timestamp': timestamp,
-                                        'categoria': categoria,
-                                        'programa': programa
-                                    }
-                                    fotos.append(foto_info)
-                                except ValueError:
-                                    print(f"Formato de timestamp inválido: {timestamp_str}")
-                        except Exception as e:
-                            print(f"Erro ao processar arquivo {arquivo}: {e}")
-                return fotos
-            
-            # Processar arquivos de cada diretório
-            self.fotos_ok = processar_arquivos(self.ok_dir, "ok")
-            self.fotos_ng = processar_arquivos(self.ng_dir, "ng")
-            self.fotos_capturas = processar_arquivos(self.capturas_dir, "capturas")
-            
-            # Combinar todas as fotos
-            self.fotos_historico = self.fotos_ok + self.fotos_ng + self.fotos_capturas
-            
-            # Ordenar por timestamp (mais recente primeiro)
-            self.fotos_historico.sort(key=lambda x: x['timestamp'], reverse=True)
-            self.fotos_ok.sort(key=lambda x: x['timestamp'], reverse=True)
-            self.fotos_ng.sort(key=lambda x: x['timestamp'], reverse=True)
-            self.fotos_capturas.sort(key=lambda x: x['timestamp'], reverse=True)
-            
-            # Atualizar combobox de programas
-            self.programa_combobox['values'] = self.programas_disponiveis
-            self.programa_combobox.current(0)  # Selecionar "Todos"
-        except Exception as e:
-            print(f"Erro ao carregar fotos existentes: {e}")
-    
-    def exibir_fotos(self):
-        """Exibe as fotos no histórico."""
-        try:
-            # Verificar se a interface foi inicializada
-            if not hasattr(self, "todas_scrollable_frame") or self.todas_scrollable_frame is None:
-                print("Interface não inicializada completamente. Tentando inicializar...")
-                self.setup_ui()
-                # Carregar fotos existentes
-                self.carregar_fotos_existentes()
-                # Atualizar combobox de programas
-                if self.programa_combobox is not None:
-                    self.programa_combobox['values'] = self.programas_disponiveis
-                    self.programa_combobox.current(0)  # Selecionar "Todos"
-                return
-                
-            # Obter programa selecionado
-            programa = self.programa_selecionado.get()
-            print(f"Filtrando por programa: {programa}")
-            print(f"Programas disponíveis: {self.programas_disponiveis}")
-            
-            # Filtrar fotos por programa se necessário
-            fotos_todas = [f for f in self.fotos_historico] if programa == "Todos" else \
-                         [f for f in self.fotos_historico if f['programa'] == programa]
-            fotos_ok = [f for f in self.fotos_ok] if programa == "Todos" else \
-                      [f for f in self.fotos_ok if f['programa'] == programa]
-            fotos_ng = [f for f in self.fotos_ng] if programa == "Todos" else \
-                      [f for f in self.fotos_ng if f['programa'] == programa]
-            fotos_capturas = [f for f in self.fotos_capturas] if programa == "Todos" else \
-                           [f for f in self.fotos_capturas if f['programa'] == programa]
-            
-            print(f"Total de fotos filtradas: {len(fotos_todas)}")
-            
-            # Exibir fotos em cada aba
-            self.exibir_fotos_em_aba(self.todas_scrollable_frame, fotos_todas, "todas")
-            self.exibir_fotos_em_aba(self.ok_scrollable_frame, fotos_ok, "ok")
-            self.exibir_fotos_em_aba(self.ng_scrollable_frame, fotos_ng, "ng")
-            self.exibir_fotos_em_aba(self.capturas_scrollable_frame, fotos_capturas, "capturas")
-        except Exception as e:
-            print(f"Erro ao exibir fotos: {e}")
-    
     def exibir_fotos_em_aba(self, frame, fotos, categoria):
         """Exibe as fotos em uma aba específica."""
         # Verificar se o frame existe
         if frame is None:
             print(f"Frame para categoria {categoria} não foi inicializado corretamente")
             return
-            
+        
         # Limpar frame existente
         for widget in frame.winfo_children():
             widget.destroy()
         
         if not fotos:
             # Mensagem quando não há fotos
+            try:
+                font = get_font('subtitle_font')
+                color = get_color('colors.special_colors.gray_text')
+            except:
+                font = ('Arial', 24)
+                color = '#888888'
             ttk.Label(frame, 
                      text="Nenhuma foto nesta categoria", 
-                     font=get_font('subtitle_font'), 
-                     foreground=get_color('colors.special_colors.gray_text')).pack(pady=20)
+                     font=font, 
+                     foreground=color).pack(pady=20)
             return
         
         # Criar grid para exibir fotos (3 colunas)
@@ -1359,21 +1912,6 @@ class HistoricoFotosWindow(ttk.Frame):
                 print(f"Erro ao criar card para foto {foto_info.get('arquivo', 'desconhecida')}: {e}")
                 continue
     
-    def filtrar_por_programa(self, event=None):
-        """Filtra as fotos pelo programa selecionado."""
-        try:
-            programa = self.programa_selecionado.get()
-            print(f"Filtro selecionado: {programa}")
-            
-            # Verificar se o programa está na lista de programas disponíveis
-            if programa not in self.programas_disponiveis:
-                print(f"Programa {programa} não encontrado na lista de programas disponíveis")
-                return
-                
-            self.exibir_fotos()
-        except Exception as e:
-            print(f"Erro ao filtrar por programa: {e}")
-    
     def criar_card_foto(self, parent_frame, foto_info):
         """Cria um card para exibir uma foto com suas informações."""
         try:
@@ -1381,15 +1919,25 @@ class HistoricoFotosWindow(ttk.Frame):
             card_frame = ttk.Frame(parent_frame, relief="solid", borderwidth=1)
             card_frame.pack(fill=X, pady=10, padx=5)
             
+            # Usar arquivo de exibição otimizado se disponível
+            arquivo_exibicao = foto_info.get('arquivo_exibicao', foto_info['arquivo'])
+            
             # Carregar e exibir a imagem
-            img = cv2.imread(str(foto_info['arquivo']))
+            img = cv2.imread(str(arquivo_exibicao))
             if img is not None:
-                # Redimensionar para exibição
+                # Redimensionar para exibição (se necessário)
                 img_height, img_width = img.shape[:2]
                 max_width = 300
-                scale = max_width / img_width
-                new_height = int(img_height * scale)
-                img_resized = cv2.resize(img, (max_width, new_height))
+                
+                # Se a imagem já é pequena, não redimensionar
+                if img_width <= max_width:
+                    img_resized = img
+                    display_width, display_height = img_width, img_height
+                else:
+                    scale = max_width / img_width
+                    new_height = int(img_height * scale)
+                    img_resized = cv2.resize(img, (max_width, new_height))
+                    display_width, display_height = max_width, new_height
                 
                 # Converter para formato Tkinter
                 img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
@@ -1415,20 +1963,40 @@ class HistoricoFotosWindow(ttk.Frame):
                 programa = foto_info.get('programa', 'Desconhecido')
                 
                 # Cor baseada na categoria
-                categoria_cor = get_color('colors.status_colors.success_bg') if categoria == "ok" else \
-                           get_color('colors.status_colors.error_bg') if categoria == "ng" else \
-                           get_color('colors.status_colors.info_bg') if categoria == "capturas" else get_color('colors.status_colors.neutral_bg')
+                try:
+                    categoria_cor = get_color('colors.status_colors.success_bg') if categoria == "ok" else \
+                               get_color('colors.status_colors.error_bg') if categoria == "ng" else \
+                               get_color('colors.status_colors.info_bg') if categoria == "capturas" else get_color('colors.status_colors.neutral_bg')
+                except:
+                    categoria_cor = '#00AA00' if categoria == "ok" else \
+                               '#CC0000' if categoria == "ng" else \
+                               '#0066CC' if categoria == "capturas" else '#888888'
                 
                 categoria_texto = "APROVADO" if categoria == "ok" else \
                                  "REPROVADO" if categoria == "ng" else \
                                  "CAPTURA MANUAL" if categoria == "capturas" else "DESCONHECIDO"
                 
+                try:
+                    font_small = get_font('small_font')
+                    font_tiny = get_font('tiny_font')
+                except:
+                    font_small = ('Arial', 7)
+                    font_tiny = ('Arial', 8)
+                
                 ttk.Label(info_frame, text=f"📊 Status: {categoria_texto}", 
-                         font=get_font('small_font'), foreground=categoria_cor).pack(anchor="w")
-                ttk.Label(info_frame, text=f"🔧 Programa: {programa}", font=get_font('small_font')).pack(anchor="w")
-                ttk.Label(info_frame, text=f"📅 Data: {data_str}", font=get_font('small_font')).pack(anchor="w")
-                ttk.Label(info_frame, text=f"🕒 Hora: {hora_str}", font=get_font('small_font')).pack(anchor="w")
-                ttk.Label(info_frame, text=f"📏 Dimensões: {img_width}x{img_height}", font=get_font('tiny_font')).pack(anchor="w")
+                         font=font_small, foreground=categoria_cor).pack(anchor="w")
+                ttk.Label(info_frame, text=f"🔧 Programa: {programa}", font=font_small).pack(anchor="w")
+                ttk.Label(info_frame, text=f"📅 Data: {data_str}", font=font_small).pack(anchor="w")
+                ttk.Label(info_frame, text=f"🕒 Hora: {hora_str}", font=font_small).pack(anchor="w")
+                ttk.Label(info_frame, text=f"📏 Dimensões: {display_width}x{display_height}", font=font_tiny).pack(anchor="w")
+                
+                # Indicador de otimização
+                if foto_info.get('tem_otimizada', False):
+                    try:
+                        color = get_color('colors.ui_colors.success')
+                    except:
+                        color = '#10B981'
+                    ttk.Label(info_frame, text="⚡ Otimizada", font=font_tiny, foreground=color).pack(anchor="w")
                 
                 # Botões de ação
                 btn_frame = ttk.Frame(card_frame)
@@ -1452,7 +2020,11 @@ class HistoricoFotosWindow(ttk.Frame):
     def visualizar_foto(self, foto_info):
         """Abre uma janela para visualizar a foto em tamanho real com zoom."""
         try:
-            img = cv2.imread(str(foto_info['arquivo']))
+            # Usar arquivo de exibição otimizado se disponível, mas para visualização
+            # preferir a imagem original para máxima qualidade
+            arquivo_visualizacao = foto_info['arquivo']  # Sempre usar original para visualização
+            
+            img = cv2.imread(str(arquivo_visualizacao))
             if img is not None:
                 # Criar janela de visualização
                 view_window = Toplevel(self)
@@ -1547,12 +2119,25 @@ class HistoricoFotosWindow(ttk.Frame):
             messagebox.showerror("Erro", f"Erro ao visualizar foto: {e}")
     
     def excluir_foto(self, foto_info, card_frame):
-        """Exclui uma foto do histórico."""
+        """Exclui uma foto do histórico e suas versões otimizadas."""
         try:
             if messagebox.askyesno("Confirmar", "Deseja realmente excluir esta foto do histórico?"):
-                # Excluir arquivo
+                # Excluir arquivo original
                 if foto_info['arquivo'].exists():
                     foto_info['arquivo'].unlink()
+                
+                # Excluir versões otimizadas se existirem
+                arquivo_base = foto_info['arquivo']
+                arquivo_hist = arquivo_base.parent / f"{arquivo_base.stem}_hist.jpg"
+                arquivo_thumb = arquivo_base.parent / f"{arquivo_base.stem}_thumb.jpg"
+                
+                if arquivo_hist.exists():
+                    arquivo_hist.unlink()
+                    print(f"Versão de histórico excluída: {arquivo_hist}")
+                
+                if arquivo_thumb.exists():
+                    arquivo_thumb.unlink()
+                    print(f"Thumbnail excluído: {arquivo_thumb}")
                 
                 # Remover da lista
                 self.fotos_historico = [f for f in self.fotos_historico if f['arquivo'] != foto_info['arquivo']]
@@ -1560,12 +2145,10 @@ class HistoricoFotosWindow(ttk.Frame):
                 # Remover card da interface
                 card_frame.destroy()
                 
-                messagebox.showinfo("Sucesso", "Foto excluída com sucesso!")
+                messagebox.showinfo("Sucesso", "Foto e versões otimizadas excluídas com sucesso!")
         except Exception as e:
             print(f"Erro ao excluir foto: {e}")
             messagebox.showerror("Erro", f"Erro ao excluir foto: {e}")
-    
-
     
     def start_background_frame_capture(self):
         """Inicia a captura contínua de frames em segundo plano."""
@@ -1583,64 +2166,6 @@ class HistoricoFotosWindow(ttk.Frame):
         import threading
         self.capture_thread = threading.Thread(target=capture_frames, daemon=True)
         self.capture_thread.start()
-    
-    def atualizar_historico(self):
-        """Atualiza a exibição do histórico de fotos."""
-        self.carregar_fotos_existentes()
-        self.exibir_fotos()
-        messagebox.showinfo("Sucesso", "Histórico atualizado!")
-
-    
-    def limpar_historico(self):
-        """Limpa todo o histórico de fotos."""
-        try:
-            if messagebox.askyesno("Confirmar", "Deseja realmente limpar todo o histórico de fotos? Esta ação não pode ser desfeita."):
-                # Perguntar se deseja limpar todas as categorias ou apenas uma específica
-                opcoes = ["Todas as categorias", "Apenas Aprovadas (OK)", "Apenas Reprovadas (NG)", "Apenas Capturas Manuais"]
-                resposta = simpledialog.askstring(
-                    "Selecionar categoria", 
-                    "Qual categoria deseja limpar?", 
-                    initialvalue=opcoes[0],
-                    parent=self
-                )
-                
-                if not resposta:
-                    return  # Usuário cancelou
-                
-                # Determinar quais listas limpar
-                limpar_ok = resposta == opcoes[0] or resposta == opcoes[1]
-                limpar_ng = resposta == opcoes[0] or resposta == opcoes[2]
-                limpar_capturas = resposta == opcoes[0] or resposta == opcoes[3]
-                
-                # Excluir arquivos das categorias selecionadas
-                if limpar_ok:
-                    for foto_info in self.fotos_ok:
-                        if foto_info['arquivo'].exists():
-                            foto_info['arquivo'].unlink()
-                    self.fotos_ok = []
-                
-                if limpar_ng:
-                    for foto_info in self.fotos_ng:
-                        if foto_info['arquivo'].exists():
-                            foto_info['arquivo'].unlink()
-                    self.fotos_ng = []
-                
-                if limpar_capturas:
-                    for foto_info in self.fotos_capturas:
-                        if foto_info['arquivo'].exists():
-                            foto_info['arquivo'].unlink()
-                    self.fotos_capturas = []
-                
-                # Atualizar lista combinada
-                self.fotos_historico = self.fotos_ok + self.fotos_ng + self.fotos_capturas
-                
-                # Atualizar interface
-                self.exibir_fotos()
-                
-                messagebox.showinfo("Sucesso", "Histórico de fotos limpo com sucesso!")
-        except Exception as e:
-            print(f"Erro ao limpar histórico: {e}")
-            messagebox.showerror("Erro", f"Erro ao limpar histórico: {e}")
 
 
 def create_main_window():
@@ -1650,7 +2175,7 @@ def create_main_window():
     
     # Inicializa ttkbootstrap com tema moderno
     root = ttk.Window(
-        title="DX Project — Sistema de Inspeção Visual Honda",
+                    title="DX Project — Sistema de Inspeção Visual",
         themename="superhero",  # Tema moderno escuro mais profissional
         size=(1400, 900),
         resizable=(True, True)
@@ -1698,7 +2223,7 @@ def create_main_window():
     header.pack(fill="x")
     title_lbl = ttk.Label(
         header, 
-        text="DX Project — Sistema de Inspeção Visual Honda", 
+                    text="DX Project — Sistema de Inspeção Visual", 
         style="TLabel",
         font=("Segoe UI", 16, "bold")
     )

@@ -1650,7 +1650,7 @@ def create_main_window():
     
     # Inicializa ttkbootstrap com tema moderno
     root = ttk.Window(
-        title="DX Project — Sistema de Inspeção Visual Honda",
+                    title="DX Project — Sistema de Inspeção Visual",
         themename="superhero",  # Tema moderno escuro mais profissional
         size=(1400, 900),
         resizable=(True, True)
@@ -1698,7 +1698,7 @@ def create_main_window():
     header.pack(fill="x")
     title_lbl = ttk.Label(
         header, 
-        text="DX Project — Sistema de Inspeção Visual Honda", 
+                    text="DX Project — Sistema de Inspeção Visual", 
         style="TLabel",
         font=("Segoe UI", 16, "bold")
     )

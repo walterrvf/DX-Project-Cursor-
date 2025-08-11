@@ -7,36 +7,32 @@
     "hud_position": "top-right",
     "show_fps": true,
     "show_timestamp": true,
-    
     "fonts": {
         "ok_font": "Segoe UI 10 bold",
         "ng_font": "Segoe UI 10 bold",
         "title_font": "Segoe UI 24 bold",
-        "subtitle_font": "Segoe UI 18",
+        "subtitle_font": "Segoe UI 16",
         "header_font": "Segoe UI 14 bold",
-        "small_font": "Segoe UI 9",
+        "small_font": "Segoe UI 8",
         "tiny_font": "Segoe UI 8",
-        "console_font": "Consolas 10"
+        "console_font": "Segoe UI 10"
     },
-    
     "colors": {
         "background_color": "#0F172A",
-        "text_color": "#E5E7EB",
+        "text_color": "#ffffff",
         "ok_color": "#8cde81",
         "ng_color": "#e7472c",
-        "selection_color": "#FFE66D",
+        "selection_color": "#007acc",
         "button_color": "#FFFFFF",
-        
         "canvas_colors": {
-            "canvas_bg": "#0B1220",
+            "canvas_bg": "#2b2b2b",
             "canvas_dark_bg": "#0B1220",
             "panel_bg": "#111827",
             "dark_panel_bg": "#0B1220",
             "button_bg": "#3A3A3A",
             "button_active": "#4A4A4A",
-            "modern_bg": "#1E293B"
+            "modern_bg": "#2b2b2b"
         },
-        
         "editor_colors": {
             "clip_color": "#6366F1",
             "selected_color": "#F59E0B",
@@ -44,7 +40,6 @@
             "delete_color": "#FF4444",
             "handle_color": "#FF4444"
         },
-        
         "inspection_colors": {
             "pass_color": "#22C55E",
             "fail_color": "#EF4444",
@@ -54,7 +49,6 @@
             "ok_detail_bg": "#003300",
             "ng_detail_bg": "#330000"
         },
-        
         "status_colors": {
             "success_bg": "#00AA00",
             "error_bg": "#CC0000",
@@ -66,7 +60,6 @@
             "muted_text": "#CCCCCC",
             "muted_bg": "#2A2A2A"
         },
-        
         "ui_colors": {
             "primary": "#6366F1",
             "secondary": "#F59E0B",
@@ -78,7 +71,6 @@
             "dark": "#0F172A",
             "muted": "#6C757D"
         },
-        
         "dialog_colors": {
             "window_bg": "#2E2E2E",
             "frame_bg": "#1a1d29",
@@ -93,7 +85,6 @@
             "entry_readonly_bg": "#2A2A2A",
             "combobox_select_bg": "#3A3A3A"
         },
-        
         "button_colors": {
             "modern_bg": "#6366F1",
             "modern_active": "#5855eb",
@@ -107,7 +98,6 @@
             "inspect_active": "#FF7733",
             "inspect_pressed": "#CC4400"
         },
-        
         "special_colors": {
             "ok_canvas_bg": "#f0f8f0",
             "ng_canvas_bg": "#f8f0f0",
@@ -118,9 +108,12 @@
             "console_fg": "#2C3E50",
             "tooltip_fg": "#888888",
             "green_text": "#28a745",
-            "gray_text": "#AAAAAA",
+            "gray_text": "#ffffff",
             "white_text": "#FFFFFF",
             "black_bg": "#000000"
-        }
-    }
+        },
+        "accent_color": "#007acc"
+    },
+    "ng_font": "Arial 10 bold",
+    "ok_font": "Arial 10 bold"
 }

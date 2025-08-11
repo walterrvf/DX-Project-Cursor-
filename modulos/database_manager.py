@@ -65,6 +65,22 @@ class DatabaseManager:
                 )
             """)
             
+            # Tabela de histórico de inspeções
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS inspection_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    modelo_id INTEGER NOT NULL,
+                    modelo_nome TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    result TEXT NOT NULL,  -- 'ok' ou 'ng'
+                    confidence REAL NOT NULL,
+                    processing_time REAL,
+                    image_path TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(modelo_id) REFERENCES modelos(id) ON DELETE CASCADE
+                )
+            """)
+            
             # Adiciona colunas shape, rotation e ok_threshold se não existirem (para compatibilidade)
             try:
                 cursor.execute("ALTER TABLE slots ADD COLUMN shape TEXT DEFAULT 'rectangle'")
@@ -95,6 +111,9 @@ class DatabaseManager:
             # Índices para melhor performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_slots_modelo_id ON slots(modelo_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_slots_slot_id ON slots(slot_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inspection_history_modelo_id ON inspection_history(modelo_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inspection_history_created_at ON inspection_history(created_at)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_inspection_history_result ON inspection_history(result)")
             
             conn.commit()
             print("Banco de dados inicializado com sucesso")
@@ -974,3 +993,226 @@ class DatabaseManager:
             image_path=image_path,
             slots=slots
         )
+    
+    def log_inspection_result(self, modelo_id: int, modelo_nome: str, slot_id: int, 
+                             result: str, confidence: float, processing_time: float = None, 
+                             image_path: str = None) -> int:
+        """Registra um resultado de inspeção no histórico.
+        
+        Args:
+            modelo_id: ID do modelo inspecionado
+            modelo_nome: Nome do modelo inspecionado
+            slot_id: ID do slot inspecionado
+            result: Resultado da inspeção ('ok' ou 'ng')
+            confidence: Nível de confiança da inspeção (0.0 a 1.0)
+            processing_time: Tempo de processamento em segundos
+            image_path: Caminho da imagem da inspeção
+            
+        Returns:
+            ID do registro criado
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Converte caminho da imagem para relativo se existir
+            rel_image_path = None
+            if image_path:
+                rel_image_path = self._convert_to_relative_path(image_path)
+            
+            cursor.execute("""
+                INSERT INTO inspection_history 
+                (modelo_id, modelo_nome, slot_id, result, confidence, processing_time, image_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (modelo_id, modelo_nome, slot_id, result, confidence, processing_time, rel_image_path))
+            
+            conn.commit()
+            return cursor.lastrowid
+    
+    def get_inspection_history(self, modelo_id: int = None, modelo_nome: str = None, 
+                              result: str = None, limit: int = 100, offset: int = 0) -> List[Dict]:
+        """Recupera o histórico de inspeções com filtros opcionais.
+        
+        Args:
+            modelo_id: Filtrar por ID do modelo
+            modelo_nome: Filtrar por nome do modelo
+            result: Filtrar por resultado ('ok' ou 'ng')
+            limit: Limite de registros retornados
+            offset: Offset para paginação
+            
+        Returns:
+            Lista de dicionários com dados das inspeções
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Construir query com filtros
+            query = "SELECT * FROM inspection_history WHERE 1=1"
+            params = []
+            
+            if modelo_id is not None:
+                query += " AND modelo_id = ?"
+                params.append(modelo_id)
+            
+            if modelo_nome is not None:
+                query += " AND modelo_nome = ?"
+                params.append(modelo_nome)
+            
+            if result is not None:
+                query += " AND result = ?"
+                params.append(result)
+            
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            
+            cursor.execute(query, params)
+            
+            columns = [description[0] for description in cursor.description]
+            results = []
+            
+            for row in cursor.fetchall():
+                inspection = dict(zip(columns, row))
+                # Converte caminho da imagem para absoluto se existir
+                if inspection['image_path']:
+                    inspection['image_path'] = self._convert_to_absolute_path(inspection['image_path'])
+                results.append(inspection)
+            
+            return results
+    
+    def get_inspection_statistics(self, modelo_id: int = None, modelo_nome: str = None, 
+                                 days: int = 30) -> Dict:
+        """Recupera estatísticas das inspeções.
+        
+        Args:
+            modelo_id: Filtrar por ID do modelo
+            modelo_nome: Filtrar por nome do modelo
+            days: Número de dias para considerar (padrão: 30)
+            
+        Returns:
+            Dicionário com estatísticas das inspeções
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Construir query com filtros
+            where_clause = "WHERE created_at >= datetime('now', '-{} days')".format(days)
+            params = []
+            
+            if modelo_id is not None:
+                where_clause += " AND modelo_id = ?"
+                params.append(modelo_id)
+            
+            if modelo_nome is not None:
+                where_clause += " AND modelo_nome = ?"
+                params.append(modelo_nome)
+            
+            # Total de inspeções
+            cursor.execute(f"SELECT COUNT(*) FROM inspection_history {where_clause}", params)
+            total_inspections = cursor.fetchone()[0]
+            
+            # Total de OK
+            cursor.execute(f"SELECT COUNT(*) FROM inspection_history {where_clause} AND result = 'ok'", params)
+            total_ok = cursor.fetchone()[0]
+            
+            # Total de NG
+            cursor.execute(f"SELECT COUNT(*) FROM inspection_history {where_clause} AND result = 'ng'", params)
+            total_ng = cursor.fetchone()[0]
+            
+            # Taxa de aprovação
+            approval_rate = (total_ok / total_inspections * 100) if total_inspections > 0 else 0
+            
+            # Tempo médio de processamento
+            cursor.execute(f"SELECT AVG(processing_time) FROM inspection_history {where_clause} AND processing_time IS NOT NULL", params)
+            avg_processing_time = cursor.fetchone()[0] or 0
+            
+            # Confiança média
+            cursor.execute(f"SELECT AVG(confidence) FROM inspection_history {where_clause}", params)
+            avg_confidence = cursor.fetchone()[0] or 0
+            
+            # Inspeções por dia (últimos 7 dias)
+            daily_stats = []
+            for i in range(7):
+                date = f"date('now', '-{i} days')"
+                cursor.execute(f"""
+                    SELECT date(created_at) as date, 
+                           COUNT(*) as total,
+                           SUM(CASE WHEN result = 'ok' THEN 1 ELSE 0 END) as ok_count,
+                           SUM(CASE WHEN result = 'ng' THEN 1 ELSE 0 END) as ng_count
+                    FROM inspection_history 
+                    WHERE date(created_at) = {date}
+                    {(' AND modelo_id = ?' if modelo_id else '')}
+                    {(' AND modelo_nome = ?' if modelo_nome else '')}
+                    GROUP BY date(created_at)
+                """, params)
+                
+                row = cursor.fetchone()
+                if row:
+                    daily_stats.append({
+                        'date': row[0],
+                        'total': row[1],
+                        'ok_count': row[2],
+                        'ng_count': row[3]
+                    })
+                else:
+                    daily_stats.append({
+                        'date': f"date('now', '-{i} days')",
+                        'total': 0,
+                        'ok_count': 0,
+                        'ng_count': 0
+                    })
+            
+            return {
+                'total_inspections': total_inspections,
+                'total_ok': total_ok,
+                'total_ng': total_ng,
+                'approval_rate': round(approval_rate, 2),
+                'avg_processing_time': round(avg_processing_time, 3),
+                'avg_confidence': round(avg_confidence, 3),
+                'daily_stats': daily_stats,
+                'period_days': days
+            }
+    
+    def get_model_inspection_summary(self) -> List[Dict]:
+        """Obtém um resumo das inspeções por modelo.
+        
+        Returns:
+            Lista de dicionários com resumo por modelo
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    m.nome as modelo_nome,
+                    COUNT(i.id) as total_inspections,
+                    SUM(CASE WHEN i.resultado = 'OK' THEN 1 ELSE 0 END) as ok_count,
+                    SUM(CASE WHEN i.resultado = 'NG' THEN 1 ELSE 0 END) as ng_count,
+                    CASE 
+                        WHEN COUNT(i.id) > 0 THEN 
+                            ROUND(SUM(CASE WHEN i.resultado = 'OK' THEN 1 ELSE 0 END) * 100.0 / COUNT(i.id), 2)
+                        ELSE 0 
+                    END as approval_rate,
+                    MAX(i.timestamp) as last_inspection
+                FROM modelos m
+                LEFT JOIN inspection_history i ON m.nome = i.modelo_nome
+                GROUP BY m.id, m.nome
+                ORDER BY m.nome
+            """)
+            
+            columns = [desc[0] for desc in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    
+    def clear_inspection_history(self, modelo_nome: str = None):
+        """Limpa o histórico de inspeções.
+        
+        Args:
+            modelo_nome: Nome do modelo específico para limpar (se None, limpa todos)
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            if modelo_nome:
+                cursor.execute("DELETE FROM inspection_history WHERE modelo_nome = ?", (modelo_nome,))
+            else:
+                cursor.execute("DELETE FROM inspection_history")
+            
+            conn.commit()
