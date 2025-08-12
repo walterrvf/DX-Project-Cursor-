@@ -105,6 +105,8 @@ class EditSlotDialog(Toplevel):
         self.w_var = StringVar()
         self.h_var = StringVar()
         self.correlation_threshold_var = StringVar()
+        # Novo: controle de alinhamento por slot (autoajuste vs fixo)
+        self.use_alignment_var = StringVar(value="1")
 
         mesh_grid = ttk.Frame(mesh_frame)
         mesh_grid.pack(fill=X, padx=10, pady=10)
@@ -128,6 +130,21 @@ class EditSlotDialog(Toplevel):
         ttk.Label(threshold_frame, text="Limiar de Correlação (0.0–1.0):").pack(side=LEFT)
         ttk.Entry(threshold_frame, textvariable=self.correlation_threshold_var, width=10).pack(side=LEFT, padx=(5, 0))
 
+        # Toggle: alinhamento por slot
+        alignment_frame = ttk.Frame(config_frame)
+        alignment_frame.pack(fill=X, padx=5, pady=5)
+        ttk.Label(alignment_frame, text="Alinhamento por Slot:").pack(side=LEFT)
+        self.alignment_combo = ttk.Combobox(
+            alignment_frame,
+            values=["Autoajuste (alinha)", "Fixo (sem alinhar)"],
+            state="readonly",
+            width=22
+        )
+        self.alignment_combo.pack(side=LEFT, padx=(5, 0))
+        def _sync_alignment_from_combo(*args):
+            self.use_alignment_var.set("1" if self.alignment_combo.get().startswith("Auto") else "0")
+        self.alignment_combo.bind("<<ComboboxSelected>>", _sync_alignment_from_combo)
+
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=X, pady=(10, 0))
         ttk.Button(button_frame, text="Salvar", command=self.save_changes).pack(side=LEFT, padx=(0, 5))
@@ -146,6 +163,16 @@ class EditSlotDialog(Toplevel):
                 self.correlation_threshold_var.set(str(float(corr_thr)))
             except Exception:
                 self.correlation_threshold_var.set(str(corr_thr))
+            # Sincroniza alinhamento
+            try:
+                use_alignment = bool(self.slot_data.get('use_alignment', True))
+                self.use_alignment_var.set("1" if use_alignment else "0")
+                if use_alignment:
+                    self.alignment_combo.set("Autoajuste (alinha)")
+                else:
+                    self.alignment_combo.set("Fixo (sem alinhar)")
+            except Exception:
+                pass
 
     def save_changes(self):
         try:
@@ -164,7 +191,8 @@ class EditSlotDialog(Toplevel):
                 'y': y_val,
                 'w': w_val,
                 'h': h_val,
-                'correlation_threshold': corr_val
+                'correlation_threshold': corr_val,
+                'use_alignment': (self.use_alignment_var.get() not in ("0", "False", "false", "no", "nao"))
             })
             self.malha_frame.update_slot_data(self.slot_data)
             self.destroy()
@@ -390,6 +418,12 @@ class SlotTrainingDialog(Toplevel):
                 messagebox.showerror("Erro", "Imagem de referência não carregada.")
                 return
             M, inliers_count, error_msg = find_image_transform(self.montagem_instance.img_original, image)
+            # Respeita a configuração de alinhamento do slot (autoajuste vs fixo)
+            try:
+                if not bool(self.slot_data.get('use_alignment', True)):
+                    M = None
+            except Exception:
+                pass
             if M is None:
                 x, y, w, h = self.slot_data['x'], self.slot_data['y'], self.slot_data['w'], self.slot_data['h']
             else:

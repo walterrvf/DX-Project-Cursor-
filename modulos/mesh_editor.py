@@ -1654,7 +1654,8 @@ class MontagemWindow(ttk.Frame):
             's_tolerance': s_tolerance,
             'v_tolerance': v_tolerance,
             'detection_threshold': 0.8,  # Limiar padrão para detecção
-            'shape': 'rectangle'
+            'shape': 'rectangle',
+            'use_alignment': True
         }
         
         # Configurações específicas para clips
@@ -1789,6 +1790,12 @@ class MontagemWindow(ttk.Frame):
                             slot['correlation_threshold'] = float(self.edit_vars['detection_threshold'].get())
                         if 'correlation_threshold' in self.edit_vars:
                             slot['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
+                        # Alinhamento por slot
+                        if 'use_alignment' in self.edit_vars:
+                            slot['use_alignment'] = (self.edit_vars['use_alignment'].get() not in ("0","False","false","no","nao"))
+                        # Usar ML se disponível
+                        if 'use_ml' in self.edit_vars and slot.get('ml_model_path'):
+                            slot['use_ml'] = (self.edit_vars['use_ml'].get() not in ("0","False","false","no","nao"))
                     
                     # Salva no banco de dados se há um modelo carregado
                     if self.current_model_id is not None:
@@ -2177,6 +2184,39 @@ class MontagemWindow(ttk.Frame):
             correlation_threshold_tip = ttk.Label(correlation_threshold_frame, text="Limiar de correlação (0.0-1.0)", 
                                                  font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             correlation_threshold_tip.pack(side='left', padx=(5, 0))
+
+            # Novo: Alinhamento por slot (autoajuste vs fixo)
+            align_frame = ttk.Frame(detection_frame)
+            align_frame.pack(fill='x', pady=2, padx=5)
+            ttk.Label(align_frame, text="Alinhamento:", width=8).pack(side='left')
+            align_var = StringVar(value=("1" if bool(slot_data.get('use_alignment', True)) else "0"))
+            self.edit_vars['use_alignment'] = align_var
+            align_combo = ttk.Combobox(align_frame, values=["Autoajuste (alinha)", "Fixo (sem alinhar)"], state='readonly', width=18)
+            align_combo.pack(side='left', padx=(5, 0))
+            if bool(slot_data.get('use_alignment', True)):
+                align_combo.set("Autoajuste (alinha)")
+            else:
+                align_combo.set("Fixo (sem alinhar)")
+            def _on_align_change(*args):
+                align_var.set("1" if align_combo.get().startswith("Auto") else "0")
+            align_combo.bind("<<ComboboxSelected>>", _on_align_change)
+
+            # Novo: Usar ML (visível somente se houver modelo treinado)
+            if slot_data.get('ml_model_path'):
+                ml_frame = ttk.Frame(detection_frame)
+                ml_frame.pack(fill='x', pady=2, padx=5)
+                ttk.Label(ml_frame, text="Usar ML:", width=8).pack(side='left')
+                use_ml_var = StringVar(value=("1" if bool(slot_data.get('use_ml', True)) else "0"))
+                self.edit_vars['use_ml'] = use_ml_var
+                ml_combo = ttk.Combobox(ml_frame, values=["Ativado", "Desativado"], state='readonly', width=18)
+                ml_combo.pack(side='left', padx=(5, 0))
+                if bool(slot_data.get('use_ml', True)):
+                    ml_combo.set("Ativado")
+                else:
+                    ml_combo.set("Desativado")
+                def _on_ml_change(*args):
+                    use_ml_var.set("1" if ml_combo.get().startswith("Ativado") else "0")
+                ml_combo.bind("<<ComboboxSelected>>", _on_ml_change)
         
         # Botões de ação
         buttons_frame = ttk.Frame(self.right_panel)

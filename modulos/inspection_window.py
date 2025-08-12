@@ -3173,7 +3173,10 @@ class InspecaoWindow(ttk.Frame):
                     
                     try:
                         # Processamento otimizado sem logs excessivos
-                        is_ok, correlation, pixels, corners, bbox, log_msgs = check_slot(self.img_test, slot, M)
+                        # Decide se aplica alinhamento por slot (use_alignment=True por padrão)
+                        use_alignment = bool(slot.get('use_alignment', True))
+                        slot_M = M if use_alignment else None
+                        is_ok, correlation, pixels, corners, bbox, log_msgs = check_slot(self.img_test, slot, slot_M)
                         
                         # Log apenas para falhas (reduz overhead)
                         if not is_ok:

@@ -408,7 +408,12 @@ class SlotTrainingDialog(Toplevel):
                 return
                 
             M, inliers_count, error_msg = find_image_transform(self.montagem_instance.img_original, image)
-            
+
+            # Respeita a configuração do slot: se 'use_alignment' estiver False, ignora M
+            use_alignment = bool(self.slot_data.get('use_alignment', True))
+            if not use_alignment:
+                M = None
+
             if M is None:
                 messagebox.showwarning("Aviso", "Não foi possível alinhar a imagem. Usando coordenadas diretas.")
                 # Usa coordenadas diretas se não conseguir alinhar

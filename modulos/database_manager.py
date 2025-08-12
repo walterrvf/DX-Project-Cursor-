@@ -111,6 +111,12 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE slots ADD COLUMN ml_model_path TEXT")
             except sqlite3.OperationalError:
                 pass  # Coluna já existe
+
+            # Adiciona coluna para controle de alinhamento por slot (fixo vs autoajuste)
+            try:
+                cursor.execute("ALTER TABLE slots ADD COLUMN use_alignment INTEGER DEFAULT 1")
+            except sqlite3.OperationalError:
+                pass  # Coluna já existe
             
             # Índices para melhor performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_slots_modelo_id ON slots(modelo_id)")
@@ -283,7 +289,7 @@ class DatabaseManager:
                        detection_threshold, correlation_threshold,
                        template_method, scale_tolerance, template_path,
                        detection_method, shape, rotation, ok_threshold,
-                       use_ml, ml_model_path
+                       use_ml, ml_model_path, use_alignment
                 FROM slots WHERE modelo_id = ?
                 ORDER BY slot_id
             """, (modelo_id,))
@@ -321,7 +327,8 @@ class DatabaseManager:
                     'rotation': row[19] if len(row) > 19 and row[19] is not None else 0,
                     'ok_threshold': row[20] if len(row) > 20 and row[20] is not None else 70,
                     'use_ml': bool(row[21]) if len(row) > 21 and row[21] is not None else False,
-                    'ml_model_path': ml_model_path
+                    'ml_model_path': ml_model_path,
+                    'use_alignment': bool(row[23]) if len(row) > 23 and row[23] is not None else True
                 }
                 slots.append(slot)
             
@@ -804,8 +811,8 @@ class DatabaseManager:
                 detection_threshold, correlation_threshold,
                 template_method, scale_tolerance, template_path,
                 detection_method, shape, rotation, ok_threshold,
-                use_ml, ml_model_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                use_ml, ml_model_path, use_alignment
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             modelo_id,
             slot_data['id'],
@@ -828,7 +835,8 @@ class DatabaseManager:
             slot_data.get('rotation', 0),
             slot_data.get('ok_threshold', 70),
             1 if slot_data.get('use_ml', False) else 0,
-            ml_model_path
+            ml_model_path,
+            1 if slot_data.get('use_alignment', True) else 0
         ))
     
     def _update_slot_data(self, cursor, modelo_id: int, slot_data: Dict):
@@ -853,7 +861,7 @@ class DatabaseManager:
                 detection_threshold = ?, correlation_threshold = ?,
                 template_method = ?, scale_tolerance = ?, template_path = ?,
                 detection_method = ?, shape = ?, rotation = ?, ok_threshold = ?,
-                use_ml = ?, ml_model_path = ?
+                use_ml = ?, ml_model_path = ?, use_alignment = ?
             WHERE modelo_id = ? AND slot_id = ?
         """, (
             slot_data['tipo'],
@@ -876,6 +884,7 @@ class DatabaseManager:
             slot_data.get('ok_threshold', 70),
             1 if slot_data.get('use_ml', False) else 0,
             ml_model_path,
+            1 if slot_data.get('use_alignment', True) else 0,
             modelo_id,
             slot_data['id']
         ))

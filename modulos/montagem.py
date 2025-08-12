@@ -234,7 +234,8 @@ def check_slot(img_test, slot_data, M):
         original_corners = [(x, y), (x+w, y), (x+w, y+h), (x, y+h)]
         
         # Transforma o retângulo se temos matriz de homografia
-        if M is not None:
+        # Respeita configuração de alinhamento por slot
+        if slot_data.get('use_alignment', True) and M is not None:
             # Transforma os cantos usando a matriz de homografia
             corners_array = np.array(original_corners, dtype=np.float32).reshape(-1, 1, 2)
             transformed_corners = cv2.perspectiveTransform(corners_array, M)
