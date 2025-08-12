@@ -177,10 +177,22 @@ class ExternalCameraDriver(CameraDriver):
                 self.camera = cam
                 self._from_pool = True
             else:
+                # Em Raspberry Pi com libcamera, só há um dispositivo lógico; evite abrir índice >0
+                try:
+                    import platform
+                    is_linux = platform.system() == 'Linux'
+                    machine = platform.machine().lower()
+                    platform_str = platform.platform().lower()
+                    is_rpi = is_linux and (('arm' in machine or 'aarch64' in machine) or ('raspbian' in platform_str or 'raspberry' in platform_str))
+                except Exception:
+                    is_rpi = False
                 # Usa rotina _open_camera com fallback de backend
                 try:
                     from camera_manager import _open_camera as cm_open
-                    self.camera = cm_open(self.camera_index)
+                    if is_rpi and self.camera_index != 0:
+                        self.camera = None
+                    else:
+                        self.camera = cm_open(self.camera_index)
                 except Exception:
                     if is_windows:
                         self.camera = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)

@@ -92,8 +92,21 @@ class InspecaoWindow(ttk.Frame):
             self.db_manager = None
         self.latest_frame = None
         
-        # Controle de webcam - Sistema de pool persistente
+        # Controle de webcam - Sistema de pool persistente (multiplataforma)
+        # Em Raspberry Pi com libcamera, considere apenas índice 0
+        try:
+            import platform
+            is_linux = platform.system() == 'Linux'
+            machine = platform.machine().lower()
+            platform_str = platform.platform().lower()
+            is_rpi = is_linux and (('arm' in machine or 'aarch64' in machine) or ('raspbian' in platform_str or 'raspberry' in platform_str))
+        except Exception:
+            is_rpi = False
+
         self.available_cameras = detect_cameras()
+        if is_rpi and not self.available_cameras:
+            # Quando usando libcamera via GStreamer, não há índices; force [0]
+            self.available_cameras = [0]
         self.selected_camera = 0
         self.current_camera_index = self.available_cameras[0] if self.available_cameras else 0
         
@@ -132,8 +145,10 @@ class InspecaoWindow(ttk.Frame):
         # Inicia pool persistente de câmeras após inicialização completa
         if self.available_cameras:
             self.after(500, self.initialize_persistent_camera_pool)
-            # Sistema dual de câmeras para modo 2 modelos
-            self.after(1000, self.initialize_multiple_cameras)
+            # Em RPi com libcamera (único dispositivo), não inicializa sistema dual automaticamente
+            if not (is_rpi and self.available_cameras == [0]):
+                # Sistema dual de câmeras para modo 2 modelos
+                self.after(1000, self.initialize_multiple_cameras)
             # Monitora status do pool periodicamente
             self.after(15000, self.monitor_pool_status)  # Verifica a cada 15 segundos
     
