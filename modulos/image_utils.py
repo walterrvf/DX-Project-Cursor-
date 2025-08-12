@@ -21,7 +21,7 @@ def cv2_to_tk(img_bgr: np.ndarray, max_w: Optional[int] = None, max_h: Optional[
         if max_w and max_h:
             scale_w = max_w / width
             scale_h = max_h / height
-            scale = max(scale_w, scale_h)
+            scale = min(scale_w, scale_h)  # Usa min para garantir que a imagem caiba no canvas
         elif max_w:
             scale = max_w / width
         elif max_h:

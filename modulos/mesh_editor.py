@@ -36,7 +36,6 @@ try:
         get_cached_camera,
         release_cached_camera,
         cleanup_unused_cameras,
-        schedule_camera_cleanup,
         release_all_cached_cameras,
         capture_image_from_camera,
     )
@@ -55,7 +54,6 @@ except ImportError:
         get_cached_camera,
         release_cached_camera,
         cleanup_unused_cameras,
-        schedule_camera_cleanup,
         release_all_cached_cameras,
         capture_image_from_camera,
     )
@@ -100,13 +98,17 @@ class MontagemWindow(ttk.Frame):
         # Flag para prevenir múltiplos cliques simultâneos no botão de edição
         self._processing_edit_click = False
         
-        # Controle de webcam
+        # Controle de webcam - Sistema de múltiplas câmeras ativas
         self.available_cameras = detect_cameras()
         self.selected_camera = 0
         self.camera = None
         self.live_capture = False
         self.live_view = False
         self.latest_frame = None
+        
+        # Gerenciador de múltiplas câmeras ativas
+        self.active_cameras = {}  # Dicionário para manter câmeras ativas
+        self.camera_frames = {}   # Frames mais recentes de cada câmera
         
         # Variáveis de ferramentas de edição
         self.current_drawing_mode = "rectangle"
@@ -116,12 +118,18 @@ class MontagemWindow(ttk.Frame):
         self.setup_ui()
         self.update_button_states()
         
-        # Inicia câmera em segundo plano após inicialização completa
-        if self.available_cameras:
-            self.after(500, lambda: self.start_background_camera_direct(self.available_cameras[0]))
+        # Inicializa variável de controle da câmera atual
+        self.current_camera_index = self.available_cameras[0] if self.available_cameras else 0
         
-        # Inicia limpeza automática de câmeras em cache
-        schedule_camera_cleanup(self.master)
+        # Inicia múltiplas câmeras em segundo plano após inicialização completa
+        if self.available_cameras:
+            self.after(500, self.initialize_multiple_cameras)
+        
+        # Opcional: executar limpeza periódica de câmeras não utilizadas
+        try:
+            self.after(60_000, cleanup_unused_cameras)
+        except Exception:
+            pass
     
     def configure_modern_styles(self):
         """Configura estilos modernos para a interface."""
@@ -206,26 +214,11 @@ class MontagemWindow(ttk.Frame):
     def start_background_camera_direct(self, camera_index):
         """Inicia a câmera diretamente em segundo plano com índice específico."""
         try:
-            # Detecta o sistema operacional
-            import platform
-            is_windows = platform.system() == 'Windows'
-            
-            # Configurações otimizadas para inicialização mais rápida
-            if is_windows:
-                self.camera = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-            else:
-                self.camera = cv2.VideoCapture(camera_index)
-            
-            if not self.camera.isOpened():
+            # Usa pool persistente para evitar múltiplas aberturas do dispositivo
+            from camera_manager import get_persistent_camera
+            self.camera = get_persistent_camera(camera_index)
+            if not self.camera or not self.camera.isOpened():
                 raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
-            
-            # Configurações otimizadas para performance
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
-            
-            # Usa resolução padrão para inicialização rápida
-            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
             self.live_capture = True
             print(f"Webcam {camera_index} inicializada com sucesso em segundo plano")
@@ -238,6 +231,80 @@ class MontagemWindow(ttk.Frame):
             self.camera = None
             self.live_capture = False
     
+    def initialize_multiple_cameras(self):
+        """Inicializa múltiplas câmeras simultaneamente para troca rápida."""
+        try:
+            print("Inicializando sistema de múltiplas câmeras no editor de malha...")
+            
+            # Inicializa todas as câmeras disponíveis
+            for camera_index in self.available_cameras:
+                try:
+                    self.start_camera_connection(camera_index)
+                    print(f"Câmera {camera_index} inicializada com sucesso no editor de malha")
+                except Exception as e:
+                    print(f"Erro ao inicializar câmera {camera_index} no editor de malha: {e}")
+            
+            # Define a câmera principal ativa
+            if self.available_cameras:
+                self.current_camera_index = self.available_cameras[0]
+                self.camera = self.active_cameras.get(self.current_camera_index)
+                
+                # Inicia captura de frames para todas as câmeras
+                self.start_multi_camera_capture()
+                
+        except Exception as e:
+            print(f"Erro ao inicializar múltiplas câmeras no editor de malha: {e}")
+    
+    def start_camera_connection(self, camera_index):
+        """Inicia conexão com uma câmera específica."""
+        try:
+            # Usa pool persistente para compartilhar o mesmo handle do dispositivo
+            from camera_manager import get_persistent_camera
+            camera = get_persistent_camera(camera_index)
+            if not camera or not camera.isOpened():
+                raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
+            
+            # Armazena a câmera ativa
+            self.active_cameras[camera_index] = camera
+            
+        except Exception as e:
+            print(f"Erro ao conectar câmera {camera_index}: {e}")
+            raise
+    
+    def start_multi_camera_capture(self):
+        """Inicia captura de frames para todas as câmeras ativas."""
+        try:
+            # Preferir frame pump centralizado do camera_manager
+            from camera_manager import start_frame_pump
+            start_frame_pump(list(self.active_cameras.keys()), fps=30.0)
+        except Exception as e:
+            print(f"Erro ao iniciar frame pump no editor de malha: {e}")
+    
+    def capture_camera_frames(self, camera_index):
+        """Captura frames continuamente de uma câmera específica."""
+        try:
+            import time
+            camera = self.active_cameras.get(camera_index)
+            if not camera:
+                return
+                
+            while camera_index in self.active_cameras and camera.isOpened():
+                try:
+                    ret, frame = camera.read()
+                    if ret:
+                        self.camera_frames[camera_index] = frame.copy()
+                        
+                        # Atualiza latest_frame se esta é a câmera ativa
+                        if camera_index == self.current_camera_index:
+                            self.latest_frame = frame.copy()
+                            
+                    time.sleep(0.033)  # ~30 FPS
+                except Exception as e:
+                    print(f"Erro na captura da câmera {camera_index} no editor de malha: {e}")
+                    break
+                    
+        except Exception as e:
+            print(f"Erro geral na captura da câmera {camera_index} no editor de malha: {e}")
 
     
     
@@ -340,6 +407,9 @@ class MontagemWindow(ttk.Frame):
         if self.available_cameras:
             self.camera_combo.set(str(self.available_cameras[0]))
         
+        # Adiciona callback para mudança de câmera
+        self.camera_combo.bind('<<ComboboxSelected>>', self.on_camera_changed)
+        
         # Botão para capturar imagem da webcam
         self.btn_capture = ttk.Button(webcam_frame, text="Capturar Imagem", 
                                      command=self.capture_from_webcam)
@@ -388,11 +458,7 @@ class MontagemWindow(ttk.Frame):
                                            )
         self.btn_rect_mode.pack(side=LEFT, padx=(5, 10))
         
-        self.btn_exclusion_mode = ttk.Radiobutton(mode_buttons_frame, text="Exclusão", 
-                                                variable=self.drawing_mode, value="exclusion",
-                                                command=self.set_drawing_mode,
-                                                )
-        self.btn_exclusion_mode.pack(side=LEFT, padx=(0, 5))
+        # Removido modo de "Exclusão"
         
         # Status da ferramenta com design moderno
         self.tool_status_var = StringVar(value="Modo: Retângulo")
@@ -512,7 +578,13 @@ class MontagemWindow(ttk.Frame):
     
     def configure_responsive_window(self):
         """Configura o tamanho da janela de forma responsiva baseado na resolução da tela."""
+        # Proteção contra recursão infinita
+        if getattr(self, '_configuring_window', False):
+            return
+        
         try:
+            self._configuring_window = True
+            
             # Verifica se é uma janela top-level (tem métodos geometry e minsize)
             if not hasattr(self, 'geometry') or not hasattr(self, 'minsize'):
                 # Se não é uma janela top-level, tenta configurar a janela pai
@@ -523,6 +595,16 @@ class MontagemWindow(ttk.Frame):
                     return
             else:
                 parent = self
+            
+            # Verifica se a janela já foi inicializada
+            try:
+                parent.update_idletasks()
+                if parent.winfo_width() <= 1 or parent.winfo_height() <= 1:
+                    # Janela ainda não foi renderizada, agenda para depois
+                    parent.after(200, self.configure_responsive_window)
+                    return
+            except Exception:
+                pass
             
             # Obtém dimensões da tela
             screen_width = parent.winfo_screenwidth()
@@ -536,18 +618,27 @@ class MontagemWindow(ttk.Frame):
             x = (screen_width - ideal_width) // 2
             y = (screen_height - ideal_height) // 2
             
-            # Aplica a geometria
-            parent.geometry(f"{ideal_width}x{ideal_height}+{x}+{y}")
-            
-            # Define tamanho mínimo
-            if hasattr(parent, 'minsize'):
-                parent.minsize(1000, 700)
-            
-            print(f"Janela configurada: {ideal_width}x{ideal_height} (Tela: {screen_width}x{screen_height})")
+            # Aplica a geometria apenas se diferente da atual
+            try:
+                current_geometry = parent.geometry()
+                new_geometry = f"{ideal_width}x{ideal_height}+{x}+{y}"
+                
+                if current_geometry != new_geometry:
+                    parent.geometry(new_geometry)
+                    
+                    # Define tamanho mínimo
+                    if hasattr(parent, 'minsize'):
+                        parent.minsize(1000, 700)
+                    
+                    print(f"Janela configurada: {ideal_width}x{ideal_height} (Tela: {screen_width}x{screen_height})")
+            except Exception as geo_error:
+                print(f"Erro ao aplicar geometria da janela: {geo_error}")
             
         except Exception as e:
             print(f"Erro ao configurar janela responsiva: {e}")
-            # Não faz fallback se não conseguir configurar
+        finally:
+            # Libera o flag de configuração
+            self._configuring_window = False
 
     def toggle_live_capture_manual_inspection(self):
         """Alterna o modo de captura contínua com inspeção manual (ativada pelo Enter)."""
@@ -570,14 +661,11 @@ class MontagemWindow(ttk.Frame):
                 self.camera = cv2.VideoCapture(camera_index)
             if not self.camera.isOpened():
                 raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
-            if camera_index > 0:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            else:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            try:
+                from camera_manager import configure_video_capture
+                configure_video_capture(self.camera, camera_index)
+            except Exception:
+                pass
             self.live_capture = True
             self.manual_inspection_mode = True
             self.latest_frame = None
@@ -596,6 +684,68 @@ class MontagemWindow(ttk.Frame):
             self.camera = None
         self.latest_frame = None
         self.status_var.set("Modo Inspeção Manual desativado")
+    
+    def on_camera_changed(self, event=None):
+        """Callback para quando o usuário muda a seleção da câmera - Troca instantânea."""
+        try:
+            new_camera_index = int(self.camera_combo.get())
+            if new_camera_index != self.current_camera_index:
+                print(f"Trocando instantaneamente da câmera {self.current_camera_index} para câmera {new_camera_index} no editor de malha")
+                
+                # Verifica se a nova câmera está disponível no sistema de múltiplas câmeras
+                if hasattr(self, 'active_cameras') and new_camera_index in self.active_cameras:
+                    # Troca instantânea - apenas atualiza referências
+                    self.current_camera_index = new_camera_index
+                    self.camera = self.active_cameras[new_camera_index]
+                    
+                    # Atualiza latest_frame com o frame mais recente da nova câmera
+                    if hasattr(self, 'camera_frames') and new_camera_index in self.camera_frames and self.camera_frames[new_camera_index] is not None:
+                        try:
+                            self.latest_frame = self.camera_frames[new_camera_index].copy()
+                        except Exception:
+                            self.latest_frame = self.camera_frames[new_camera_index]
+                    
+                    print(f"Câmera {new_camera_index} ativada instantaneamente no editor de malha")
+                else:
+                    # Fallback para o método tradicional se a câmera não estiver no sistema múltiplo
+                    print(f"Câmera {new_camera_index} não encontrada no sistema múltiplo, usando método tradicional")
+                    
+                    # Para todas as capturas ativas
+                    if hasattr(self, 'live_capture') and self.live_capture:
+                        self.stop_live_capture()
+                    if hasattr(self, 'manual_inspection_mode') and self.manual_inspection_mode:
+                        self.stop_live_capture_manual_inspection()
+                    
+                    # Libera câmera atual
+                    if hasattr(self, 'camera') and self.camera:
+                        self.camera.release()
+                        self.camera = None
+                    
+                    # Atualiza índice da câmera
+                    self.current_camera_index = new_camera_index
+                    
+                    # Usa o pool de câmeras em vez de inicializar em segundo plano
+                    if hasattr(self, 'camera_pool') and new_camera_index in self.camera_pool:
+                        self.camera = self.camera_pool[new_camera_index]
+                        print(f"Câmera {new_camera_index} obtida do pool na troca")
+                    elif hasattr(self, 'active_cameras') and new_camera_index in self.active_cameras:
+                        self.camera = self.active_cameras[new_camera_index]
+                        print(f"Câmera {new_camera_index} obtida do sistema ativo na troca")
+                    else:
+                        # Tenta obter do cache do camera_manager
+                        try:
+                            from camera_manager import get_cached_camera
+                            cached_camera = get_cached_camera(new_camera_index)
+                            if cached_camera:
+                                self.camera = cached_camera
+                                print(f"Câmera {new_camera_index} obtida do cache na troca")
+                            else:
+                                print(f"Câmera {new_camera_index} não disponível na troca")
+                        except Exception as cache_error:
+                            print(f"Erro ao obter câmera do cache na troca: {cache_error}")
+                
+        except (ValueError, AttributeError) as e:
+            print(f"Erro ao trocar câmera: {e}")
     
     def clear_all(self):
         """Limpa todos os dados do editor."""
@@ -841,17 +991,12 @@ class MontagemWindow(ttk.Frame):
             if not self.camera.isOpened():
                 raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
             
-            # Configurações otimizadas para performance e inicialização rápida
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
-            
-            # Usa resolução nativa para câmeras externas (1920x1080) ou padrão para webcam interna
-            if camera_index > 0:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            else:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # Configurações centralizadas (inclui exposição/ganho/WB)
+            try:
+                from camera_manager import configure_video_capture
+                configure_video_capture(self.camera, camera_index)
+            except Exception:
+                pass
             
             self.live_capture = True
             # Garante que o modo de inspeção manual está desativado
@@ -989,6 +1134,55 @@ class MontagemWindow(ttk.Frame):
             # Define o modelo atual para uso em outras funções
             self.current_model = model_data
             
+            # Configurar câmera padrão associada ao modelo
+            prev_camera_index = None
+            if hasattr(self, 'camera_combo') and self.camera_combo.get():
+                try:
+                    prev_camera_index = int(self.camera_combo.get())
+                except Exception:
+                    prev_camera_index = None
+            camera_index = model_data.get('camera_index', 0)
+            if hasattr(self, 'camera_combo') and str(camera_index) in [self.camera_combo['values'][i] for i in range(len(self.camera_combo['values']))]:
+                self.camera_combo.set(str(camera_index))
+            # Reinicia a câmera se o índice mudou
+            if prev_camera_index is not None and prev_camera_index != camera_index:
+                try:
+                    # Para captura ao vivo, se ativa
+                    try:
+                        self.stop_live_capture()
+                    except Exception:
+                        pass
+                    # Libera câmera atual
+                    if self.camera:
+                        try:
+                            self.live_capture = False
+                            self.camera.release()
+                        except Exception:
+                            pass
+                        self.camera = None
+                    # Atualiza índice selecionado
+                    self.selected_camera = camera_index
+                    # Usa o pool de câmeras em vez de inicializar em segundo plano
+                    if hasattr(self, 'camera_pool') and camera_index in self.camera_pool:
+                        self.camera = self.camera_pool[camera_index]
+                        print(f"Câmera {camera_index} obtida do pool no editor de malha")
+                    elif hasattr(self, 'active_cameras') and camera_index in self.active_cameras:
+                        self.camera = self.active_cameras[camera_index]
+                        print(f"Câmera {camera_index} obtida do sistema ativo no editor de malha")
+                    else:
+                        # Tenta obter do cache do camera_manager
+                        try:
+                            cached_camera = get_cached_camera(camera_index)
+                            if cached_camera:
+                                self.camera = cached_camera
+                                print(f"Câmera {camera_index} obtida do cache no editor de malha")
+                            else:
+                                print(f"Câmera {camera_index} não disponível no editor de malha")
+                        except Exception as cache_error:
+                            print(f"Erro ao obter câmera do cache no editor de malha: {cache_error}")
+                except Exception as cam_e:
+                    print(f"Erro ao reiniciar câmera para o modelo: {cam_e}")
+            
             # Atualiza interface
             self.update_slots_list()
             self.redraw_slots()
@@ -1066,7 +1260,8 @@ class MontagemWindow(ttk.Frame):
         
         # Adiciona informações específicas do tipo de slot
         if selected_slot.get('tipo') == 'clip':
-            info_text += f"\nLimiar: {selected_slot.get('detection_threshold', 0.8)}"
+            corr_thr = selected_slot.get('correlation_threshold', selected_slot.get('detection_threshold', 0.5))
+            info_text += f"\nCorrelação (limiar): {corr_thr}"
             
         self.slot_info_label.config(text=info_text)
     
@@ -1131,17 +1326,7 @@ class MontagemWindow(ttk.Frame):
             shape_id = self.canvas.create_rectangle(x1, y1, x2, y2, 
                                        outline=color, width=width, tags="slot")
             
-            # Desenha áreas de exclusão se existirem
-            exclusion_areas = slot.get('exclusion_areas', [])
-            for exclusion in exclusion_areas:
-                ex_x1 = int(exclusion['x'] * self.scale_factor) + self.x_offset
-                ex_y1 = int(exclusion['y'] * self.scale_factor) + self.y_offset
-                ex_x2 = int((exclusion['x'] + exclusion['w']) * self.scale_factor) + self.x_offset
-                ex_y2 = int((exclusion['y'] + exclusion['h']) * self.scale_factor) + self.y_offset
-                
-                # Desenha área de exclusão em vermelho
-                self.canvas.create_rectangle(ex_x1, ex_y1, ex_x2, ex_y2,
-                                            outline=get_color('colors.editor_colors.delete_color'), width=2, tags="slot")
+            # Removido desenho de áreas de exclusão
             
             # Adiciona texto com ID (já usando x1, y1 corrigidos com offsets)
             # Carrega as configurações de estilo
@@ -1266,28 +1451,16 @@ class MontagemWindow(ttk.Frame):
                 if clicked_slot:
                     print(f"Clicou no slot {clicked_slot['id']}")
                     
-                    # Se está no modo de exclusão e há um slot selecionado, permite desenhar área de exclusão
-                    if self.current_drawing_mode == "exclusion" and self.selected_slot_id is not None:
-                        print("Iniciando desenho de área de exclusão")
-                        self.drawing = True
-                        self.start_x = canvas_x
-                        self.start_y = canvas_y
-                        self.canvas.delete("drawing")
-                        return
-                    else:
-                        # Seleciona o slot e mostra handles de edição
-                        self.select_slot(clicked_slot['id'])
-                        self.show_edit_handles(clicked_slot)
-                        return
+                    # Seleciona o slot e mostra handles de edição
+                    self.select_slot(clicked_slot['id'])
+                    self.show_edit_handles(clicked_slot)
+                    return
             except Exception as e:
                 print(f"Erro ao verificar slot existente: {e}")
                 import traceback
                 traceback.print_exc()
             
-            # Se está no modo de exclusão mas não há slot selecionado, mostra mensagem
-            if self.current_drawing_mode == "exclusion":
-                self.status_var.set("Selecione um slot primeiro para criar área de exclusão")
-                return
+            # Modo de exclusão removido
             
             # Inicia desenho de novo slot
             try:
@@ -1322,11 +1495,8 @@ class MontagemWindow(ttk.Frame):
         # Remove forma anterior
         self.canvas.delete("drawing")
         
-        # Define cor baseada no modo
-        if self.current_drawing_mode == "exclusion":
-            outline_color = get_color('colors.editor_colors.delete_color')  # Vermelho para exclusão
-        else:
-            outline_color = get_color('colors.editor_colors.drawing_color')
+        # Define cor (modo de exclusão removido)
+        outline_color = get_color('colors.editor_colors.drawing_color')
         
         # Desenha retângulo (para rectangle e exclusion)
         self.current_rect = self.canvas.create_rectangle(
@@ -1365,12 +1535,8 @@ class MontagemWindow(ttk.Frame):
         img_w = int(w / self.scale_factor)
         img_h = int(h / self.scale_factor)
         
-        # Verifica se é área de exclusão
-        if self.current_drawing_mode == "exclusion":
-            self.add_exclusion_area(img_x, img_y, img_w, img_h)
-        else:
-            # Adiciona slot normal
-            self.add_slot(img_x, img_y, img_w, img_h)
+        # Adiciona slot normal (exclusão removida)
+        self.add_slot(img_x, img_y, img_w, img_h)
     
     def find_slot_at(self, canvas_x, canvas_y):
         """Encontra slot nas coordenadas do canvas."""
@@ -1488,8 +1654,7 @@ class MontagemWindow(ttk.Frame):
             's_tolerance': s_tolerance,
             'v_tolerance': v_tolerance,
             'detection_threshold': 0.8,  # Limiar padrão para detecção
-            'shape': self.current_drawing_mode,  # Forma: rectangle, exclusion
-            'exclusion_areas': []               # Lista de áreas de exclusão
+            'shape': 'rectangle'
         }
         
         # Configurações específicas para clips
@@ -1618,14 +1783,10 @@ class MontagemWindow(ttk.Frame):
                         slot['detection_method'] = new_method
                         print(f"Método de detecção alterado de {old_method} para {new_method}")
                         
-                        # Limiar de detecção
-                        slot['detection_threshold'] = float(self.edit_vars['detection_threshold'].get())
-                        
-                        # Porcentagem para OK
-                        if 'ok_threshold' in self.edit_vars:
-                            slot['ok_threshold'] = int(self.edit_vars['ok_threshold'].get())
-                        
                         # Limiar de correlação
+                        if 'detection_threshold' in self.edit_vars:
+                            # Compat: se ainda existir este campo, trata como correlação
+                            slot['correlation_threshold'] = float(self.edit_vars['detection_threshold'].get())
                         if 'correlation_threshold' in self.edit_vars:
                             slot['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
                     
@@ -1849,8 +2010,7 @@ class MontagemWindow(ttk.Frame):
             self.preview_canvas.pack(fill='both', expand=True, padx=5, pady=5)
             
             # Definir variáveis antes da função update_preview_filter
-            threshold_var = StringVar(value=str(slot_data.get('detection_threshold', 0.8)))
-            ok_threshold_var = StringVar(value=str(slot_data.get('ok_threshold', 70)))
+            threshold_var = StringVar(value=str(slot_data.get('correlation_threshold', slot_data.get('detection_threshold', 0.5))))
             
             # Função para atualizar o preview quando o método de detecção mudar
             def update_preview_filter(*args):
@@ -1952,12 +2112,8 @@ class MontagemWindow(ttk.Frame):
                 # Adiciona informações sobre os parâmetros atuais
                 try:
                     detection_threshold = float(threshold_var.get())
-                    ok_threshold = int(ok_threshold_var.get())
-                    
-                    # Adiciona texto com os valores atuais
-                    cv2.putText(filtered_roi, f"Limiar: {detection_threshold:.2f}", (10, h-40), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                    cv2.putText(filtered_roi, f"% OK: {ok_threshold}%", (10, h-20), 
+                    # Adiciona texto com o valor atual da correlação
+                    cv2.putText(filtered_roi, f"Correlação: {detection_threshold:.2f}", (10, h-20), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                 except Exception as e:
                     print(f"Erro ao adicionar informações ao preview: {e}")
@@ -1989,7 +2145,7 @@ class MontagemWindow(ttk.Frame):
             threshold_frame = ttk.Frame(detection_frame)
             threshold_frame.pack(fill='x', pady=2, padx=5)
             
-            threshold_label = ttk.Label(threshold_frame, text="Limiar:", width=8)
+            threshold_label = ttk.Label(threshold_frame, text="Correlação:", width=8)
             threshold_label.pack(side='left')
             
             self.edit_vars['detection_threshold'] = threshold_var
@@ -1999,27 +2155,9 @@ class MontagemWindow(ttk.Frame):
             # Vincula a função de atualização do preview ao limiar de detecção
             threshold_var.trace("w", update_preview_filter)
             
-            threshold_tip = ttk.Label(threshold_frame, text="Valor entre 0.0 e 1.0", 
+            threshold_tip = ttk.Label(threshold_frame, text="Limiar de correlação (0.0–1.0)", 
                                     font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             threshold_tip.pack(side='left', padx=(5, 0))
-            
-            # Porcentagem para OK
-            ok_threshold_frame = ttk.Frame(detection_frame)
-            ok_threshold_frame.pack(fill='x', pady=2, padx=5)
-            
-            ok_threshold_label = ttk.Label(ok_threshold_frame, text="% para OK:", width=8)
-            ok_threshold_label.pack(side='left')
-            
-            self.edit_vars['ok_threshold'] = ok_threshold_var
-            ok_threshold_entry = ttk.Entry(ok_threshold_frame, textvariable=ok_threshold_var, width=8)
-            ok_threshold_entry.pack(side='left', padx=(5, 0))
-            
-            # Vincula a função de atualização do preview à porcentagem para OK
-            ok_threshold_var.trace("w", update_preview_filter)
-            
-            ok_threshold_tip = ttk.Label(ok_threshold_frame, text="Porcentagem para considerar OK (0-100)", 
-                                       font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
-            ok_threshold_tip.pack(side='left', padx=(5, 0))
             
             # Limiar de correlação
             correlation_threshold_frame = ttk.Frame(detection_frame)
@@ -2261,10 +2399,12 @@ class MontagemWindow(ttk.Frame):
             if slot_data.get('tipo') == 'clip':
                 if 'detection_method' in self.edit_vars:
                     slot_data['detection_method'] = self.edit_vars['detection_method'].get()
-                if 'detection_threshold' in self.edit_vars:
-                    slot_data['detection_threshold'] = float(self.edit_vars['detection_threshold'].get())
+                # Tratar sempre correlação como fonte única
                 if 'correlation_threshold' in self.edit_vars:
                     slot_data['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
+                elif 'detection_threshold' in self.edit_vars:
+                    # Compat: se vier deste campo, usa como correlação
+                    slot_data['correlation_threshold'] = float(self.edit_vars['detection_threshold'].get())
                 if 'template_method' in self.edit_vars:
                     slot_data['template_method'] = self.edit_vars['template_method'].get()
                 if 'scale_tolerance' in self.edit_vars:
@@ -2479,6 +2619,9 @@ class MontagemWindow(ttk.Frame):
             else:
                 raise ValueError("Nome do modelo não encontrado")
             
+            # Obtém índice da câmera selecionada para salvar com o modelo
+            camera_index = int(self.camera_combo.get()) if hasattr(self, 'camera_combo') and self.camera_combo.get() else 0
+            
             if result['action'] in ['update', 'overwrite']:
                 # Atualiza modelo existente
                 model_id = result['model_id']
@@ -2498,7 +2641,8 @@ class MontagemWindow(ttk.Frame):
                     model_id,
                     nome=model_name,
                     image_path=str(image_path),
-                    slots=self.slots
+                    slots=self.slots,
+                    camera_index=camera_index
                 )
                 
                 self.current_model_id = model_id
@@ -2511,7 +2655,8 @@ class MontagemWindow(ttk.Frame):
                 model_id = self.db_manager.save_modelo(
                     nome=model_name,
                     image_path="",  # Será atualizado depois
-                    slots=[]
+                    slots=[],
+                    camera_index=camera_index
                 )
                 
                 # Agora salva os templates na pasta correta do modelo
@@ -2529,7 +2674,8 @@ class MontagemWindow(ttk.Frame):
                 self.db_manager.update_modelo(
                     model_id,
                     image_path=str(image_path),
-                    slots=self.slots
+                    slots=self.slots,
+                    camera_index=camera_index
                 )
                 
                 self.current_model_id = model_id
@@ -2570,46 +2716,14 @@ class MontagemWindow(ttk.Frame):
         """Define o modo de desenho atual."""
         self.current_drawing_mode = self.drawing_mode.get()
         mode_names = {
-            "rectangle": "Retângulo",
-            "exclusion": "Área de Exclusão"
+            "rectangle": "Retângulo"
         }
-        self.tool_status_var.set(f"Modo: {mode_names.get(self.current_drawing_mode, 'Desconhecido')}")
+        self.tool_status_var.set(f"Modo: {mode_names.get(self.current_drawing_mode, 'Retângulo')}")
         print(f"Modo de desenho alterado para: {self.current_drawing_mode}")
     
     # Função de rotação removida
     
-    def add_exclusion_area(self, x, y, w, h):
-        """Adiciona área de exclusão ao slot selecionado."""
-        if self.selected_slot_id is None:
-            messagebox.showwarning("Aviso", "Selecione um slot primeiro para adicionar área de exclusão.")
-            return
-        
-        # Encontra o slot selecionado
-        selected_slot = None
-        for slot in self.slots:
-            if slot['id'] == self.selected_slot_id:
-                selected_slot = slot
-                break
-        
-        if selected_slot is None:
-            messagebox.showerror("Erro", "Slot selecionado não encontrado.")
-            return
-        
-        # Adiciona área de exclusão (sem verificação de limites)
-        exclusion_area = {
-            'x': x,
-            'y': y,
-            'w': w,
-            'h': h,
-            'shape': self.current_drawing_mode
-        }
-        
-        selected_slot['exclusion_areas'].append(exclusion_area)
-        self.mark_model_modified()
-        self.redraw_slots()
-        
-        print(f"Área de exclusão adicionada ao slot {self.selected_slot_id}: ({x}, {y}, {w}, {h})")
-        self.status_var.set(f"Área de exclusão adicionada ao slot {self.selected_slot_id}")
+    # Modo de exclusão removido
     
     def show_edit_handles(self, slot):
         """Mostra handles de edição para o slot selecionado."""
@@ -2702,53 +2816,68 @@ class MontagemWindow(ttk.Frame):
         # Tratamento de arrastar handle de rotação removido
     
     def handle_resize_drag(self, slot, canvas_x, canvas_y):
-        """Lida com redimensionamento do slot."""
+        """Lida com redimensionamento do slot sem recriar handles durante o arraste."""
         direction = self.editing_handle['direction']
-        
-        # Converte coordenadas do canvas para coordenadas da imagem
-        img_x = canvas_x / self.scale_factor
-        img_y = canvas_y / self.scale_factor
-        
+
+        # Converte coordenadas do canvas para coordenadas da imagem (considerando offsets)
+        img_x = (canvas_x - self.x_offset) / self.scale_factor
+        img_y = (canvas_y - self.y_offset) / self.scale_factor
+
         # Calcula novas dimensões baseadas na direção do handle
         new_x, new_y = slot['x'], slot['y']
         new_w, new_h = slot['w'], slot['h']
-        
+
         if 'w' in direction:  # Lado esquerdo
             new_w = slot['x'] + slot['w'] - img_x
             new_x = img_x
         elif 'e' in direction:  # Lado direito
             new_w = img_x - slot['x']
-        
+
         if 'n' in direction:  # Lado superior
             new_h = slot['y'] + slot['h'] - img_y
             new_y = img_y
         elif 's' in direction:  # Lado inferior
             new_h = img_y - slot['y']
-        
+
         # Garante dimensões mínimas
         if new_w < 10:
             new_w = 10
         if new_h < 10:
             new_h = 10
-        
+
         # Atualiza o slot
         slot['x'] = max(0, new_x)
         slot['y'] = max(0, new_y)
         slot['w'] = new_w
         slot['h'] = new_h
-        
-        # Marca modelo como modificado e atualiza interface
+
+        # Marca modelo como modificado e atualiza apenas o desenho do slot
+        # Evita recriar handles durante o arraste (isso fazia o "soltar")
         self.mark_model_modified()
         self.redraw_slots()
-        self.show_edit_handles(slot)
-        self.update_slots_list()
     
     # Função de rotação removida
     
     def on_handle_release(self, event):
-        """Finaliza edição com handle."""
+        """Finaliza edição com handle e reposiciona handles/redesenha lista."""
         if self.editing_handle:
+            # Ao finalizar, atualiza UI completa e reposiciona handles
             self.mark_model_modified()
+            # Redesenha slots
+            self.redraw_slots()
+            # Reposiciona handles do slot selecionado
+            try:
+                selected_slot = next((s for s in self.slots if s['id'] == self.selected_slot_id), None)
+                if selected_slot:
+                    self.show_edit_handles(selected_slot)
+            except Exception:
+                pass
+            # Atualiza lista/árvore de slots
+            try:
+                self.update_slots_list()
+            except Exception:
+                pass
+            # Finaliza estado de edição
             self.editing_handle = None
      
     def show_help(self):
@@ -2953,13 +3082,10 @@ class MontagemWindow(ttk.Frame):
         config_dialog.wait_window()
     
     def set_drawing_mode(self):
-        """Define o modo de desenho atual."""
+        """Define o modo de desenho atual (exclusão removida)."""
         mode = self.drawing_mode.get()
-        if mode == "rectangle":
-            self.tool_status_var.set("Modo: Retângulo")
-        elif mode == "exclusion":
-            self.tool_status_var.set("Modo: Exclusão")
-        self.current_drawing_mode = mode
+        self.tool_status_var.set("Modo: Retângulo")
+        self.current_drawing_mode = "rectangle"
     
     # Funções de rotação removidas
 

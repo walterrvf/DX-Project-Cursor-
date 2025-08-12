@@ -4,32 +4,34 @@ from tkinter import ttk
 
 # Configurações de estilo padrão (fallback caso o arquivo de config não exista)
 DEFAULT_STYLES = {
-    "slot_font_size": 10,
-    "result_font_size": 10,
-    "button_font_size": 9,
-    "hud_font_size": 12,
-    "hud_opacity": 82,
+    "slot_font_size": 11,
+    "result_font_size": 11,
+    "button_font_size": 10,
+    "hud_font_size": 13,
+    "hud_opacity": 85,
     "hud_position": "top-right",
     "show_fps": True,
     "show_timestamp": True,
     
     "fonts": {
-        "ok_font": "Segoe UI 10 bold",
-        "ng_font": "Segoe UI 10 bold",
-        "title_font": "Segoe UI 24 bold",
-        "subtitle_font": "Segoe UI 18",
-        "header_font": "Segoe UI 14 bold",
-        "small_font": "Segoe UI 9",
-        "tiny_font": "Segoe UI 8",
-        "console_font": "Consolas 10"
+        "ok_font": "Segoe UI 11 bold",
+        "ng_font": "Segoe UI 11 bold",
+        "title_font": "Inter 26 bold",
+        "subtitle_font": "Inter 19 normal",
+        "header_font": "Inter 15 bold",
+        "small_font": "Segoe UI 10",
+        "tiny_font": "Segoe UI 9",
+        "console_font": "JetBrains Mono 10",
+        "large_font": "Inter 16 bold",
+        "medium_font": "Segoe UI 12"
     },
     
     "colors": {
-        "background_color": "#0F172A",
-        "text_color": "#E5E7EB",
-        "ok_color": "#8cde81",
-        "ng_color": "#e7472c",
-        "selection_color": "#FFE66D",
+        "background_color": "#0B1220",
+        "text_color": "#E6EAF2",
+        "ok_color": "#22C55E",
+        "ng_color": "#EF4444",
+        "selection_color": "#93C5FD",
         "button_color": "#FFFFFF",
         
         "canvas_colors": {
@@ -37,9 +39,9 @@ DEFAULT_STYLES = {
             "canvas_dark_bg": "#0B1220",
             "panel_bg": "#111827",
             "dark_panel_bg": "#0B1220",
-            "button_bg": "#3A3A3A",
-            "button_active": "#4A4A4A",
-            "modern_bg": "#1E293B"
+            "button_bg": "#334155",
+            "button_active": "#475569",
+            "modern_bg": "#0F172A"
         },
         
         "editor_colors": {
@@ -101,16 +103,16 @@ DEFAULT_STYLES = {
         
         "button_colors": {
             "modern_bg": "#6366F1",
-            "modern_active": "#5855eb",
-            "modern_pressed": "#4f46e5",
-            "success_bg": "#10B981",
-            "success_active": "#059669",
-            "success_pressed": "#047857",
+            "modern_active": "#818CF8",
+            "modern_pressed": "#4F46E5",
+            "success_bg": "#22C55E",
+            "success_active": "#16A34A",
+            "success_pressed": "#15803D",
             "danger_bg": "#EF4444",
-            "danger_active": "#dc2626",
-            "danger_pressed": "#b91c1c",
-            "inspect_active": "#FF7733",
-            "inspect_pressed": "#CC4400"
+            "danger_active": "#DC2626",
+            "danger_pressed": "#B91C1C",
+            "inspect_active": "#FB923C",
+            "inspect_pressed": "#EA580C"
         },
         
         "special_colors": {
@@ -219,16 +221,25 @@ def apply_style_config(config):
         style.configure('TFrame', background=bg_color)
         style.configure('TLabel', background=bg_color, foreground=text_color)
         style.configure('TButton', foreground=text_color)
+        style.configure('TNotebook', background=bg_color)
+        style.configure('TNotebook.Tab', padding=(14, 8), font=('Segoe UI', 11))
+        style.configure('TLabelframe', background=colors.get('canvas_colors', {}).get('panel_bg', bg_color), foreground=text_color)
+        style.configure('TLabelframe.Label', background=colors.get('canvas_colors', {}).get('panel_bg', bg_color), foreground=text_color, font=('Segoe UI', 11, 'bold'))
+        style.configure('Treeview', background=colors.get('canvas_colors', {}).get('panel_bg', '#111827'),
+                        fieldbackground=colors.get('canvas_colors', {}).get('panel_bg', '#111827'),
+                        foreground=text_color, rowheight=28, bordercolor='#0F172A')
+        style.map('Treeview', background=[('selected', colors.get('selection_color', '#93C5FD'))],
+                  foreground=[('selected', '#0B1220')])
         
         # Aplica configurações de fonte
         if 'slot_font_size' in config:
-            style.configure('Slot.TLabel', font=('Arial', config['slot_font_size']))
+            style.configure('Slot.TLabel', font=('Segoe UI', config['slot_font_size']))
         
         if 'result_font_size' in config:
-            style.configure('Result.TLabel', font=('Arial', config['result_font_size']))
+            style.configure('Result.TLabel', font=('Segoe UI', config['result_font_size']))
         
         if 'button_font_size' in config:
-            style.configure('TButton', font=('Arial', config['button_font_size']))
+            style.configure('TButton', font=('Segoe UI', config['button_font_size']))
             
     except Exception as e:
         print(f"Erro ao aplicar configurações de estilo: {e}")

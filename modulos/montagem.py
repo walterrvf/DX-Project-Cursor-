@@ -26,7 +26,6 @@ try:
         get_cached_camera,
         release_cached_camera,
         cleanup_unused_cameras,
-        schedule_camera_cleanup,
         release_all_cached_cameras,
         capture_image_from_camera,
     )
@@ -45,7 +44,6 @@ except ImportError:
             get_cached_camera,
             release_cached_camera,
             cleanup_unused_cameras,
-            schedule_camera_cleanup,
             release_all_cached_cameras,
             capture_image_from_camera,
         )
@@ -63,7 +61,6 @@ except ImportError:
             get_cached_camera,
             release_cached_camera,
             cleanup_unused_cameras,
-            schedule_camera_cleanup,
             release_all_cached_cameras,
             capture_image_from_camera,
         )
@@ -339,13 +336,10 @@ def check_slot(img_test, slot_data, M):
                         threshold = slot_data.get('detection_threshold', 30.0) / 100.0  # Converte % para decimal
                         threshold_source = "detection_threshold"
                     
-                    # Usa a porcentagem para OK personalizada ou padrão
-                    ok_threshold = slot_data.get('ok_threshold', 70) / 100.0  # Converte % para decimal
+                    # Usa somente correlação como critério final
+                    passou = histogram_score >= threshold
                     
-                    # Verifica se passou baseado na porcentagem para OK
-                    passou = histogram_score >= ok_threshold
-                    
-                    log_msgs.append(f"Histograma: {histogram_score:.3f} (limiar: {threshold:.2f} [{threshold_source}], % para OK: {ok_threshold:.2f}, entropia: {entropy:.2f}, std: {hist_std:.3f})")
+                    log_msgs.append(f"Histograma: {histogram_score:.3f} (limiar: {threshold:.2f} [{threshold_source}], entropia: {entropy:.2f}, std: {hist_std:.3f})")
                     return passou, histogram_score, 0, corners, bbox, log_msgs
                     
                 except Exception as e:
@@ -398,13 +392,10 @@ def check_slot(img_test, slot_data, M):
                     # Usa limiar personalizado do slot ou padrão
                     threshold = slot_data.get('detection_threshold', 0.5)
                     
-                    # Usa a porcentagem para OK personalizada ou padrão
-                    ok_threshold = slot_data.get('ok_threshold', 70) / 100.0  # Converte % para decimal
+                    # Usa somente correlação como critério final
+                    passou = contour_score >= threshold
                     
-                    # Verifica se passou baseado na porcentagem para OK
-                    passou = contour_score >= ok_threshold
-                    
-                    log_msgs.append(f"Contorno: {contour_score:.3f} (limiar: {threshold:.2f}, % para OK: {ok_threshold:.2f}, contornos: {num_contours}, área: {area_ratio:.2f}, complexidade: {complexity:.2f})")
+                    log_msgs.append(f"Contorno: {contour_score:.3f} (limiar: {threshold:.2f}, contornos: {num_contours}, área: {area_ratio:.2f}, complexidade: {complexity:.2f})")
                     return passou, contour_score, 0, corners, bbox, log_msgs
                     
                 except Exception as e:
@@ -459,13 +450,10 @@ def check_slot(img_test, slot_data, M):
                     # Usa limiar personalizado do slot ou padrão
                     threshold = slot_data.get('detection_threshold', 0.7)
                     
-                    # Usa a porcentagem para OK personalizada ou padrão
-                    ok_threshold = slot_data.get('ok_threshold', 70) / 100.0  # Converte % para decimal
+                    # Usa somente correlação como critério final
+                    passou = comparison_score >= threshold
                     
-                    # Verifica se passou baseado na porcentagem para OK
-                    passou = comparison_score >= ok_threshold
-                    
-                    log_msgs.append(f"Comparação: {comparison_score:.3f} (limiar: {threshold:.2f}, % para OK: {ok_threshold:.2f}, SSIM: {ssim_score:.2f}, Diff: {diff_score:.2f}, Hist: {hist_score:.2f})")
+                    log_msgs.append(f"Comparação: {comparison_score:.3f} (limiar: {threshold:.2f}, SSIM: {ssim_score:.2f}, Diff: {diff_score:.2f}, Hist: {hist_score:.2f})")
                     return passou, comparison_score, 0, corners, bbox, log_msgs
                     
                 except Exception as e:
@@ -549,13 +537,10 @@ def check_slot(img_test, slot_data, M):
                 threshold = slot_data.get('detection_threshold', 70.0) / 100.0  # Converte % para decimal
                 threshold_source = "detection_threshold"
             
-            # Usa a porcentagem para OK personalizada ou padrão
-            ok_threshold = slot_data.get('ok_threshold', 70) / 100.0  # Converte % para decimal
+            # Usa apenas correlação como critério final
+            passou = max_val >= threshold
             
-            # Verifica se passou baseado na porcentagem para OK
-            passou = max_val >= ok_threshold
-            
-            log_msgs.append(f"Correlação: {max_val:.3f} (limiar: {threshold:.2f} [{threshold_source}], % para OK: {ok_threshold:.2f}, escala: {best_scale:.2f}, método: {template_method_str})")
+            log_msgs.append(f"Correlação: {max_val:.3f} (limiar: {threshold:.2f} [{threshold_source}], escala: {best_scale:.2f}, método: {template_method_str})")
             return passou, max_val, 0, corners, bbox, log_msgs
         
         else:  # fita - tipo removido, apenas clips são suportados
@@ -970,7 +955,10 @@ class MontagemWindow(ttk.Frame):
     
     def __init__(self, master):
         super().__init__(master)
-        from mesh_editor import MontagemWindow as _MontagemWindow
+        try:
+            from mesh_editor import MontagemWindow as _MontagemWindow
+        except Exception:
+            from modulos.mesh_editor import MontagemWindow as _MontagemWindow
         # Importante: instanciar o delegado com 'self' para renderizar dentro desta aba
         self._delegate = _MontagemWindow(self)
         # Renderiza o conteúdo do delegado dentro deste frame
@@ -994,7 +982,10 @@ class InspecaoWindow(ttk.Frame):
     
     def __init__(self, master):
         super().__init__(master)
-        from inspection_window import InspecaoWindow as _InspecaoWindow
+        try:
+            from inspection_window import InspecaoWindow as _InspecaoWindow
+        except Exception:
+            from modulos.inspection_window import InspecaoWindow as _InspecaoWindow
         # Importante: instanciar o delegado com 'self' para renderizar dentro desta aba
         self._delegate = _InspecaoWindow(self)
         # Renderiza o conteúdo do delegado dentro deste frame
@@ -1077,17 +1068,56 @@ class HistoricoFotosWindow(ttk.Frame):
         self.fotos_ng_filtradas = []
         self.fotos_capturas_filtradas = []
         
-        # Diretórios do histórico
+        # Modo de exibição: 'Cards' (padrão) ou 'Tabela'
         try:
-            from paths import get_model_dir
-            base_hist = get_model_dir() / 'historico_fotos'
-            self.ok_dir = base_hist / 'ok'
-            self.ng_dir = base_hist / 'ng'
-            self.capturas_dir = base_hist / 'capturas'
-            for d in [self.ok_dir, self.ng_dir, self.capturas_dir]:
-                d.mkdir(parents=True, exist_ok=True)
+            self.view_mode = ttk.StringVar(value="Cards")
+        except Exception:
+            self.view_mode = None
+        
+        # Diretórios do histórico (garante existência)
+        try:
+            self._init_history_dirs()
         except Exception:
             pass
+        
+        # Mapa de normalização de programas (exibição -> normalizado)
+        self._program_display_to_norm = {}
+        self._program_norm_to_display = {}
+
+    # Utilitários de normalização de nomes de programa
+    def _normalize_program(self, name: str) -> str:
+        try:
+            import unicodedata
+            s = (name or '').strip()
+            s = unicodedata.normalize('NFKD', s)
+            s = ''.join(c for c in s if not unicodedata.combining(c))
+            s = s.lower().replace(' ', '_').replace('-', '_')
+            while '__' in s:
+                s = s.replace('__', '_')
+            return s
+        except Exception:
+            return (name or '').strip().lower().replace(' ', '_')
+
+    def _register_program(self, display_name: str):
+        norm = self._normalize_program(display_name)
+        self._program_display_to_norm[display_name] = norm
+        # Preservar o primeiro display para esse norm
+        if norm not in self._program_norm_to_display:
+            self._program_norm_to_display[norm] = display_name
+        if display_name not in self.programas_disponiveis:
+            self.programas_disponiveis.append(display_name)
+
+    def _init_history_dirs(self):
+        """Inicializa os diretórios de histórico (ok/ng/capturas)."""
+        from paths import get_model_dir
+        base_hist = get_model_dir() / 'historico_fotos'
+        self.ok_dir = base_hist / 'ok'
+        self.ng_dir = base_hist / 'ng'
+        self.capturas_dir = base_hist / 'capturas'
+        for d in [self.ok_dir, self.ng_dir, self.capturas_dir]:
+            d.mkdir(parents=True, exist_ok=True)
+        
+        # Diretórios do histórico são inicializados por _init_history_dirs no __init__
     
     def setup_ui(self):
         """Configura a interface do usuário."""
@@ -1095,12 +1125,23 @@ class HistoricoFotosWindow(ttk.Frame):
         for widget in self.winfo_children():
             widget.destroy()
             
-        # Frame principal com layout horizontal
+        # Frame principal com layout horizontal (preenche a área do Notebook)
         main_frame = ttk.Frame(self)
         main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        try:
+            # Expansão total do container
+            self.pack_propagate(False)
+        except Exception:
+            pass
         
         # Painel esquerdo - Controles
         left_panel = ttk.Frame(main_frame)
+        # Fixar largura mínima e permitir que o painel direito ocupe o restante
+        left_panel.pack_propagate(False)
+        try:
+            left_panel.configure(width=340)
+        except Exception:
+            pass
         left_panel.pack(side=LEFT, fill=Y, padx=(0, 10))
         
         # Cabeçalho com título
@@ -1153,6 +1194,16 @@ class HistoricoFotosWindow(ttk.Frame):
             small_font = ('Arial', 7)
         ttk.Label(period_frame, text="dias", font=small_font).pack()
         
+        # Modo de exibição (Cards/Tabela)
+        view_frame = ttk.LabelFrame(controls_frame, text="MODO DE EXIBIÇÃO")
+        view_frame.pack(fill=X, padx=5, pady=(5, 5))
+        self.view_mode_combo = ttk.Combobox(view_frame, 
+                                            textvariable=self.view_mode,
+                                            values=["Cards", "Tabela"],
+                                            state="readonly")
+        self.view_mode_combo.pack(fill=X, padx=5, pady=5)
+        self.view_mode_combo.bind("<<ComboboxSelected>>", self.on_view_mode_change)
+        
         # Botão para atualizar histórico
         self.btn_atualizar = ttk.Button(controls_frame, text="ATUALIZAR HISTÓRICO", 
                                      command=self.atualizar_historico)
@@ -1162,10 +1213,17 @@ class HistoricoFotosWindow(ttk.Frame):
         self.btn_limpar = ttk.Button(controls_frame, text="LIMPAR HISTÓRICO", 
                                    command=self.limpar_historico)
         self.btn_limpar.pack(fill=X, padx=5, pady=5)
+
+        # Botão para exportar relatório em Excel
+        self.btn_exportar = ttk.Button(controls_frame, text="EXPORTAR RELATÓRIO (Excel)",
+                                       command=self.exportar_relatorio_excel)
+        self.btn_exportar.pack(fill=X, padx=5, pady=5)
         
         # Painel direito - Histórico de fotos
         right_panel = ttk.Frame(main_frame)
         right_panel.pack(side=RIGHT, fill=BOTH, expand=True)
+        # Garantir expansão total usando pack; grid não é necessário aqui
+        # Expandir notebook para ocupar toda a área disponível
         
         # Notebook para organizar fotos por categoria
         self.historico_notebook = ttk.Notebook(right_panel)
@@ -1191,7 +1249,7 @@ class HistoricoFotosWindow(ttk.Frame):
         self.estatisticas_frame = ttk.Frame(self.historico_notebook)
         self.historico_notebook.add(self.estatisticas_frame, text="Estatísticas")
         
-        # Criar scrollable frames para cada aba
+        # Criar scrollable frames para cada aba (sempre expandindo para preencher)
         self.todas_scrollable_frame = self.criar_scrollable_frame(self.todas_fotos_frame, "todas")
         self.ok_scrollable_frame = self.criar_scrollable_frame(self.ok_fotos_frame, "ok")
         self.ng_scrollable_frame = self.criar_scrollable_frame(self.ng_fotos_frame, "ng")
@@ -1202,6 +1260,12 @@ class HistoricoFotosWindow(ttk.Frame):
         
         # Não carregar dados automaticamente - apenas carregar programas disponíveis
         self.carregar_programas_disponiveis()
+
+        # Renderização sob demanda por aba
+        try:
+            self.historico_notebook.bind("<<NotebookTabChanged>>", self.on_hist_tab_changed)
+        except Exception:
+            pass
         
         # Mostrar mensagem inicial
         self.mostrar_mensagem_inicial()
@@ -1269,6 +1333,87 @@ class HistoricoFotosWindow(ttk.Frame):
         
         self.model_tree.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 0), pady=10)
         model_scrollbar.pack(side=RIGHT, fill=Y, pady=10)
+
+    def exportar_relatorio_excel(self):
+        """Exporta o histórico e o resumo para um arquivo Excel (.xlsx)."""
+        try:
+            import csv
+            try:
+                import openpyxl  # noqa: F401
+            except Exception:
+                pass  # Se não houver openpyxl, o pandas/csv simples ainda pode ser usado
+
+            from tkinter import filedialog, messagebox
+            from database_manager import DatabaseManager
+            db = self.db_manager or DatabaseManager()
+
+            # Filtros atuais
+            modelo_nome = None if (self.programa_selecionado is None or self.programa_selecionado.get() == 'Todos') else self.programa_selecionado.get()
+            try:
+                dias = 0 if self.periodo_var.get() == 'Todos' else int(self.periodo_var.get())
+            except Exception:
+                dias = 30
+
+            # Buscar dados
+            historico = db.get_inspection_history(modelo_nome=modelo_nome, limit=100000, offset=0)
+            estat = db.get_inspection_statistics(modelo_nome=modelo_nome, days=(dias or 36500))
+            resumo = db.get_model_inspection_summary()
+
+            # Selecionar destino
+            default_name = "relatorio_inspecoes.xlsx"
+            file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile=default_name,
+                                                     filetypes=[("Excel", "*.xlsx"), ("CSV", "*.csv"), ("Todos", "*.*")])
+            if not file_path:
+                return
+
+            if file_path.lower().endswith('.csv'):
+                # Exporta histórico principal em CSV
+                keys = historico[0].keys() if historico else ['id','modelo_id','modelo_nome','slot_id','result','confidence','processing_time','image_path','created_at']
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=keys)
+                    writer.writeheader()
+                    for row in historico:
+                        writer.writerow(row)
+            else:
+                # Exporta em Excel com múltiplas abas
+                from openpyxl import Workbook
+                from openpyxl.utils import get_column_letter
+                wb = Workbook()
+                ws_hist = wb.active
+                ws_hist.title = 'Historico'
+                # Cabeçalhos
+                headers = list(historico[0].keys()) if historico else ['id','modelo_id','modelo_nome','slot_id','result','confidence','processing_time','image_path','created_at']
+                ws_hist.append(headers)
+                for row in historico:
+                    ws_hist.append([row.get(k, '') for k in headers])
+                # Ajuste de largura
+                for i, h in enumerate(headers, start=1):
+                    ws_hist.column_dimensions[get_column_letter(i)].width = min(max(12, len(str(h)) + 2), 40)
+
+                # Aba Estatísticas
+                ws_est = wb.create_sheet('Estatisticas')
+                for k in ['total_inspections','total_ok','total_ng','approval_rate','avg_processing_time','avg_confidence','period_days']:
+                    ws_est.append([k, estat.get(k, '')])
+
+                # Aba Resumo por Modelo
+                ws_sum = wb.create_sheet('Resumo_Modelos')
+                if resumo:
+                    headers_sum = list(resumo[0].keys())
+                    ws_sum.append(headers_sum)
+                    for row in resumo:
+                        ws_sum.append([row.get(k, '') for k in headers_sum])
+                    for i, h in enumerate(headers_sum, start=1):
+                        ws_sum.column_dimensions[get_column_letter(i)].width = min(max(12, len(str(h)) + 2), 40)
+
+                wb.save(file_path)
+
+            messagebox.showinfo("Relatório", f"Relatório exportado com sucesso:\n{file_path}")
+        except Exception as e:
+            try:
+                from tkinter import messagebox
+                messagebox.showerror("Erro", f"Falha ao exportar relatório: {e}")
+            except Exception:
+                print(f"Falha ao exportar relatório: {e}")
     
     def carregar_programas_disponiveis(self):
         """Carrega apenas a lista de programas disponíveis sem carregar fotos."""
@@ -1437,76 +1582,97 @@ class HistoricoFotosWindow(ttk.Frame):
             def processar_arquivos(diretorio, categoria):
                 fotos = []
                 if diretorio.exists():
-                    # Processar arquivos PNG e JPG (versões otimizadas)
                     for arquivo in diretorio.glob("*.*"):
+                        # Considerar apenas imagens
                         if arquivo.suffix.lower() not in ['.png', '.jpg', '.jpeg']:
                             continue
-                            
+                        stem = arquivo.stem
+                        # Base sem sufixos de otimização
+                        if stem.endswith('_hist'):
+                            base_stem = stem[:-5]
+                        elif stem.endswith('_thumb'):
+                            base_stem = stem[:-6]
+                        else:
+                            base_stem = stem
+
                         try:
                             nome = arquivo.name
-                            timestamp_str = ""
+                            nome_sem_ext = base_stem  # sem extensão e sem sufixos
+                            timestamp = None
                             programa = "Desconhecido"
-                            
-                            # Extrair informações do nome do arquivo
-                            if categoria == "capturas" and nome.startswith("foto_"):
-                                # Formato: foto_modelo_YYYYMMDD_HHMMSS.png
-                                partes = nome[5:].split('.')[0].split('_')  # Remove "foto_" e extensão
-                                if len(partes) >= 2:
-                                    # O último ou os dois últimos elementos são a data/hora
-                                    if len(partes[-1]) == 6 and len(partes[-2]) == 8:  # HHMMSS e YYYYMMDD
-                                        timestamp_str = f"{partes[-2]}_{partes[-1]}"
-                                        programa = "_".join(partes[:-2]) if len(partes) > 2 else "Desconhecido"
-                                    else:
-                                        timestamp_str = partes[-1]
-                                        programa = "_".join(partes[:-1]) if len(partes) > 1 else "Desconhecido"
-                            elif (categoria == "ok" or categoria == "ng") and nome.startswith("inspecao_"):
-                                # Formato: inspecao_modelo_YYYYMMDD_HHMMSS.png
-                                partes = nome[9:].split('.')[0].split('_')  # Remove "inspecao_" e extensão
-                                if len(partes) >= 2:
-                                    # O último ou os dois últimos elementos são a data/hora
-                                    if len(partes[-1]) == 6 and len(partes[-2]) == 8:  # HHMMSS e YYYYMMDD
-                                        timestamp_str = f"{partes[-2]}_{partes[-1]}"
-                                        programa = "_".join(partes[:-2]) if len(partes) > 2 else "Desconhecido"
-                                    else:
-                                        timestamp_str = partes[-1]
-                                        programa = "_".join(partes[:-1]) if len(partes) > 1 else "Desconhecido"
-                            
-                            # Se encontrou um timestamp válido
-                            if timestamp_str:
+
+                            # Remove prefixos conhecidos e tokens supérfluos no final
+                            base = nome_sem_ext
+                            if categoria == "capturas" and base.startswith("foto_"):
+                                base = base[5:]
+                            if (categoria in ("ok", "ng")) and base.startswith("inspecao_"):
+                                base = base[9:]
+
+                            # Tokens por '_', removendo sufixos 'hist'/'thumb' caso tenham passado
+                            partes = [p for p in base.split('_') if p]
+                            if partes and partes[-1].lower() in {"hist", "thumb"}:
+                                partes = partes[:-1]
+
+                            # Procura par (YYYYMMDD, HHMMSS)
+                            def eh_data(s):
+                                return len(s) == 8 and s.isdigit()
+                            def eh_hora(s):
+                                return len(s) == 6 and s.isdigit()
+
+                            idx_data = None
+                            for i in range(max(0, len(partes) - 6), len(partes) - 1):
+                                if eh_data(partes[i]) and eh_hora(partes[i+1]):
+                                    idx_data = i
+                                    break
+
+                            if idx_data is not None:
+                                data_str = partes[idx_data]
+                                hora_str = partes[idx_data + 1]
                                 try:
-                                    timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                                    
-                                    # Adicionar programa à lista de programas disponíveis
-                                    if programa != "Desconhecido" and programa not in self.programas_disponiveis:
-                                        self.programas_disponiveis.append(programa)
-                                    
-                                    # Verificar se existe versão otimizada para histórico
-                                    arquivo_hist = arquivo.parent / f"{arquivo.stem}_hist.jpg"
-                                    arquivo_thumb = arquivo.parent / f"{arquivo.stem}_thumb.jpg"
-                                    
-                                    # Priorizar versões otimizadas para exibição
-                                    arquivo_exibicao = arquivo
-                                    if arquivo_hist.exists():
-                                        arquivo_exibicao = arquivo_hist
-                                    elif arquivo_thumb.exists():
-                                        arquivo_exibicao = arquivo_thumb
-                                    
-                                    foto_info = {
-                                        'arquivo': arquivo,
-                                        'arquivo_exibicao': arquivo_exibicao,
-                                        'timestamp': timestamp,
-                                        'categoria': categoria,
-                                        'programa': programa,
-                                        'tem_otimizada': arquivo_hist.exists() or arquivo_thumb.exists()
-                                    }
-                                    fotos.append(foto_info)
-                                except ValueError:
-                                    print(f"Formato de timestamp inválido: {timestamp_str}")
+                                    timestamp = datetime.strptime(f"{data_str}_{hora_str}", "%Y%m%d_%H%M%S")
+                                except Exception:
+                                    timestamp = None
+                                programa = "_".join(partes[:idx_data]) if idx_data > 0 else "Desconhecido"
+
+                            # Fallback: usa mtime do arquivo
+                            if timestamp is None:
+                                try:
+                                    timestamp = datetime.fromtimestamp(arquivo.stat().st_mtime)
+                                except Exception:
+                                    pass
+
+                            if timestamp is None:
+                                # Não conseguiu timestamp, ignora silenciosamente
+                                continue
+
+                            # Seleciona versão otimizada para exibição se existir (usando base)
+                            arquivo_hist = arquivo.parent / f"{base_stem}_hist.jpg"
+                            arquivo_thumb = arquivo.parent / f"{base_stem}_thumb.jpg"
+                            # Escolhe original se existir; senão usa o arquivo atual
+                            original_png = arquivo.parent / f"{base_stem}.png"
+                            original_jpg = arquivo.parent / f"{base_stem}.jpg"
+                            original_jpeg = arquivo.parent / f"{base_stem}.jpeg"
+                            arquivo_original = original_png if original_png.exists() else (original_jpg if original_jpg.exists() else (original_jpeg if original_jpeg.exists() else arquivo))
+                            arquivo_exibicao = arquivo_hist if arquivo_hist.exists() else (arquivo_thumb if arquivo_thumb.exists() else arquivo_original)
+
+                            # Registrar programa (display) e normalizado
+                            if programa and programa != "Desconhecido":
+                                self._register_program(programa.replace('_', ' '))
+
+                            fotos.append({
+                                'arquivo': arquivo_original,
+                                'arquivo_exibicao': arquivo_exibicao,
+                                'timestamp': timestamp,
+                                'categoria': categoria,
+                                'programa': programa.replace('_', ' ') if programa else 'Desconhecido',
+                                'programa_norm': self._normalize_program(programa),
+                                'tem_otimizada': arquivo_hist.exists() or arquivo_thumb.exists()
+                            })
                         except Exception as e:
                             print(f"Erro ao processar arquivo {arquivo}: {e}")
                 return fotos
             
-            # Processar arquivos de cada diretório
+            # Processar arquivos de cada diretório (padrão)
             self.fotos_ok = processar_arquivos(self.ok_dir, "ok")
             self.fotos_ng = processar_arquivos(self.ng_dir, "ng")
             self.fotos_capturas = processar_arquivos(self.capturas_dir, "capturas")
@@ -1514,6 +1680,63 @@ class HistoricoFotosWindow(ttk.Frame):
             # Combinar todas as fotos
             self.fotos_historico = self.fotos_ok + self.fotos_ng + self.fotos_capturas
             
+            # Fallback 1: se nada encontrado, tentar varrer subpastas diretas de historico_fotos
+            if not self.fotos_historico:
+                base_hist = self.ok_dir.parent  # historico_fotos
+                if base_hist.exists():
+                    for sub in base_hist.iterdir():
+                        if not sub.is_dir():
+                            continue
+                        if sub.name.lower() in {"ok", "ng", "capturas"}:
+                            continue
+                        fotos_sub = processar_arquivos(sub, "capturas")
+                        # Se programa estiver desconhecido, usar nome da pasta
+                        if fotos_sub:
+                            for f in fotos_sub:
+                                if f.get('programa', 'Desconhecido') == 'Desconhecido':
+                                    f['programa'] = sub.name
+                                    f['programa_norm'] = self._normalize_program(sub.name)
+                                    self._register_program(sub.name)
+                            self.fotos_capturas.extend(fotos_sub)
+                    self.fotos_historico = self.fotos_ok + self.fotos_ng + self.fotos_capturas
+
+            # Fallback 2: se ainda nada, procurar imagens soltas na raiz de historico_fotos
+            if not self.fotos_historico:
+                base_hist = self.ok_dir.parent
+                if base_hist.exists():
+                    fotos_root = []
+                    for arquivo in base_hist.glob("*.*"):
+                        if arquivo.suffix.lower() not in ['.png', '.jpg', '.jpeg']:
+                            continue
+                        # Reutilizar processamento via diretório raiz
+                        try:
+                            stem = arquivo.stem
+                            base_stem = stem[:-5] if stem.endswith('_hist') else (stem[:-6] if stem.endswith('_thumb') else stem)
+                            # Timestamp via mtime
+                            timestamp = datetime.fromtimestamp(arquivo.stat().st_mtime)
+                            # Arquivo exibição
+                            arquivo_hist = arquivo.parent / f"{base_stem}_hist.jpg"
+                            arquivo_thumb = arquivo.parent / f"{base_stem}_thumb.jpg"
+                            original_png = arquivo.parent / f"{base_stem}.png"
+                            original_jpg = arquivo.parent / f"{base_stem}.jpg"
+                            original_jpeg = arquivo.parent / f"{base_stem}.jpeg"
+                            arquivo_original = original_png if original_png.exists() else (original_jpg if original_jpg.exists() else (original_jpeg if original_jpeg.exists() else arquivo))
+                            arquivo_exibicao = arquivo_hist if arquivo_hist.exists() else (arquivo_thumb if arquivo_thumb.exists() else arquivo_original)
+                            fotos_root.append({
+                                'arquivo': arquivo_original,
+                                'arquivo_exibicao': arquivo_exibicao,
+                                'timestamp': timestamp,
+                                'categoria': 'capturas',
+                                'programa': 'Desconhecido',
+                                'programa_norm': self._normalize_program('Desconhecido'),
+                                'tem_otimizada': arquivo_hist.exists() or arquivo_thumb.exists()
+                            })
+                        except Exception:
+                            continue
+                    if fotos_root:
+                        self.fotos_capturas.extend(fotos_root)
+                        self.fotos_historico = self.fotos_ok + self.fotos_ng + self.fotos_capturas
+
             # Ordenar por timestamp (mais recente primeiro)
             self.fotos_historico.sort(key=lambda x: x['timestamp'], reverse=True)
             self.fotos_ok.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -1545,30 +1768,79 @@ class HistoricoFotosWindow(ttk.Frame):
                 self.mostrar_mensagem_sem_fotos()
                 return
             
-            # Usar listas filtradas se disponíveis, senão usar listas originais
+            # Usar listas filtradas se disponíveis, senão listas originais
             if hasattr(self, 'fotos_filtradas') and self.fotos_filtradas:
-                fotos_todas = self.fotos_filtradas
-                fotos_ok = self.fotos_ok_filtradas
-                fotos_ng = self.fotos_ng_filtradas
-                fotos_capturas = self.fotos_capturas_filtradas
-                print(f"Usando fotos filtradas: {len(fotos_todas)} fotos")
+                fotos_por_cat = {
+                    'todas': self.fotos_filtradas,
+                    'ok': self.fotos_ok_filtradas,
+                    'ng': self.fotos_ng_filtradas,
+                    'capturas': self.fotos_capturas_filtradas,
+                }
             else:
-                # Usar listas originais (sem filtros aplicados)
-                fotos_todas = self.fotos_historico
-                fotos_ok = self.fotos_ok
-                fotos_ng = self.fotos_ng
-                fotos_capturas = self.fotos_capturas
-                print(f"Usando fotos originais: {len(fotos_todas)} fotos")
-            
-            print(f"Total de fotos filtradas: {len(fotos_todas)}")
-            
-            # Exibir fotos em cada aba
-            self.exibir_fotos_em_aba(self.todas_scrollable_frame, fotos_todas, "todas")
-            self.exibir_fotos_em_aba(self.ok_scrollable_frame, fotos_ok, "ok")
-            self.exibir_fotos_em_aba(self.ng_scrollable_frame, fotos_ng, "ng")
-            self.exibir_fotos_em_aba(self.capturas_scrollable_frame, fotos_capturas, "capturas")
+                fotos_por_cat = {
+                    'todas': self.fotos_historico,
+                    'ok': self.fotos_ok,
+                    'ng': self.fotos_ng,
+                    'capturas': self.fotos_capturas,
+                }
+
+            # Renderiza somente a aba atual para economizar recursos
+            try:
+                current_tab = self.historico_notebook.tab(self.historico_notebook.select(), 'text')
+            except Exception:
+                current_tab = 'Todas as Fotos'
+
+            aba_map = {
+                'Todas as Fotos': ('todas', self.todas_scrollable_frame),
+                'Aprovadas (OK)': ('ok', self.ok_scrollable_frame),
+                'Reprovadas (NG)': ('ng', self.ng_scrollable_frame),
+                'Capturas Manuais': ('capturas', self.capturas_scrollable_frame),
+            }
+
+            cat, frame = aba_map.get(current_tab, ('todas', self.todas_scrollable_frame))
+            fotos = fotos_por_cat.get(cat, [])
+            print(f"Exibindo {len(fotos)} fotos na aba '{current_tab}' - modo {self.view_mode.get() if self.view_mode else 'Cards'}")
+            if self.view_mode and self.view_mode.get() == "Tabela":
+                self.exibir_fotos_em_tabela(frame, fotos, cat)
+            else:
+                self.exibir_fotos_em_aba(frame, fotos, cat)
         except Exception as e:
             print(f"Erro ao exibir fotos: {e}")
+
+    def on_hist_tab_changed(self, event=None):
+        """Re-renderiza a aba de histórico selecionada ao trocar de aba."""
+        try:
+            # Reutiliza listas já carregadas/filtradas
+            if hasattr(self, 'fotos_filtradas') and self.fotos_filtradas:
+                fotos_por_cat = {
+                    'todas': self.fotos_filtradas,
+                    'ok': self.fotos_ok_filtradas,
+                    'ng': self.fotos_ng_filtradas,
+                    'capturas': self.fotos_capturas_filtradas,
+                }
+            else:
+                fotos_por_cat = {
+                    'todas': self.fotos_historico,
+                    'ok': self.fotos_ok,
+                    'ng': self.fotos_ng,
+                    'capturas': self.fotos_capturas,
+                }
+
+            current_tab = self.historico_notebook.tab(self.historico_notebook.select(), 'text')
+            aba_map = {
+                'Todas as Fotos': ('todas', self.todas_scrollable_frame),
+                'Aprovadas (OK)': ('ok', self.ok_scrollable_frame),
+                'Reprovadas (NG)': ('ng', self.ng_scrollable_frame),
+                'Capturas Manuais': ('capturas', self.capturas_scrollable_frame),
+            }
+            cat, frame = aba_map.get(current_tab, ('todas', self.todas_scrollable_frame))
+            fotos = fotos_por_cat.get(cat, [])
+            if self.view_mode and self.view_mode.get() == "Tabela":
+                self.exibir_fotos_em_tabela(frame, fotos, cat)
+            else:
+                self.exibir_fotos_em_aba(frame, fotos, cat)
+        except Exception as e:
+            print(f"Erro ao alternar aba do histórico: {e}")
     
     def exibir_estatisticas(self):
         """Exibe as estatísticas das inspeções."""
@@ -1589,8 +1861,9 @@ class HistoricoFotosWindow(ttk.Frame):
                     self.model_tree.delete(item)
                 return
             
-            # Obter programa selecionado
-            programa = self.programa_selecionado.get()
+            # Obter programa selecionado (normalizado)
+            programa_display = self.programa_selecionado.get()
+            programa_norm_sel = self._normalize_program(programa_display) if programa_display != 'Todos' else 'todos'
             periodo = self.periodo_var.get()
             
             # Calcular estatísticas baseadas nas fotos carregadas
@@ -1639,7 +1912,7 @@ class HistoricoFotosWindow(ttk.Frame):
             
             # Preencher treeview com estatísticas calculadas
             for modelo_nome, stats in modelos_stats.items():
-                if programa == "Todos" or modelo_nome == programa:
+                if programa_norm_sel == 'todos' or self._normalize_program(modelo_nome) == programa_norm_sel:
                     approval_rate_modelo = round((stats['ok'] / stats['total'] * 100) if stats['total'] > 0 else 0, 1)
                     self.model_tree.insert("", "end", values=(
                         modelo_nome,
@@ -1699,8 +1972,11 @@ class HistoricoFotosWindow(ttk.Frame):
             fotos_filtradas = []
             
             for foto in self.fotos_historico:
-                # Filtrar por programa
-                if programa != "Todos" and foto.get('programa') != programa:
+                # Filtrar por programa (normalizado)
+                if programa != "Todos":
+                    pf = foto.get('programa_norm') or self._normalize_program(foto.get('programa', ''))
+                    if pf != self._normalize_program(programa):
+                        continue
                     continue
                 
                 # Filtrar por data se aplicável
@@ -1836,7 +2112,7 @@ class HistoricoFotosWindow(ttk.Frame):
                 bg_color = get_color('colors.canvas_colors.canvas_bg')
             except:
                 bg_color = '#1E1E1E'
-            canvas = Canvas(parent_frame, bg=bg_color)
+            canvas = Canvas(parent_frame, bg=bg_color, highlightthickness=0)
             scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=canvas.yview)
             scrollable_frame = ttk.Frame(canvas)
             
@@ -1845,7 +2121,7 @@ class HistoricoFotosWindow(ttk.Frame):
                 lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
             )
             
-            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            window_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
             canvas.configure(yscrollcommand=scrollbar.set)
             
             canvas.pack(side="left", fill="both", expand=True)
@@ -1853,11 +2129,20 @@ class HistoricoFotosWindow(ttk.Frame):
             
             # Adiciona suporte para scroll com mouse wheel
             canvas.bind("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+            # Garante que o conteúdo ocupe a largura do canvas
+            def _sync_width(event=None, wid=window_id):
+                try:
+                    canvas.itemconfig(wid, width=canvas.winfo_width())
+                except Exception:
+                    pass
+            canvas.bind("<Configure>", _sync_width)
+            _sync_width()
             
             # Armazenar referências
             setattr(self, f"{categoria}_canvas", canvas)
             setattr(self, f"{categoria}_scrollbar", scrollbar)
             setattr(self, f"{categoria}_scrollable_frame", scrollable_frame)
+            setattr(self, f"{categoria}_window_id", window_id)
             
             return scrollable_frame
         except Exception as e:
@@ -1889,23 +2174,27 @@ class HistoricoFotosWindow(ttk.Frame):
                      foreground=color).pack(pady=20)
             return
         
-        # Criar grid para exibir fotos (3 colunas)
+        # Layout em grade (responsivo) com 3 colunas
         grid_frame = ttk.Frame(frame)
         grid_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
-        
-        # Criar frames para cada coluna
-        colunas = []
-        for i in range(3):
-            coluna = ttk.Frame(grid_frame)
-            coluna.pack(side=LEFT, fill=BOTH, expand=True, padx=5)
-            colunas.append(coluna)
-        
-        # Distribuir fotos pelas colunas
-        for i, foto_info in enumerate(fotos):
-            coluna_idx = i % 3
+
+        num_cols = 3
+        for c in range(num_cols):
+            grid_frame.grid_columnconfigure(c, weight=1)
+
+        row, col = 0, 0
+        # Limitar máximo em tela para evitar esgotar recursos do Windows (GDI/menus)
+        max_cards = 300
+        for i, foto_info in enumerate(fotos[:max_cards]):
             try:
                 if 'arquivo' in foto_info and foto_info['arquivo'].exists():
-                    self.criar_card_foto(colunas[coluna_idx], foto_info)
+                    card = self.criar_card_foto(grid_frame, foto_info)
+                    if card is not None:
+                        card.grid(row=row, column=col, sticky='nsew', padx=5, pady=8)
+                    col += 1
+                    if col >= num_cols:
+                        col = 0
+                        row += 1
                 else:
                     print(f"Arquivo não encontrado para foto {i} na categoria {categoria}")
             except Exception as e:
@@ -1917,7 +2206,7 @@ class HistoricoFotosWindow(ttk.Frame):
         try:
             # Frame para o card
             card_frame = ttk.Frame(parent_frame, relief="solid", borderwidth=1)
-            card_frame.pack(fill=X, pady=10, padx=5)
+            # A posição é definida pelo caller (grid)
             
             # Usar arquivo de exibição otimizado se disponível
             arquivo_exibicao = foto_info.get('arquivo_exibicao', foto_info['arquivo'])
@@ -1925,19 +2214,13 @@ class HistoricoFotosWindow(ttk.Frame):
             # Carregar e exibir a imagem
             img = cv2.imread(str(arquivo_exibicao))
             if img is not None:
-                # Redimensionar para exibição (se necessário)
+                # Redimensionar para exibição (thumbnail) e manter referência para não coletar
                 img_height, img_width = img.shape[:2]
-                max_width = 300
-                
-                # Se a imagem já é pequena, não redimensionar
-                if img_width <= max_width:
-                    img_resized = img
-                    display_width, display_height = img_width, img_height
-                else:
-                    scale = max_width / img_width
-                    new_height = int(img_height * scale)
-                    img_resized = cv2.resize(img, (max_width, new_height))
-                    display_width, display_height = max_width, new_height
+                max_width = 320
+                scale = 1.0 if img_width <= max_width else (max_width / float(img_width))
+                display_width = int(img_width * scale)
+                display_height = int(img_height * scale)
+                img_resized = img if scale == 1.0 else cv2.resize(img, (display_width, display_height))
                 
                 # Converter para formato Tkinter
                 img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
@@ -1946,7 +2229,10 @@ class HistoricoFotosWindow(ttk.Frame):
                 
                 # Label para a imagem
                 img_label = ttk.Label(card_frame, image=img_tk)
-                img_label.image = img_tk  # Manter referência
+                # Guardar referência forte no frame para evitar GC do Tk
+                if not hasattr(card_frame, '_images'):
+                    card_frame._images = []
+                card_frame._images.append(img_tk)
                 img_label.pack(pady=5)
                 
                 # Informações da foto
@@ -2004,18 +2290,110 @@ class HistoricoFotosWindow(ttk.Frame):
                 
                 # Botão para visualizar em tamanho real
                 btn_visualizar = ttk.Button(btn_frame, text="Visualizar", 
-                                         command=lambda: self.visualizar_foto(foto_info))
+                                         command=lambda fi=foto_info: self.visualizar_foto(fi))
                 btn_visualizar.pack(side=LEFT, padx=5)
                 
                 # Botão para excluir
                 btn_excluir = ttk.Button(btn_frame, text="Excluir", 
-                                       command=lambda: self.excluir_foto(foto_info, card_frame))
+                                       command=lambda fi=foto_info, cf=card_frame: self.excluir_foto(fi, cf))
                 btn_excluir.pack(side=RIGHT, padx=5)
             else:
                 ttk.Label(card_frame, text="Erro ao carregar imagem", foreground="red").pack(pady=10)
+            
+            return card_frame
         
         except Exception as e:
             print(f"Erro ao criar card para foto: {e}")
+            return None
+
+    def exibir_fotos_em_tabela(self, frame, fotos, categoria):
+        """Exibe as fotos em uma tabela (Treeview) rápida de carregar."""
+        try:
+            # Limpar frame existente
+            for widget in frame.winfo_children():
+                widget.destroy()
+            
+            columns = ("status", "programa", "data", "hora", "dimensoes", "arquivo")
+            tv = ttk.Treeview(frame, columns=columns, show="headings", height=20)
+            # Cabeçalhos
+            tv.heading("status", text="Status")
+            tv.heading("programa", text="Programa")
+            tv.heading("data", text="Data")
+            tv.heading("hora", text="Hora")
+            tv.heading("dimensoes", text="Dimensões")
+            tv.heading("arquivo", text="Arquivo")
+            # Larguras
+            tv.column("status", width=100, anchor="center")
+            tv.column("programa", width=160, anchor="w")
+            tv.column("data", width=100, anchor="center")
+            tv.column("hora", width=90, anchor="center")
+            tv.column("dimensoes", width=110, anchor="center")
+            tv.column("arquivo", width=360, anchor="w")
+
+            # Scrollbar vertical
+            vsb = ttk.Scrollbar(frame, orient="vertical", command=tv.yview)
+            tv.configure(yscrollcommand=vsb.set)
+            tv.pack(side=LEFT, fill=BOTH, expand=True)
+            vsb.pack(side=RIGHT, fill=Y)
+
+            # Popular linhas (sem imagem para máxima performance)
+            for f in fotos:
+                try:
+                    ts = f.get('timestamp')
+                    data_str = ts.strftime("%d/%m/%Y") if ts else ""
+                    hora_str = ts.strftime("%H:%M:%S") if ts else ""
+                    cat = f.get('categoria', '')
+                    status = "APROVADO" if cat == 'ok' else ("REPROVADO" if cat == 'ng' else "CAPTURA")
+                    dims = ""
+                    try:
+                        # Se o arquivo de exibição existe, lê dimensões sem carregar tudo
+                        img_path = f.get('arquivo_exibicao') or f.get('arquivo')
+                        if img_path and img_path.exists():
+                            # Evitar abrir a imagem inteira; mas para simplicidade, mostramos string padrão
+                            dims = "320x240"
+                    except Exception:
+                        pass
+                    tv.insert("", "end", values=(status,
+                                                    f.get('programa', ''),
+                                                    data_str,
+                                                    hora_str,
+                                                    dims,
+                                                    str((f.get('arquivo') or '')).replace('\\', '/')))
+                except Exception:
+                    continue
+
+            # Eventos: duplo-clique para visualizar, Delete para excluir
+            def on_open_selected(event=None):
+                try:
+                    sel = tv.selection()
+                    if not sel:
+                        return
+                    idx = tv.index(sel[0])
+                    if 0 <= idx < len(fotos):
+                        self.visualizar_foto(fotos[idx])
+                except Exception:
+                    pass
+            def on_delete_selected(event=None):
+                try:
+                    sel = tv.selection()
+                    if not sel:
+                        return
+                    idx = tv.index(sel[0])
+                    if 0 <= idx < len(fotos):
+                        # Precisa encontrar o frame/card; aqui reusa excluir com None e re-renderiza
+                        self.excluir_foto(fotos[idx], card_frame=None)
+                except Exception:
+                    pass
+            tv.bind("<Double-1>", on_open_selected)
+            tv.bind("<Delete>", on_delete_selected)
+        except Exception as e:
+            print(f"Erro ao exibir tabela: {e}")
+
+    def on_view_mode_change(self, event=None):
+        try:
+            self.exibir_fotos()
+        except Exception:
+            pass
     
     def visualizar_foto(self, foto_info):
         """Abre uma janela para visualizar a foto em tamanho real com zoom."""
@@ -2027,8 +2405,14 @@ class HistoricoFotosWindow(ttk.Frame):
             img = cv2.imread(str(arquivo_visualizacao))
             if img is not None:
                 # Criar janela de visualização
-                view_window = Toplevel(self)
+                # Cria janela filha do root da aplicação para evitar erro de menu/contexto
+                try:
+                    root_window = self.winfo_toplevel()
+                except Exception:
+                    root_window = None
+                view_window = Toplevel(master=root_window or self)
                 view_window.title(f"Foto - {foto_info['timestamp'].strftime('%d/%m/%Y %H:%M:%S')}")
+                # Evitar janela modal/transient que possa conflitar com menus do ttkbootstrap
                 
                 # Ajustar tamanho da janela (máximo 80% da tela)
                 screen_width = view_window.winfo_screenwidth()
@@ -2042,8 +2426,13 @@ class HistoricoFotosWindow(ttk.Frame):
                     new_height = int(img_height * scale)
                     img = cv2.resize(img, (new_width, new_height))
                 
-                # Converter para formato Tkinter
+                # Converter para formato Tkinter (evitar imagens muito grandes)
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                max_dim = 4000
+                h0, w0 = img_rgb.shape[:2]
+                if max(h0, w0) > max_dim:
+                    scale0 = max_dim / float(max(h0, w0))
+                    img_rgb = cv2.resize(img_rgb, (int(w0*scale0), int(h0*scale0)))
                 img_pil = Image.fromarray(img_rgb)
                 img_tk = ImageTk.PhotoImage(img_pil)
                 
@@ -2072,23 +2461,30 @@ class HistoricoFotosWindow(ttk.Frame):
                 # Configurar região de rolagem
                 canvas.config(scrollregion=canvas.bbox("all"))
                 
-                # Variáveis para controle de zoom
+                # Variáveis para controle de zoom e pan
                 self.zoom_level = 1.0
                 self.original_img = img_rgb
                 self.current_img_tk = img_tk
+                img_pos = {'x': 0, 'y': 0}
                 
                 # Função para aplicar zoom
                 def apply_zoom(event):
                     # Determinar direção do scroll
-                    if event.delta > 0:
+                    delta = 0
+                    try:
+                        delta = int(event.delta)
+                    except Exception:
+                        pass
+                    # Suavizar zoom (10% por passo)
+                    if delta > 0:
                         # Zoom in
                         self.zoom_level *= 1.1
-                    else:
+                    elif delta < 0:
                         # Zoom out
                         self.zoom_level /= 1.1
                     
                     # Limitar zoom
-                    self.zoom_level = max(0.1, min(self.zoom_level, 5.0))
+                    self.zoom_level = max(0.2, min(self.zoom_level, 3.0))
                     
                     # Calcular novas dimensões
                     new_width = int(img_width * self.zoom_level)
@@ -2101,17 +2497,59 @@ class HistoricoFotosWindow(ttk.Frame):
                     
                     # Atualizar canvas
                     canvas.delete("all")
-                    canvas.create_image(0, 0, anchor=NW, image=self.current_img_tk)
+                    canvas.create_image(img_pos['x'], img_pos['y'], anchor=NW, image=self.current_img_tk)
                     canvas.image = self.current_img_tk  # Manter referência
                     
                     # Atualizar região de rolagem
                     canvas.config(scrollregion=canvas.bbox("all"))
+
+                # Pan (arrastar)
+                pan_state = {'drag': False, 'start_x': 0, 'start_y': 0}
+                def start_pan(event):
+                    pan_state['drag'] = True
+                    pan_state['start_x'] = event.x
+                    pan_state['start_y'] = event.y
+                def do_pan(event):
+                    if not pan_state['drag']:
+                        return
+                    dx = event.x - pan_state['start_x']
+                    dy = event.y - pan_state['start_y']
+                    pan_state['start_x'] = event.x
+                    pan_state['start_y'] = event.y
+                    img_pos['x'] += dx
+                    img_pos['y'] += dy
+                    canvas.move("all", dx, dy)
+                def end_pan(event):
+                    pan_state['drag'] = False
                 
                 # Vincular evento de scroll do mouse para zoom
-                canvas.bind("<MouseWheel>", apply_zoom)
+                # Vincular zoom sem bloquear eventos globais
+                try:
+                    canvas.bind("<MouseWheel>", apply_zoom, add=True)
+                except Exception:
+                    canvas.bind("<MouseWheel>", apply_zoom)
+                canvas.bind("<ButtonPress-1>", start_pan)
+                canvas.bind("<B1-Motion>", do_pan)
+                canvas.bind("<ButtonRelease-1>", end_pan)
                 
-                # Botão para fechar
-                ttk.Button(view_window, text="Fechar", command=view_window.destroy).pack(pady=10)
+                # Controles inferiores
+                controls = ttk.Frame(view_window)
+                controls.pack(fill=X, pady=10)
+                ttk.Button(controls, text="Fechar", command=view_window.destroy).pack(side=RIGHT, padx=10)
+                def reset_zoom():
+                    self.zoom_level = 1.0
+                    img_pos['x'] = 0
+                    img_pos['y'] = 0
+                    canvas.delete('all')
+                    canvas.create_image(0, 0, anchor=NW, image=img_tk)
+                    canvas.image = img_tk
+                    canvas.config(scrollregion=canvas.bbox('all'))
+                ttk.Button(controls, text="Redefinir Zoom", command=reset_zoom).pack(side=RIGHT)
+                try:
+                    view_window.lift()
+                    view_window.focus_force()
+                except Exception:
+                    pass
             else:
                 messagebox.showerror("Erro", "Não foi possível carregar a imagem.")
         except Exception as e:
@@ -2141,11 +2579,33 @@ class HistoricoFotosWindow(ttk.Frame):
                 
                 # Remover da lista
                 self.fotos_historico = [f for f in self.fotos_historico if f['arquivo'] != foto_info['arquivo']]
+                cat = foto_info.get('categoria')
+                if cat == 'ok' and hasattr(self, 'fotos_ok'):
+                    self.fotos_ok = [f for f in self.fotos_ok if f['arquivo'] != foto_info['arquivo']]
+                elif cat == 'ng' and hasattr(self, 'fotos_ng'):
+                    self.fotos_ng = [f for f in self.fotos_ng if f['arquivo'] != foto_info['arquivo']]
+                elif cat == 'capturas' and hasattr(self, 'fotos_capturas'):
+                    self.fotos_capturas = [f for f in self.fotos_capturas if f['arquivo'] != foto_info['arquivo']]
+                # Atualiza listas filtradas, se existirem
+                if hasattr(self, 'fotos_filtradas') and self.fotos_filtradas:
+                    self.fotos_filtradas = [f for f in self.fotos_filtradas if f['arquivo'] != foto_info['arquivo']]
+                if hasattr(self, 'fotos_ok_filtradas') and self.fotos_ok_filtradas:
+                    self.fotos_ok_filtradas = [f for f in self.fotos_ok_filtradas if f['arquivo'] != foto_info['arquivo']]
+                if hasattr(self, 'fotos_ng_filtradas') and self.fotos_ng_filtradas:
+                    self.fotos_ng_filtradas = [f for f in self.fotos_ng_filtradas if f['arquivo'] != foto_info['arquivo']]
+                if hasattr(self, 'fotos_capturas_filtradas') and self.fotos_capturas_filtradas:
+                    self.fotos_capturas_filtradas = [f for f in self.fotos_capturas_filtradas if f['arquivo'] != foto_info['arquivo']]
                 
                 # Remover card da interface
                 card_frame.destroy()
                 
                 messagebox.showinfo("Sucesso", "Foto e versões otimizadas excluídas com sucesso!")
+                # Re-renderiza aba atual para evitar lacunas
+                try:
+                    self.exibir_fotos()
+                    self.exibir_estatisticas()
+                except Exception:
+                    pass
         except Exception as e:
             print(f"Erro ao excluir foto: {e}")
             messagebox.showerror("Erro", f"Erro ao excluir foto: {e}")
@@ -2175,8 +2635,8 @@ def create_main_window():
     
     # Inicializa ttkbootstrap com tema moderno
     root = ttk.Window(
-                    title="DX Project — Sistema de Inspeção Visual",
-        themename="superhero",  # Tema moderno escuro mais profissional
+        title="DX Project — Sistema de Inspeção Visual",
+        themename="cyborg",  # Tema moderno escuro mais profissional
         size=(1400, 900),
         resizable=(True, True)
     )

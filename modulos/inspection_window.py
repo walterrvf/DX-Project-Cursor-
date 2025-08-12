@@ -27,10 +27,20 @@ try:
         get_cached_camera,
         release_cached_camera,
         cleanup_unused_cameras,
-        schedule_camera_cleanup,
         release_all_cached_cameras,
         capture_image_from_camera,
+            initialize_persistent_pool,
+            start_frame_pump,
+            stop_frame_pump,
+            capture_image_from_persistent_pool,
     )
+    from dual_camera_driver import (
+         get_dual_camera_manager,
+         initialize_dual_cameras,
+         get_camera_frame,
+         get_all_camera_frames,
+         stop_dual_cameras
+     )
     from image_utils import cv2_to_tk
     from paths import get_model_dir, get_template_dir, get_model_template_dir
     from inspection import find_image_transform, check_slot
@@ -46,7 +56,6 @@ except ImportError:
         get_cached_camera,
         release_cached_camera,
         cleanup_unused_cameras,
-        schedule_camera_cleanup,
         release_all_cached_cameras,
         capture_image_from_camera,
     )
@@ -83,17 +92,681 @@ class InspecaoWindow(ttk.Frame):
             self.db_manager = None
         self.latest_frame = None
         
-        # Controle de webcam
+        # Controle de webcam - Sistema de pool persistente
         self.available_cameras = detect_cameras()
         self.selected_camera = 0
+        self.current_camera_index = self.available_cameras[0] if self.available_cameras else 0
+        
+        # Gerenciador de múltiplas câmeras ativas
+        self.active_cameras = {}  # Dicionário para manter câmeras ativas
+        self.camera_frames = {}   # Frames mais recentes de cada câmera
+        
+        # Importa funções do pool persistente
+        from camera_manager import (
+            initialize_persistent_pool, 
+            get_persistent_camera, 
+            capture_image_from_persistent_pool,
+            get_pool_status,
+            shutdown_persistent_pool,
+            start_frame_pump,
+            stop_frame_pump,
+        )
+        
+        # Referências para funções do pool
+        self.initialize_persistent_pool = initialize_persistent_pool
+        self.get_persistent_camera = get_persistent_camera
+        self.capture_image_from_persistent_pool = capture_image_from_persistent_pool
+        self.get_pool_status = get_pool_status
+        self.shutdown_persistent_pool = shutdown_persistent_pool
         
         self.setup_ui()
         self.update_button_states()
         
-        # Inicia câmera em segundo plano após inicialização completa
+        # Registra método de limpeza para encerramento
+        import atexit
+        atexit.register(self.cleanup_on_exit)
+        
+        # Estado para inspeção com múltiplos programas
+        self.selected_program_ids = []  # Lista de IDs dos programas selecionados
+        
+        # Inicia pool persistente de câmeras após inicialização completa
         if self.available_cameras:
-            self.after(500, lambda: self.start_background_camera_direct(self.available_cameras[0]))
+            self.after(500, self.initialize_persistent_camera_pool)
+            # Sistema dual de câmeras para modo 2 modelos
+            self.after(1000, self.initialize_multiple_cameras)
+            # Monitora status do pool periodicamente
+            self.after(15000, self.monitor_pool_status)  # Verifica a cada 15 segundos
+    
+    def initialize_persistent_camera_pool(self):
+        """Inicializa o pool persistente de câmeras para acesso rápido e sem limpeza de cache."""
+        try:
+            print("Inicializando pool persistente de câmeras...")
             
+            # Inicializa o pool com as câmeras disponíveis
+            success = self.initialize_persistent_pool(self.available_cameras)
+            
+            if success:
+                print(f"Pool persistente inicializado com sucesso para câmeras: {self.available_cameras}")
+                
+                # Define a câmera principal ativa
+                if self.available_cameras:
+                    self.current_camera_index = self.available_cameras[0]
+                    self.camera = self.get_persistent_camera(self.current_camera_index)
+                    
+                    if self.camera:
+                        print(f"Câmera principal {self.current_camera_index} ativa no pool")
+                    else:
+                        print(f"Erro: Câmera principal {self.current_camera_index} não disponível no pool")
+                        
+                # Inicia frame pump para capturar frames contínuos sem exibir
+                try:
+                    try:
+                        from utils import load_style_config
+                        fps_cfg = int(load_style_config().get('system', {}).get('frame_pump_fps', 30))
+                    except Exception:
+                        fps_cfg = 30
+                    start_frame_pump(self.available_cameras, fps=fps_cfg)
+                    print(f"Frame pump iniciado para captura em segundo plano (FPS={fps_cfg})")
+                except Exception as e:
+                    print(f"Falha ao iniciar frame pump: {e}")
+
+                # Exibe status do pool
+                pool_status = self.get_pool_status()
+                print(f"Status do pool: {pool_status['active_cameras']} câmeras ativas de {len(pool_status['cameras'])} disponíveis")
+                
+            else:
+                print("Falha ao inicializar pool persistente, usando método tradicional")
+                # Fallback para método tradicional se necessário
+                self.initialize_traditional_cameras()
+                
+        except Exception as e:
+            print(f"Erro ao inicializar pool persistente: {e}")
+            # Fallback para método tradicional
+            self.initialize_traditional_cameras()
+    
+    def initialize_traditional_cameras(self):
+        """Método de fallback para inicialização tradicional de câmeras."""
+        try:
+            print("Inicializando câmeras usando método tradicional...")
+            
+            if self.available_cameras:
+                self.current_camera_index = self.available_cameras[0]
+                
+                # Usa o cache tradicional do camera_manager
+                from camera_manager import get_cached_camera
+                self.camera = get_cached_camera(self.current_camera_index)
+                
+                if self.camera:
+                    print(f"Câmera {self.current_camera_index} inicializada tradicionalmente")
+                else:
+                    print(f"Erro ao inicializar câmera {self.current_camera_index} tradicionalmente")
+                    
+        except Exception as e:
+            print(f"Erro na inicialização tradicional: {e}")
+    
+    def initialize_multiple_cameras(self):
+        """Inicializa sistema dual de câmeras com drivers específicos"""
+        try:
+            print("Inicializando sistema dual de câmeras...")
+            
+            # Determina índices das câmeras interna e externa
+            internal_index = 0  # Câmera interna (webcam)
+            external_index = 1 if len(self.available_cameras) > 1 else None
+            
+            # Inicializa o gerenciador dual
+            if external_index is not None:
+                success = initialize_dual_cameras(internal_index, external_index)
+                if success:
+                    print(f"Sistema dual inicializado: Interna({internal_index}) + Externa({external_index})")
+                    # Atualiza referências para compatibilidade
+                    self.dual_manager = get_dual_camera_manager()
+                    self.active_cameras = {internal_index: True, external_index: True}
+                    self.camera_frames = {internal_index: None, external_index: None}
+                else:
+                    print("Falha ao inicializar sistema dual, usando método tradicional")
+                    self.initialize_traditional_cameras()
+            else:
+                print("Apenas uma câmera detectada, usando driver interno")
+                # Inicializa apenas a câmera interna, sem tentar usar o mesmo índice como externo
+                success = initialize_dual_cameras(internal_index, external_index or internal_index)
+                if success:
+                    self.dual_manager = get_dual_camera_manager()
+                    self.active_cameras = {internal_index: True}
+                    self.camera_frames = {internal_index: None}
+                else:
+                    self.initialize_traditional_cameras()
+                    
+        except Exception as e:
+            print(f"Erro ao inicializar sistema dual: {e}")
+            self.initialize_traditional_cameras()
+    
+    def initialize_traditional_cameras(self):
+        """Método tradicional de inicialização como fallback"""
+        try:
+            print("Usando inicialização tradicional de câmeras...")
+            
+            # Inicializa câmeras ativas
+            for camera_id in self.available_cameras:
+                try:
+                    cap = cv2.VideoCapture(camera_id)
+                    
+                    if cap.isOpened():
+                        # Configurações centralizadas (inclui exposição/ganho/WB)
+                        try:
+                            from camera_manager import configure_video_capture
+                            configure_video_capture(cap, camera_id)
+                        except Exception:
+                            pass
+                        
+                        self.active_cameras[camera_id] = cap
+                        self.camera_frames[camera_id] = None
+                        print(f"Câmera {camera_id} inicializada")
+                    else:
+                        cap.release()
+                        
+                except Exception as e:
+                    print(f"Erro ao inicializar câmera {camera_id}: {e}")
+            
+            # Inicia captura contínua para todas as câmeras ativas
+            if self.active_cameras:
+                print(f"Captura iniciada para {len(self.active_cameras)} câmeras")
+                self.start_multi_camera_capture()
+                
+        except Exception as e:
+            print(f"Erro ao inicializar câmeras tradicionais: {e}")
+    
+    def monitor_pool_status(self):
+        """Monitora o status do pool persistente periodicamente."""
+        try:
+            pool_status = self.get_pool_status()
+            
+            if pool_status['initialized']:
+                active_count = pool_status['active_cameras']
+                total_count = len(pool_status['cameras'])
+                
+                if active_count < total_count:
+                    print(f"AVISO: Apenas {active_count} de {total_count} câmeras estão saudáveis no pool")
+                    
+                # Reagenda próxima verificação
+                self.after(15000, self.monitor_pool_status)
+            else:
+                print("Pool persistente não está inicializado")
+                
+        except Exception as e:
+            print(f"Erro ao monitorar status do pool: {e}")
+            # Reagenda mesmo com erro
+            self.after(15000, self.monitor_pool_status)
+
+    def monitor_camera_health(self):
+        """Monitora a saúde das câmeras no pool sem fechá-las desnecessariamente."""
+        try:
+            healthy_cameras = []
+            for camera_index in list(self.active_cameras.keys()):
+                camera = self.active_cameras.get(camera_index)
+                if camera and camera.isOpened():
+                    # Verifica se a câmera está respondendo
+                    try:
+                        # Tenta uma leitura rápida sem bloquear
+                        ret, frame = camera.read()
+                        if ret and frame is not None:
+                            healthy_cameras.append(camera_index)
+                        else:
+                            print(f"Câmera {camera_index}: Sem resposta, mas mantendo conexão")
+                            healthy_cameras.append(camera_index)  # Mantém mesmo sem resposta
+                    except Exception as e:
+                        print(f"Câmera {camera_index}: Erro na verificação de saúde: {e}")
+                        healthy_cameras.append(camera_index)  # Mantém mesmo com erro
+                else:
+                    print(f"Câmera {camera_index}: Conexão perdida, mas mantendo no pool")
+            
+            if healthy_cameras:
+                print(f"Pool de câmeras ativo: {healthy_cameras}")
+            
+            # Reagenda próxima verificação
+            self.after(30000, self.monitor_camera_health)  # A cada 30 segundos
+            
+        except Exception as e:
+            print(f"Erro no monitoramento de câmeras: {e}")
+            # Reagenda mesmo com erro
+            self.after(30000, self.monitor_camera_health)
+    
+    def start_camera_connection(self, camera_index):
+        """Inicia conexão com uma câmera específica usando pool compartilhado."""
+        try:
+            # Verifica se a câmera já está no pool ativo
+            if camera_index in self.active_cameras:
+                camera = self.active_cameras[camera_index]
+                if camera and camera.isOpened():
+                    print(f"Câmera {camera_index} já está ativa no pool, reutilizando conexão")
+                    return
+                else:
+                    # Remove câmera inválida do pool
+                    del self.active_cameras[camera_index]
+            
+            # Detecta o sistema operacional
+            import platform
+            is_windows = platform.system() == 'Windows'
+            
+            print(f"Inicializando nova conexão para câmera {camera_index}...")
+            
+            # Configurações otimizadas para inicialização mais rápida
+            if is_windows:
+                camera = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+            else:
+                camera = cv2.VideoCapture(camera_index)
+            
+            if not camera.isOpened():
+                raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
+            
+            # Configurações centralizadas (inclui exposição/ganho/WB)
+            try:
+                from camera_manager import configure_video_capture
+                configure_video_capture(camera, camera_index)
+            except Exception:
+                pass
+            
+            # Armazena a câmera no pool ativo
+            self.active_cameras[camera_index] = camera
+            self.camera_frames[camera_index] = None
+            
+            print(f"Câmera {camera_index} adicionada ao pool ativo com sucesso")
+            
+        except Exception as e:
+            print(f"Erro ao conectar câmera {camera_index}: {e}")
+            raise
+    
+    def restart_camera_connection(self, camera_index):
+        """Tenta recuperar a conexão com uma câmera específica sem fechá-la desnecessariamente."""
+        try:
+            import time
+            
+            # Sistema de debounce para evitar tentativas muito frequentes
+            if not hasattr(self, 'camera_restart_cooldown'):
+                self.camera_restart_cooldown = {}
+            
+            current_time = time.time()
+            cooldown_period = 15.0  # 15 segundos de cooldown aumentado
+            
+            # Verifica se ainda está no período de cooldown
+            if camera_index in self.camera_restart_cooldown:
+                time_since_last_restart = current_time - self.camera_restart_cooldown[camera_index]
+                if time_since_last_restart < cooldown_period:
+                    print(f"Câmera {camera_index} em cooldown, aguardando {cooldown_period - time_since_last_restart:.1f}s")
+                    return
+            
+            print(f"Tentando recuperar câmera {camera_index} sem reinicialização...")
+            self.camera_restart_cooldown[camera_index] = current_time
+            
+            # Primeiro, tenta apenas limpar o buffer da câmera existente
+            if camera_index in self.active_cameras:
+                camera = self.active_cameras[camera_index]
+                if camera and camera.isOpened():
+                    try:
+                        # Limpa buffer antigo
+                        for _ in range(5):
+                            ret, frame = camera.read()
+                            if ret and frame is not None:
+                                print(f"Câmera {camera_index} recuperada sem reinicialização")
+                                return
+                        print(f"Câmera {camera_index} não está respondendo, mantendo conexão")
+                        return
+                    except Exception as e:
+                        print(f"Erro ao tentar recuperar câmera {camera_index}: {e}")
+            
+            # Só reinicializa se realmente necessário e após múltiplas falhas
+            print(f"Câmera {camera_index} será mantida ativa para próxima tentativa")
+                
+        except Exception as e:
+            print(f"Erro ao tentar recuperar câmera {camera_index}: {e}")
+    
+    def start_multi_camera_capture(self):
+        """Inicia captura de frames para todas as câmeras ativas."""
+        try:
+            import threading
+            
+            for camera_index in self.active_cameras.keys():
+                # Cria thread separada para cada câmera
+                thread = threading.Thread(
+                    target=self.capture_camera_frames, 
+                    args=(camera_index,), 
+                    daemon=True
+                )
+                thread.start()
+                
+        except Exception as e:
+            print(f"Erro ao iniciar captura multi-câmera: {e}")
+    
+    def capture_camera_frames(self, camera_index):
+        """Captura frames continuamente de uma câmera específica com alta tolerância a falhas."""
+        try:
+            import threading
+            import time
+            camera = self.active_cameras.get(camera_index)
+            if not camera:
+                return
+            
+            # Cria lock específico para esta câmera se não existir
+            if not hasattr(self, 'camera_locks'):
+                self.camera_locks = {}
+            if camera_index not in self.camera_locks:
+                self.camera_locks[camera_index] = threading.Lock()
+                
+            consecutive_failures = 0
+            max_failures = 50  # Muito mais tolerante - 50 falhas antes de tentar recuperação
+            recovery_attempts = 0
+            max_recovery_attempts = 3  # Máximo 3 tentativas de recuperação por sessão
+                
+            while camera_index in self.active_cameras and camera.isOpened():
+                try:
+                    ret, frame = camera.read()
+                    if ret and frame is not None:
+                        # Usa lock para evitar condições de corrida
+                        with self.camera_locks[camera_index]:
+                            self.camera_frames[camera_index] = frame.copy()
+                            
+                            # Atualiza latest_frame se esta é a câmera ativa
+                            if camera_index == self.current_camera_index:
+                                self.latest_frame = frame.copy()
+                        
+                        consecutive_failures = 0  # Reset contador de falhas
+                        recovery_attempts = 0  # Reset tentativas de recuperação
+                    else:
+                        consecutive_failures += 1
+                        # Só tenta recuperação após muitas falhas e se ainda não tentou muito
+                        if consecutive_failures >= max_failures and recovery_attempts < max_recovery_attempts:
+                            print(f"Câmera {camera_index}: {consecutive_failures} falhas consecutivas, tentativa de recuperação {recovery_attempts + 1}/{max_recovery_attempts}")
+                            self.restart_camera_connection(camera_index)
+                            consecutive_failures = 0
+                            recovery_attempts += 1
+                            time.sleep(2.0)  # Pausa maior após tentativa de recuperação
+                        elif recovery_attempts >= max_recovery_attempts:
+                            print(f"Câmera {camera_index}: Máximo de tentativas de recuperação atingido, mantendo conexão")
+                            consecutive_failures = 0  # Reset para evitar spam de logs
+                            
+                    time.sleep(0.05)  # ~20 FPS - Reduz carga do sistema
+                except Exception as e:
+                    consecutive_failures += 1
+                    # Só loga erros ocasionalmente para evitar spam
+                    if consecutive_failures % 10 == 1:  # Loga a cada 10 erros
+                        print(f"Erro na captura da câmera {camera_index}: {e} (erro #{consecutive_failures})")
+                    
+                    # Só tenta recuperação após muitas falhas
+                    if consecutive_failures >= max_failures and recovery_attempts < max_recovery_attempts:
+                        print(f"Câmera {camera_index}: Tentativa de recuperação após {consecutive_failures} erros")
+                        self.restart_camera_connection(camera_index)
+                        consecutive_failures = 0
+                        recovery_attempts += 1
+                        time.sleep(2.0)  # Pausa maior após tentativa de recuperação
+                    else:
+                        time.sleep(0.2)  # Pausa menor em caso de erro
+                    
+        except Exception as e:
+            print(f"Erro geral na captura da câmera {camera_index}: {e}")
+
+    def acquire_camera_exclusive(self, camera_index, timeout=5.0):
+        """Adquire acesso exclusivo a uma câmera com timeout."""
+        import threading
+        import time
+        
+        # Inicializa mutex se não existir
+        if not hasattr(self, 'camera_mutex'):
+            self.camera_mutex = {}
+        if camera_index not in self.camera_mutex:
+            self.camera_mutex[camera_index] = threading.Lock()
+            
+        # Inicializa controle de uso se não existir
+        if not hasattr(self, 'camera_in_use'):
+            self.camera_in_use = {}
+            
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.camera_mutex[camera_index].acquire(blocking=False):
+                self.camera_in_use[camera_index] = True
+                return True
+            time.sleep(0.1)
+        return False
+    
+    def release_camera_exclusive(self, camera_index):
+        """Libera acesso exclusivo a uma câmera."""
+        if hasattr(self, 'camera_mutex') and camera_index in self.camera_mutex:
+            self.camera_in_use[camera_index] = False
+            self.camera_mutex[camera_index].release()
+    
+    def capture_all_cameras_and_run_multi_inspection(self, program_ids):
+        """Captura imagens simultâneas de duas câmeras e executa inspeção de múltiplos programas (dual)."""
+        try:
+            import time
+            from dual_camera_driver import get_all_camera_frames
+            
+            # Dicionário para armazenar imagens capturadas por câmera
+            self.captured_camera_images = {}
+            
+            self.status_var.set("Capturando frames das câmeras...")
+            
+            captured_count = 0
+            
+            # 1) Captura simultânea via dual_camera_driver (se estiver inicializado)
+            try:
+                if hasattr(self, 'dual_manager') and self.dual_manager and getattr(self.dual_manager, 'is_initialized', False):
+                    frames = get_all_camera_frames()
+                    for cam_idx, frame in frames.items():
+                        if frame is not None:
+                            self.captured_camera_images[cam_idx] = frame.copy()
+                    captured_count = len(self.captured_camera_images)
+                    if captured_count:
+                        print(f"Capturadas {captured_count} imagens via sistema dual: {list(self.captured_camera_images.keys())}")
+            except Exception as e:
+                print(f"Erro ao capturar via sistema dual: {e}")
+            
+            # 2) Se não, tenta via frames recentes do pool tradicional
+            if captured_count == 0 and hasattr(self, 'camera_frames') and self.camera_frames:
+                for cam_idx, frame in list(self.camera_frames.items()):
+                    if frame is not None:
+                        self.captured_camera_images[cam_idx] = frame.copy()
+                captured_count = len(self.captured_camera_images)
+                if captured_count:
+                    print(f"Capturadas {captured_count} imagens via frames recentes: {list(self.captured_camera_images.keys())}")
+            
+            # 3) Se ainda não, captura direta das câmeras ativas
+            if captured_count == 0 and hasattr(self, 'active_cameras') and self.active_cameras:
+                for cam_idx, cap in list(self.active_cameras.items()):
+                    try:
+                        if cap and hasattr(cap, 'read'):
+                            ret, frame = cap.read()
+                            if ret and frame is not None:
+                                self.captured_camera_images[cam_idx] = frame.copy()
+                    except Exception:
+                        pass
+                captured_count = len(self.captured_camera_images)
+                if captured_count:
+                    print(f"Capturadas {captured_count} imagens via captura direta: {list(self.captured_camera_images.keys())}")
+            
+            # 4) Último fallback: camera_manager por índice
+            if captured_count == 0 and hasattr(self, 'available_cameras'):
+                from camera_manager import capture_image_from_camera
+                for cam_idx in self.available_cameras:
+                    try:
+                        img = capture_image_from_camera(cam_idx)
+                        if img is not None:
+                            self.captured_camera_images[cam_idx] = img
+                    except Exception:
+                        pass
+                captured_count = len(self.captured_camera_images)
+                if captured_count:
+                    print(f"Capturadas {captured_count} imagens via camera_manager: {list(self.captured_camera_images.keys())}")
+            
+            # Mantém no máximo 2 câmeras
+            if captured_count > 2:
+                ordered = sorted(self.captured_camera_images.items(), key=lambda kv: kv[0])
+                self.captured_camera_images = dict(ordered[:2])
+                captured_count = 2
+            
+            if captured_count == 0:
+                print("AVISO: Nenhuma imagem capturada! Usando método tradicional...")
+                self.run_multi_program_inspection(program_ids)
+                return
+            
+            # Executa inspeção mapeando cada programa para uma câmera capturada
+            self.run_multi_program_inspection_with_captured_images(program_ids)
+            
+        except Exception as e:
+            print(f"Erro ao capturar de duas câmeras: {e}")
+            self.status_var.set(f"Erro na captura: {str(e)}")
+            self.run_multi_program_inspection(program_ids)
+
+    def run_multi_program_inspection_with_captured_images(self, program_ids):
+        """Executa inspeção mapeando programas para imagens capturadas de múltiplas câmeras."""
+        if not program_ids:
+            return
+        try:
+            # Armazena o modelo e câmera originais para restaurar ao final
+            original_model_id = getattr(self, 'current_model_id', None)
+            original_camera_index = self.current_camera_index
+            original_img_reference = getattr(self, 'img_reference', None)
+            overall_all_ok = True
+            per_program_results = []
+            program_images = []  # Lista para armazenar imagens com anotações por programa
+
+            # Obtém imagens capturadas por câmera (se disponíveis)
+            camera_images = getattr(self, 'captured_camera_images', {}) or {}
+            cam_keys = sorted(list(camera_images.keys()))
+
+            # Fallback: se não houver imagens capturadas, tenta usar a câmera atual como antes
+            if not cam_keys:
+                current_camera = self.current_camera_index
+                if current_camera not in camera_images:
+                    self.status_var.set("Sem imagem capturada para inspecionar")
+                    return
+                cam_keys = [current_camera]
+
+            total_programs = len(program_ids)
+            for idx, mid in enumerate(program_ids, start=1):
+                try:
+                    model_data = self.db_manager.load_modelo(mid)
+                    
+                    # Mapeamento inteligente: usa camera_index do modelo se disponível
+                    model_camera_index = model_data.get('camera_index', 0)
+                    if model_camera_index in camera_images:
+                        cam_idx = model_camera_index
+                    else:
+                        # Fallback: distribuição round-robin baseada no índice
+                        cam_idx = cam_keys[(idx - 1) % len(cam_keys)]
+                    
+                    captured_image = camera_images.get(cam_idx)
+                    if captured_image is None:
+                        per_program_results.append({
+                            'id': mid,
+                            'name': model_data.get('nome', str(mid)),
+                            'success': False,
+                            'details': f"Sem imagem para a câmera {cam_idx}",
+                            'camera': cam_idx
+                        })
+                        overall_all_ok = False
+                        continue
+
+                    # Carrega o modelo e configurações (incluindo img_reference)
+                    self.status_var.set(f"CARREGANDO PROGRAMA {idx}/{total_programs}...")
+                    self.load_model_from_db(mid)
+                    time.sleep(0.1)  # Reduzido de 0.2 para 0.1
+
+                    # Validação crítica: img_reference deve estar carregado
+                    if not hasattr(self, 'img_reference') or self.img_reference is None:
+                        per_program_results.append({
+                            'id': mid,
+                            'name': model_data.get('nome', str(mid)),
+                            'success': False,
+                            'details': f"Imagem de referência não carregada",
+                            'camera': cam_idx
+                        })
+                        overall_all_ok = False
+                        continue
+
+                    # Define a imagem de teste (da câmera mapeada)
+                    self.img_test = captured_image.copy()
+
+                    # Executa inspeção
+                    self.run_inspection()
+
+                    # Coleta resultado
+                    if hasattr(self, 'inspection_results') and self.inspection_results:
+                        passed = sum(1 for r in self.inspection_results if r.get('passou', False))
+                        total_slots = len(self.inspection_results)
+                        success = passed == total_slots
+
+                        # Cria imagem anotada para este programa
+                        program_image = self._create_annotated_image(
+                            model_data.get('nome', str(mid)),
+                            success,
+                            f"{passed}/{total_slots} OK (Câm:{cam_idx})",
+                            source_image=captured_image
+                        )
+                        if program_image is not None:
+                            program_images.append(program_image)
+
+                        per_program_results.append({
+                            'id': mid,
+                            'name': model_data.get('nome', str(mid)),
+                            'success': success,
+                            'details': f"{passed}/{total_slots} slots OK (Câmera {cam_idx})",
+                            'camera': cam_idx
+                        })
+                        overall_all_ok = overall_all_ok and success
+                    else:
+                        # Sem resultados de inspeção
+                        per_program_results.append({
+                            'id': mid,
+                            'name': model_data.get('nome', str(mid)),
+                            'success': False,
+                            'details': "Falha no alinhamento ou processamento",
+                            'camera': cam_idx
+                        })
+                        overall_all_ok = False
+
+                except Exception as e:
+                    print(f"Erro ao processar programa {mid}: {e}")
+                    per_program_results.append({
+                        'id': mid,
+                        'name': str(mid),
+                        'success': False,
+                        'details': f"Erro: {str(e)[:50]}...",
+                        'camera': cam_keys[0] if cam_keys else -1
+                    })
+                    overall_all_ok = False
+
+            # Restauração cuidadosa do estado original
+            try:
+                if original_model_id is not None and original_model_id != self.current_model_id:
+                    self.load_model_from_db(original_model_id)
+                elif original_img_reference is not None:
+                    self.img_reference = original_img_reference
+                    
+                if original_camera_index != self.current_camera_index:
+                    if hasattr(self, 'camera_combo'):
+                        self.camera_combo.set(str(original_camera_index))
+                    self.on_camera_changed()
+            except Exception as restore_error:
+                print(f"Erro ao restaurar estado original: {restore_error}")
+
+            # Atualiza status final
+            self.inspection_status_var.set("FINALIZADO")
+            success_count = sum(1 for r in per_program_results if r.get('success', False))
+            if overall_all_ok:
+                self.status_var.set(f"TODOS OS PROGRAMAS: APROVADO ({success_count}/{total_programs})")
+            else:
+                self.status_var.set(f"ALGUNS PROGRAMAS: REPROVADO ({success_count}/{total_programs})")
+
+            # Exibe resumo visual
+            if program_images:
+                self._show_multi_program_visual_summary(program_images, per_program_results, overall_all_ok)
+
+            # Limpa as imagens capturadas da memória
+            if hasattr(self, 'captured_camera_images'):
+                del self.captured_camera_images
+
+        except Exception as e:
+            print(f"Erro na inspeção de múltiplos programas: {e}")
+            self.status_var.set(f"Erro na inspeção: {str(e)[:100]}...")
+
     def start_background_camera_direct(self, camera_index):
         """Inicia a câmera diretamente em segundo plano com índice específico."""
         try:
@@ -101,22 +774,27 @@ class InspecaoWindow(ttk.Frame):
             import platform
             is_windows = platform.system() == 'Windows'
             
-            # Configurações otimizadas para inicialização mais rápida
-            if is_windows:
-                self.camera = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-            else:
-                self.camera = cv2.VideoCapture(camera_index)
+            # Preferir pool persistente
+            try:
+                from camera_manager import get_persistent_camera
+                self.camera = get_persistent_camera(camera_index)
+            except Exception:
+                self.camera = None
+            if not self.camera:
+                if is_windows:
+                    self.camera = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+                else:
+                    self.camera = cv2.VideoCapture(camera_index)
             
             if not self.camera.isOpened():
                 raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
             
-            # Configurações otimizadas para performance
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
-            
-            # Usa resolução padrão para inicialização rápida
-            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # Configurações centralizadas (inclui exposição/ganho/WB)
+            try:
+                from camera_manager import configure_video_capture
+                configure_video_capture(self.camera, camera_index)
+            except Exception:
+                pass
             
             self.live_capture = True
             print(f"Webcam {camera_index} inicializada com sucesso em segundo plano")
@@ -128,6 +806,110 @@ class InspecaoWindow(ttk.Frame):
             print(f"Erro ao inicializar webcam {camera_index}: {e}")
             self.camera = None
             self.live_capture = False
+    
+    def on_camera_changed(self, event=None):
+        """Callback chamado quando o usuário muda a seleção da câmera - Troca instantânea."""
+        try:
+            if not hasattr(self, 'camera_combo') or not self.camera_combo.get():
+                return
+                
+            new_camera_index = int(self.camera_combo.get())
+            current_camera_index = getattr(self, 'current_camera_index', 0)
+            
+            # Só muda se for uma câmera diferente
+            if new_camera_index != current_camera_index:
+                print(f"Trocando instantaneamente da câmera {current_camera_index} para câmera {new_camera_index}")
+
+                # Se o sistema dual estiver ativo, atualiza somente o índice e o frame mais recente
+                if hasattr(self, 'dual_manager') and self.dual_manager and getattr(self.dual_manager, 'is_initialized', False):
+                    self.current_camera_index = new_camera_index
+                    frame = None
+                    try:
+                        # Tentativa de obter frame diretamente do driver dual
+                        from dual_camera_driver import get_camera_frame
+                        frame = get_camera_frame(new_camera_index)
+                    except Exception:
+                        frame = None
+                    # Fallback para último frame armazenado do pool
+                    if frame is None and hasattr(self, 'camera_frames') and new_camera_index in self.camera_frames and self.camera_frames[new_camera_index] is not None:
+                        frame = self.camera_frames[new_camera_index]
+                    if frame is not None:
+                        try:
+                            self.latest_frame = frame.copy()
+                        except Exception:
+                            self.latest_frame = frame
+                    print(f"Câmera {new_camera_index} ativada via sistema dual")
+                    return
+                
+                # Verifica se a nova câmera está disponível no sistema de múltiplas câmeras
+                if hasattr(self, 'active_cameras') and new_camera_index in self.active_cameras and hasattr(self.active_cameras[new_camera_index], 'read'):
+                    # Troca instantânea - apenas atualiza referências
+                    self.current_camera_index = new_camera_index
+                    self.camera = self.active_cameras[new_camera_index]
+                    
+                    # Atualiza latest_frame com o frame mais recente da nova câmera
+                    if hasattr(self, 'camera_frames') and new_camera_index in self.camera_frames and self.camera_frames[new_camera_index] is not None:
+                        try:
+                            self.latest_frame = self.camera_frames[new_camera_index].copy()
+                        except Exception:
+                            self.latest_frame = self.camera_frames[new_camera_index]
+                    
+                    print(f"Câmera {new_camera_index} ativada instantaneamente")
+                else:
+                    # Fallback para o método tradicional se a câmera não estiver no sistema múltiplo
+                    print(f"Câmera {new_camera_index} não encontrada no sistema múltiplo, usando método tradicional")
+                    
+                    # Para todas as capturas ativas
+                    if hasattr(self, 'live_capture') and self.live_capture:
+                        try:
+                            self.stop_live_capture_inspection()
+                            self.stop_live_capture_manual_inspection()
+                        except Exception as stop_error:
+                            print(f"Erro ao parar captura ao trocar câmera: {stop_error}")
+                    
+                    # Para visualização ao vivo se estiver ativa
+                    if hasattr(self, 'live_view') and self.live_view:
+                        try:
+                            self.stop_live_view()
+                        except Exception as stop_view_error:
+                            print(f"Erro ao parar visualização ao trocar câmera: {stop_view_error}")
+                    
+                    # Libera câmera atual
+                    if hasattr(self, 'camera') and self.camera:
+                        try:
+                            self.camera.release()
+                            self.camera = None
+                        except Exception:
+                            pass
+                    
+                    # Atualiza índice atual
+                    self.current_camera_index = new_camera_index
+                    
+                    # Usa o pool persistente para troca rápida
+                    try:
+                        self.camera = self.get_persistent_camera(new_camera_index)
+                        if self.camera:
+                            print(f"Câmera {new_camera_index} obtida do pool persistente")
+                        else:
+                            print(f"Câmera {new_camera_index} não disponível no pool persistente")
+                            # Fallback para cache tradicional
+                            from camera_manager import get_cached_camera
+                            self.camera = get_cached_camera(new_camera_index)
+                            if self.camera:
+                                print(f"Câmera {new_camera_index} obtida do cache tradicional")
+                    except Exception as pool_error:
+                        print(f"Erro ao obter câmera do pool persistente: {pool_error}")
+                        # Fallback para cache tradicional
+                        try:
+                            from camera_manager import get_cached_camera
+                            self.camera = get_cached_camera(new_camera_index)
+                            if self.camera:
+                                print(f"Câmera {new_camera_index} obtida do cache tradicional (fallback)")
+                        except Exception as cache_error:
+                            print(f"Erro ao obter câmera do cache tradicional: {cache_error}")
+                
+        except Exception as e:
+            print(f"Erro ao trocar câmera: {e}")
     
     def setup_ui(self):
         # Configuração de estilo industrial Keyence
@@ -318,6 +1100,9 @@ class InspecaoWindow(ttk.Frame):
         if self.available_cameras:
             self.camera_combo.set(str(self.available_cameras[0]))
         
+        # Adiciona evento para detectar mudança de câmera
+        self.camera_combo.bind('<<ComboboxSelected>>', self.on_camera_changed)
+        
         # Nota informativa sobre o ajuste automático
         info_frame = ttk.Frame(webcam_frame)
         info_frame.pack(fill=X, padx=5, pady=2)
@@ -353,6 +1138,12 @@ class InspecaoWindow(ttk.Frame):
                                         command=self.inspect_without_capture,
                                         )
         self.btn_inspect_only.pack(fill=X, padx=5, pady=5)
+        
+        # Botão para inspeção com múltiplos programas
+        self.btn_dual_inspect = ttk.Button(inspection_frame, text="INSPECIONAR COM PROGRAMAS...", 
+                                        command=self.open_multi_program_dialog,
+                                        style='Inspect.TButton')
+        self.btn_dual_inspect.pack(fill=X, padx=5, pady=5)
         
         # Label grande para resultado NG/OK
         self.result_display_label = ttk.Label(inspection_frame, text="--", 
@@ -514,6 +1305,50 @@ class InspecaoWindow(ttk.Frame):
             # Define o modelo atual para uso em outras funções
             self.current_model = model_data
             
+            # Configurar câmera padrão associada ao modelo, se disponível
+            camera_index = model_data.get('camera_index', 0)
+            current_camera_index = int(self.camera_combo.get()) if hasattr(self, 'camera_combo') and self.camera_combo.get() else 0
+            
+            if hasattr(self, 'camera_combo') and str(camera_index) in [self.camera_combo['values'][i] for i in range(len(self.camera_combo['values']))]:
+                self.camera_combo.set(str(camera_index))
+                
+                # Reinicializa a câmera se o índice mudou
+                if camera_index != current_camera_index:
+                    # Para captura atual se estiver ativa
+                    if hasattr(self, 'live_capture') and self.live_capture:
+                        try:
+                            self.stop_live_capture_inspection()
+                            self.stop_live_capture_manual_inspection()
+                        except Exception as stop_error:
+                            print(f"Erro ao parar captura ao trocar câmera: {stop_error}")
+                    
+                    # Para visualização ao vivo se estiver ativa
+                    if hasattr(self, 'live_view') and self.live_view:
+                        try:
+                            self.stop_live_view()
+                        except Exception as stop_view_error:
+                            print(f"Erro ao parar visualização ao trocar câmera: {stop_view_error}")
+                    
+                    # Usa o pool de câmeras em vez de inicializar em segundo plano
+                    self.current_camera_index = camera_index
+                    if hasattr(self, 'camera_pool') and camera_index in self.camera_pool:
+                        self.camera = self.camera_pool[camera_index]
+                        print(f"Câmera {camera_index} obtida do pool para modelo")
+                    elif hasattr(self, 'active_cameras') and camera_index in self.active_cameras:
+                        self.camera = self.active_cameras[camera_index]
+                        print(f"Câmera {camera_index} obtida do sistema ativo para modelo")
+                    else:
+                        # Tenta obter do cache do camera_manager
+                        try:
+                            cached_camera = get_cached_camera(camera_index)
+                            if cached_camera:
+                                self.camera = cached_camera
+                                print(f"Câmera {camera_index} obtida do cache para modelo")
+                            else:
+                                print(f"Câmera {camera_index} não disponível para modelo")
+                        except Exception as cache_error:
+                            print(f"Erro ao obter câmera do cache para modelo: {cache_error}")
+            
             # Limpa resultados de inspeção anteriores
             self.inspection_results = []
             
@@ -558,14 +1393,6 @@ class InspecaoWindow(ttk.Frame):
 
                 # Limpa resultados de inspeção anteriores
                 self.inspection_results = []
-                
-                # Resetar o label grande de resultado
-                if hasattr(self, 'result_display_label'):
-                    self.result_display_label.config(
-                        text="--",
-                        foreground=get_color('colors.status_colors.muted_text'),
-                        background=get_color('colors.status_colors.muted_bg')
-                    )
                 
                 # Resetar o label grande de resultado
                 if hasattr(self, 'result_display_label'):
@@ -621,28 +1448,27 @@ class InspecaoWindow(ttk.Frame):
             import platform
             is_windows = platform.system() == 'Windows'
             
-            # Configurações otimizadas para inicialização mais rápida
-            # Usa DirectShow no Windows para melhor compatibilidade
-            # No Raspberry Pi, usa a API padrão
-            if is_windows:
-                self.camera = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-            else:
-                self.camera = cv2.VideoCapture(camera_index)
+            # Preferir pool persistente
+            try:
+                from camera_manager import get_persistent_camera
+                self.camera = get_persistent_camera(camera_index)
+            except Exception:
+                self.camera = None
+            if not self.camera:
+                if is_windows:
+                    self.camera = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+                else:
+                    self.camera = cv2.VideoCapture(camera_index)
             
             if not self.camera.isOpened():
                 raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
             
-            # Configurações otimizadas para performance e inicialização rápida
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
-            
-            # Usa resolução nativa para câmeras externas (1920x1080) ou padrão para webcam interna
-            if camera_index > 0:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            else:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # Configurações centralizadas (inclui exposição/ganho/WB)
+            try:
+                from camera_manager import configure_video_capture
+                configure_video_capture(self.camera, camera_index)
+            except Exception:
+                pass
             
             # Inicializa contador de frames para inspeção automática
             self._inspection_frame_count = 0
@@ -774,17 +1600,12 @@ class InspecaoWindow(ttk.Frame):
             if not self.camera.isOpened():
                 raise ValueError(f"Não foi possível abrir a câmera {camera_index}")
             
-            # Configurações otimizadas para performance e inicialização rápida
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            self.camera.set(cv2.CAP_PROP_FPS, 30)
-            
-            # Usa resolução nativa para câmeras externas (1920x1080) ou padrão para webcam interna
-            if camera_index > 0:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-            else:
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # Configurações centralizadas (inclui exposição/ganho/WB)
+            try:
+                from camera_manager import configure_video_capture
+                configure_video_capture(self.camera, camera_index)
+            except Exception:
+                pass
             
             self.live_capture = True
             self.manual_inspection_mode = True  # Modo de inspeção manual
@@ -1048,6 +1869,11 @@ class InspecaoWindow(ttk.Frame):
             canvas_width = self.canvas.winfo_width()
             canvas_height = self.canvas.winfo_height()
             
+            # Se o canvas ainda não foi renderizado, use valores padrão
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width = 640
+                canvas_height = 480
+            
             # Usa a função cv2_to_tk para manter consistência com o resto do código
             self.img_display, self.scale_factor = cv2_to_tk(self.img_test, max_w=canvas_width, max_h=canvas_height)
             
@@ -1059,11 +1885,24 @@ class InspecaoWindow(ttk.Frame):
             new_width = int(img_width * self.scale_factor)
             new_height = int(img_height * self.scale_factor)
             
-            # Limpa o canvas e exibe a imagem centralizada
-            self.canvas.delete("all")
-            self.x_offset = max(0, (self.canvas.winfo_width() - new_width) // 2)
-            self.y_offset = max(0, (self.canvas.winfo_height() - new_height) // 2)
-            self.canvas.create_image(self.x_offset, self.y_offset, anchor=NW, image=self.img_display)
+            # Remove apenas overlays, não toda a imagem
+            self.canvas.delete("result_overlay")
+            self.canvas.delete("inspection")
+            
+            # Calcula offsets para centralização (consistente com update_display)
+            self.x_offset = max(0, (canvas_width - new_width) // 2)
+            self.y_offset = max(0, (canvas_height - new_height) // 2)
+            
+            # Cria ou atualiza imagem (consistente com update_display)
+            if not hasattr(self, '_canvas_image_id') or self._canvas_image_id is None:
+                self._canvas_image_id = self.canvas.create_image(self.x_offset, self.y_offset, anchor=NW, image=self.img_display)
+            else:
+                try:
+                    self.canvas.itemconfig(self._canvas_image_id, image=self.img_display)
+                    self.canvas.coords(self._canvas_image_id, self.x_offset, self.y_offset)
+                except Exception:
+                    # Se falhar, cria nova imagem
+                    self._canvas_image_id = self.canvas.create_image(self.x_offset, self.y_offset, anchor=NW, image=self.img_display)
             
             # Atualiza o canvas
             self.canvas.update()
@@ -1073,6 +1912,742 @@ class InspecaoWindow(ttk.Frame):
             
         except Exception as e:
             print(f"Erro ao exibir imagem em tela cheia: {e}")
+    
+    def open_dual_inspection_dialog(self):
+        """Abre diálogo para configurar inspeção dual com dois modelos."""
+        # Redireciona para o diálogo multi-programas (compatibilidade)
+        self.open_multi_program_dialog()
+    
+    def open_multi_program_dialog(self):
+        """Abre diálogo para seleção dinâmica de múltiplos programas (com botão +)."""
+        try:
+            if not self.db_manager:
+                messagebox.showerror("Erro", "Banco de dados não disponível")
+                return
+            dialog = MultiProgramDialog(self, self.db_manager, preselected_ids=self.selected_program_ids)
+            result = dialog.show()
+            if result and result.get('program_ids'):
+                # Salva seleção para uso nas capturas
+                self.selected_program_ids = result['program_ids']
+                # Feedback na UI
+                try:
+                    names = []
+                    for mid in self.selected_program_ids:
+                        info = self.db_manager.get_model_by_id(mid)
+                        names.append(info.get('nome', str(mid)) if info else str(mid))
+                    self.status_var.set(f"Programas selecionados: {', '.join(names)}")
+                except Exception:
+                    self.status_var.set(f"Programas selecionados: {self.selected_program_ids}")
+        except Exception as e:
+            print(f"Erro ao abrir diálogo multi-programas: {e}")
+            messagebox.showerror("Erro", f"Erro ao abrir diálogo: {str(e)}")
+    
+    def _create_annotated_image(self, program_name, success, details, source_image=None):
+        """Cria uma imagem anotada com o resultado da inspeção do programa."""
+        try:
+            # Usa a imagem fornecida ou fallback para img_test
+            if source_image is not None:
+                base_image = source_image
+            elif hasattr(self, 'img_test') and self.img_test is not None:
+                base_image = self.img_test
+            else:
+                return None
+                
+            # Cria uma cópia da imagem base
+            img_copy = base_image.copy()
+            h, w = img_copy.shape[:2]
+            
+            # Escala dinâmica para melhor qualidade de texto
+            font_scale_base = max(0.5, min(1.5, w / 800))  # Escala baseada na largura da imagem
+            
+            # Carrega as configurações de estilo
+            style_config = load_style_config()
+            
+            # Função para converter cor hex para BGR
+            def hex_to_bgr(hex_color):
+                if hex_color.startswith('#'):
+                    hex_color = hex_color[1:]
+                r = int(hex_color[0:2], 16)
+                g = int(hex_color[2:4], 16)
+                b = int(hex_color[4:6], 16)
+                return (b, g, r)  # OpenCV usa BGR
+            
+            # Faixa de status sobre a imagem inspecionada (overlay)
+            try:
+                status_color = hex_to_bgr(get_color('colors.ok_color', style_config)) if success else hex_to_bgr(get_color('colors.ng_color', style_config))
+                overlay = img_copy.copy()
+                h, w = img_copy.shape[:2]
+                faixa_h = max(40, int(0.08 * h))  # 8% da altura ou 40px mínimo
+                cv2.rectangle(overlay, (0, 0), (w, faixa_h), status_color, -1)
+                img_copy = cv2.addWeighted(overlay, 0.45, img_copy, 0.55, 0)
+                status_text = f"{program_name} - {'APROVADO' if success else 'REPROVADO'}"
+                font_scale = font_scale_base * 0.8
+                thickness = max(1, int(font_scale * 2))
+                (tw, th), _ = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+                tx = max(10, (w - tw) // 2)
+                ty = min(faixa_h - 10, faixa_h - (faixa_h - th)//2)
+                # Contorno escuro
+                cv2.putText(img_copy, status_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness + 1, cv2.LINE_AA)
+                # Texto principal
+                cv2.putText(img_copy, status_text, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+            except Exception:
+                pass
+            
+            # Desenha os slots se existem resultados de inspeção
+            if hasattr(self, 'inspection_results') and self.inspection_results:
+                for result in self.inspection_results:
+                    slot = result['slot_data']
+                    
+                    # Coordenadas do slot
+                    x1, y1 = int(slot['x']), int(slot['y'])
+                    x2, y2 = int(slot['x'] + slot['w']), int(slot['y'] + slot['h'])
+                    
+                    # Cores baseadas no resultado
+                    if result['passou']:
+                        outline_color = hex_to_bgr(get_color('colors.ok_color', style_config))
+                        text_bg_color = hex_to_bgr(get_color('colors.ok_color', style_config))
+                    else:
+                        outline_color = hex_to_bgr(get_color('colors.ng_color', style_config))
+                        text_bg_color = hex_to_bgr(get_color('colors.ng_color', style_config))
+                    
+                    # Desenha retângulo do slot
+                    cv2.rectangle(img_copy, (x1, y1), (x2, y2), outline_color, 3)
+                    
+                    # Cria fundo para o texto
+                    text_bg_width, text_bg_height = 100, 25
+                    cv2.rectangle(img_copy, (x1, y1), (x1 + text_bg_width, y1 + text_bg_height), text_bg_color, -1)
+                    cv2.rectangle(img_copy, (x1, y1), (x1 + text_bg_width, y1 + text_bg_height), outline_color, 2)
+                    
+                    # Adiciona texto com resultado usando escala dinâmica
+                    status_text = "OK" if result['passou'] else "NG"
+                    text = f"S{slot['id']}: {status_text}"
+                    slot_font_scale = font_scale_base * 0.5
+                    slot_thickness = max(1, int(slot_font_scale * 2))
+                    cv2.putText(img_copy, text, (x1 + 5, y1 + 17), cv2.FONT_HERSHEY_SIMPLEX, slot_font_scale, (255, 255, 255), slot_thickness, cv2.LINE_AA)
+                    
+                    # Adiciona score com anti-aliasing
+                    score_text = f"{result['score']:.2f}"
+                    score_font_scale = font_scale_base * 0.4
+                    score_thickness = max(1, int(score_font_scale * 2))
+                    cv2.putText(img_copy, score_text, (x2 - 40, y2 - 5), cv2.FONT_HERSHEY_SIMPLEX, score_font_scale, outline_color, score_thickness, cv2.LINE_AA)
+            
+            # Adiciona título do programa na parte superior
+            title_height = 40
+            title_img = np.zeros((title_height, img_copy.shape[1], 3), dtype=np.uint8)
+            
+            # Cor de fundo do título baseada no resultado
+            bg_color = hex_to_bgr(get_color('colors.ok_color', style_config)) if success else hex_to_bgr(get_color('colors.ng_color', style_config))
+            title_img[:] = bg_color
+            
+            # Adiciona texto do título com escala dinâmica
+            title_text = f"{program_name} - {'OK' if success else 'NG'}"
+            title_font_scale = font_scale_base * 0.7
+            title_thickness = max(1, int(title_font_scale * 2))
+            text_size = cv2.getTextSize(title_text, cv2.FONT_HERSHEY_SIMPLEX, title_font_scale, title_thickness)[0]
+            text_x = (title_img.shape[1] - text_size[0]) // 2
+            cv2.putText(title_img, title_text, (text_x, 25), cv2.FONT_HERSHEY_SIMPLEX, title_font_scale, (255, 255, 255), title_thickness, cv2.LINE_AA)
+            
+            # Adiciona detalhes na segunda linha com anti-aliasing
+            if details:
+                details_font_scale = font_scale_base * 0.4
+                details_thickness = max(1, int(details_font_scale * 2))
+                cv2.putText(title_img, details, (text_x, 35), cv2.FONT_HERSHEY_SIMPLEX, details_font_scale, (255, 255, 255), details_thickness, cv2.LINE_AA)
+            
+            # Combina título com imagem
+            final_img = np.vstack([title_img, img_copy])
+            
+            return final_img
+            
+        except Exception as e:
+            print(f"Erro ao criar imagem anotada: {e}")
+            return None
+
+    def _show_multi_program_visual_summary(self, program_images, results, overall_success):
+        """Exibe resumo visual com uma única imagem em tamanho completo no canvas."""
+        try:
+            if not program_images:
+                return
+                
+            # Usa apenas a primeira imagem em tamanho completo
+            # ao invés de criar thumbnails ou grid
+            composite_img = program_images[0] if program_images else None
+            
+            if composite_img is not None:
+                self._display_composite_image(composite_img, overall_success)
+                
+        except Exception as e:
+            print(f"Erro ao mostrar resumo visual: {e}")
+
+    def _create_side_by_side_layout(self, images):
+        """Cria layout lado a lado para 2 programas."""
+        try:
+            if len(images) != 2:
+                return None
+                
+            img1, img2 = images
+            
+            # Redimensiona para altura uniforme
+            target_height = min(img1.shape[0], img2.shape[0], 600)
+            
+            # Calcula novas larguras mantendo proporção
+            ratio1 = target_height / img1.shape[0]
+            ratio2 = target_height / img2.shape[0]
+            new_w1 = int(img1.shape[1] * ratio1)
+            new_w2 = int(img2.shape[1] * ratio2)
+            
+            # Redimensiona imagens com interpolação adequada
+            interp1 = cv2.INTER_AREA if ratio1 < 1.0 else cv2.INTER_LANCZOS4
+            interp2 = cv2.INTER_AREA if ratio2 < 1.0 else cv2.INTER_LANCZOS4
+            img1_resized = cv2.resize(img1, (new_w1, target_height), interpolation=interp1)
+            img2_resized = cv2.resize(img2, (new_w2, target_height), interpolation=interp2)
+            
+            # Combina lado a lado
+            composite = np.hstack([img1_resized, img2_resized])
+            
+            return composite
+            
+        except Exception as e:
+            print(f"Erro ao criar layout lado a lado: {e}")
+            return None
+
+    def _create_three_program_layout(self, images):
+        """Cria layout com 2 em cima e 1 embaixo para 3 programas."""
+        try:
+            if len(images) != 3:
+                return None
+                
+            img1, img2, img3 = images
+            
+            # Define altura alvo
+            target_height = 400
+            
+            # Redimensiona as duas primeiras imagens
+            ratio1 = target_height / img1.shape[0]
+            ratio2 = target_height / img2.shape[0]
+            new_w1 = int(img1.shape[1] * ratio1)
+            new_w2 = int(img2.shape[1] * ratio2)
+            
+            interp1 = cv2.INTER_AREA if ratio1 < 1.0 else cv2.INTER_LANCZOS4
+            interp2 = cv2.INTER_AREA if ratio2 < 1.0 else cv2.INTER_LANCZOS4
+            img1_resized = cv2.resize(img1, (new_w1, target_height), interpolation=interp1)
+            img2_resized = cv2.resize(img2, (new_w2, target_height), interpolation=interp2)
+            
+            # Combina as duas primeiras lado a lado
+            top_row = np.hstack([img1_resized, img2_resized])
+            
+            # Redimensiona a terceira imagem para ter a mesma largura do topo
+            target_width = top_row.shape[1]
+            ratio3 = target_width / img3.shape[1]
+            new_h3 = int(img3.shape[0] * ratio3)
+            
+            interp3 = cv2.INTER_AREA if ratio3 < 1.0 else cv2.INTER_LANCZOS4
+            img3_resized = cv2.resize(img3, (target_width, new_h3), interpolation=interp3)
+            
+            # Combina verticalmente
+            composite = np.vstack([top_row, img3_resized])
+            
+            return composite
+            
+        except Exception as e:
+            print(f"Erro ao criar layout de três programas: {e}")
+            return None
+
+    def _create_grid_layout(self, images):
+        """Cria layout em grid para mais de 3 programas."""
+        try:
+            num_images = len(images)
+            if num_images == 0:
+                return None
+                
+            # Calcula dimensões do grid
+            cols = int(np.ceil(np.sqrt(num_images)))
+            rows = int(np.ceil(num_images / cols))
+            
+            # Altura e largura alvo para cada imagem
+            target_height = 360
+            target_width = 480
+            
+            # Redimensiona todas as imagens mantendo a proporção dentro do alvo
+            resized_images = []
+            for img in images:
+                h, w = img.shape[:2]
+                scale = min(target_width / w, target_height / h)
+                new_w = max(1, int(w * scale))
+                new_h = max(1, int(h * scale))
+                interp = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LANCZOS4
+                img_resized = cv2.resize(img, (new_w, new_h), interpolation=interp)
+                # Coloca em um canvas do tamanho alvo para alinhamento uniforme
+                canvas = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                y_off = (target_height - new_h) // 2
+                x_off = (target_width - new_w) // 2
+                canvas[y_off:y_off+new_h, x_off:x_off+new_w] = img_resized
+                resized_images.append(canvas)
+            
+            # Preenche com imagens em branco se necessário
+            while len(resized_images) < rows * cols:
+                blank_img = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                resized_images.append(blank_img)
+            
+            # Cria o grid
+            grid_rows = []
+            for r in range(rows):
+                row_images = resized_images[r * cols:(r + 1) * cols]
+                if row_images:
+                    row = np.hstack(row_images)
+                    grid_rows.append(row)
+            
+            if grid_rows:
+                composite = np.vstack(grid_rows)
+                return composite
+                
+            return None
+            
+        except Exception as e:
+            print(f"Erro ao criar layout de grid: {e}")
+            return None
+
+    def _display_composite_image(self, composite_img, overall_success):
+        """Exibe a imagem composta no canvas temporariamente."""
+        try:
+            if not hasattr(self, 'canvas') or composite_img is None:
+                return
+            
+            # Flag para bloquear update_display enquanto composta está ativa
+            self._composite_active = True
+                
+            # Salva estado atual da imagem antes de substituir
+            self._save_current_display_state()
+                
+            # Converte para formato Tk
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width, canvas_height = 800, 600
+                
+            composite_tk, scale = cv2_to_tk(composite_img, max_w=canvas_width, max_h=canvas_height)
+            
+            if composite_tk is None:
+                self._composite_active = False
+                return
+                
+            # Remove apenas overlays, preservando a imagem base se possível
+            self.canvas.delete("result_overlay")
+            self.canvas.delete("composite_display")
+            self.canvas.delete("composite_text")
+            
+            # Centraliza a imagem composta e calcula offsets
+            img_height, img_width = composite_img.shape[:2]
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
+            x_offset = max(0, (canvas_width - new_width) // 2)
+            y_offset = max(0, (canvas_height - new_height) // 2)
+            
+            # Cria imagem composta com tag específica
+            self._composite_image_id = self.canvas.create_image(
+                x_offset, y_offset, anchor=NW, image=composite_tk, tags=("composite_display", "result_overlay")
+            )
+            
+            # Armazena referência para evitar garbage collection
+            self._composite_image_ref = composite_tk
+            
+            # Adiciona texto de alta qualidade diretamente no canvas usando Tkinter
+            self._add_canvas_text_overlay(x_offset, y_offset, new_width, new_height, overall_success)
+            
+            # Agenda restauração da imagem original após alguns segundos (sem popup)
+            if hasattr(self, '_composite_restore_timer'):
+                try:
+                    self.master.after_cancel(self._composite_restore_timer)
+                except Exception:
+                    pass
+            self._composite_restore_timer = self.master.after(5000, self._restore_original_display)
+            
+        except Exception as e:
+            print(f"Erro ao exibir imagem composta: {e}")
+            self._composite_active = False
+    
+    def _add_canvas_text_overlay(self, img_x, img_y, img_width, img_height, overall_success):
+        """Adiciona texto de alta qualidade diretamente no canvas usando Tkinter."""
+        try:
+            # Carrega configurações de estilo
+            style_config = load_style_config()
+            
+            # Cores baseadas no resultado
+            if overall_success:
+                bg_color = get_color('colors.ok_color', style_config)
+                text_color = "white"
+            else:
+                bg_color = get_color('colors.ng_color', style_config)
+                text_color = "white"
+            
+            # Calcula tamanho da fonte baseado na largura da imagem
+            base_font_size = max(12, min(24, img_width // 40))
+            
+            # Cria faixa de status no topo da imagem
+            status_height = max(30, img_height // 15)
+            status_rect = self.canvas.create_rectangle(
+                img_x, img_y, img_x + img_width, img_y + status_height,
+                fill=bg_color, outline=bg_color, tags="composite_text"
+            )
+            
+            # Texto principal do status
+            status_text = f"RESULTADO GERAL: {'APROVADO' if overall_success else 'REPROVADO'}"
+            status_font = ("Arial", base_font_size, "bold")
+            
+            status_text_id = self.canvas.create_text(
+                img_x + img_width // 2, img_y + status_height // 2,
+                text=status_text, fill=text_color, font=status_font,
+                anchor="center", tags="composite_text"
+            )
+            
+            # Se há resultados de inspeção, adiciona informações dos slots
+            if hasattr(self, 'inspection_results') and self.inspection_results:
+                y_pos = img_y + status_height + 10
+                slot_font = ("Arial", max(10, base_font_size - 4), "normal")
+                
+                for i, result in enumerate(self.inspection_results[:5]):  # Máximo 5 slots para não sobrecarregar
+                    slot = result['slot_data']
+                    slot_status = "OK" if result['passou'] else "NG"
+                    slot_text = f"Slot {slot['id']}: {slot_status} ({result['score']:.2f})"
+                    
+                    # Cor do texto baseada no resultado do slot
+                    slot_color = "#00AA00" if result['passou'] else "#AA0000"
+                    
+                    self.canvas.create_text(
+                        img_x + 10, y_pos,
+                        text=slot_text, fill=slot_color, font=slot_font,
+                        anchor="nw", tags="composite_text"
+                    )
+                    y_pos += max(15, base_font_size)
+            
+            # Adiciona timestamp no canto inferior direito
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            timestamp_font = ("Arial", max(8, base_font_size - 6), "normal")
+            
+            self.canvas.create_text(
+                img_x + img_width - 10, img_y + img_height - 10,
+                text=timestamp, fill="#CCCCCC", font=timestamp_font,
+                anchor="se", tags="composite_text"
+            )
+            
+        except Exception as e:
+            print(f"Erro ao adicionar texto no canvas: {e}")
+
+    def _save_current_display_state(self):
+        """Salva o estado atual do display para restauração posterior"""
+        try:
+            # Salva referências da imagem atual
+            if hasattr(self, 'img_display'):
+                self._saved_img_display = self.img_display
+            if hasattr(self, '_canvas_image_id'):
+                self._saved_canvas_image_id = self._canvas_image_id
+            if hasattr(self, 'x_offset'):
+                self._saved_x_offset = self.x_offset
+            if hasattr(self, 'y_offset'):
+                self._saved_y_offset = self.y_offset
+                
+            # Salva o estado atual dos labels de resultado
+            if hasattr(self, 'result_display_label'):
+                self._saved_result_text = self.result_display_label.cget('text')
+                self._saved_result_fg = self.result_display_label.cget('foreground')
+                self._saved_result_bg = self.result_display_label.cget('background')
+                
+        except Exception as e:
+            print(f"Erro ao salvar estado do display: {e}")
+
+    def _restore_original_display(self):
+        """Restaura a exibição original no canvas mantendo a imagem visível."""
+        try:
+            # Remove flag de bloqueio
+            self._composite_active = False
+            
+            # Cancela timer se existir
+            if hasattr(self, '_composite_restore_timer'):
+                self.master.after_cancel(self._composite_restore_timer)
+                delattr(self, '_composite_restore_timer')
+                
+            # Remove apenas overlays, mantém a imagem base
+            if hasattr(self, 'canvas'):
+                self.canvas.delete("composite_display")
+                self.canvas.delete("composite_text")
+                self.canvas.delete("result_overlay")
+                # Reset do ID da imagem para forçar recriação limpa
+                if hasattr(self, '_canvas_image_id'):
+                    self._canvas_image_id = None
+            
+            # Limpa referência da imagem composta
+            if hasattr(self, '_composite_image_ref'):
+                delattr(self, '_composite_image_ref')
+            if hasattr(self, '_composite_image_id'):
+                delattr(self, '_composite_image_id')
+            
+            # Garante que a imagem atual permaneça visível
+            if hasattr(self, 'img_test') and self.img_test is not None:
+                try:
+                    # Sempre usa update_display para garantir consistência
+                    self.update_display()
+                    
+                    # Restaura o estado dos labels de resultado se foram salvos
+                    if hasattr(self, '_saved_result_text') and hasattr(self, 'result_display_label'):
+                        try:
+                            self.result_display_label.config(
+                                text=self._saved_result_text,
+                                foreground=self._saved_result_fg,
+                                background=self._saved_result_bg
+                            )
+                        except Exception as label_error:
+                            print(f"Erro ao restaurar label de resultado: {label_error}")
+                            
+                    # Redesenha resultados de inspeção se existirem
+                    if hasattr(self, 'inspection_results') and self.inspection_results:
+                        self.draw_inspection_results()
+                        
+                except Exception as update_error:
+                    print(f"Erro ao atualizar display na restauração: {update_error}")
+                    # Fallback final: tenta recriar a imagem do zero
+                    try:
+                        if hasattr(self, 'img_test') and self.img_test is not None:
+                            self.update_display()
+                            print("Fallback: imagem restaurada via update_display")
+                    except Exception as final_error:
+                        print(f"Erro no fallback final: {final_error}")
+            else:
+                print("Aviso: img_test não disponível para restauração")
+            
+            # Limpa estados salvos após uso
+            for attr in ['_saved_img_display', '_saved_canvas_image_id', '_saved_x_offset', '_saved_y_offset',
+                        '_saved_result_text', '_saved_result_fg', '_saved_result_bg']:
+                if hasattr(self, attr):
+                    delattr(self, attr)
+                
+        except Exception as e:
+            print(f"Erro ao restaurar display original: {e}")
+            # Fallback final: força atualização se possível
+            try:
+                if hasattr(self, 'img_test') and self.img_test is not None:
+                    self.update_display()
+            except:
+                pass
+
+    def run_dual_inspection(self, model1_id, model2_id):
+        """Executa inspeção sequencial com dois modelos."""
+        # Redireciona para execução multi, preservando compatibilidade
+        try:
+            self.run_multi_program_inspection([model1_id, model2_id])
+        except Exception as e:
+            print(f"Erro geral na inspeção dual: {e}")
+            self.status_var.set(f"ERRO NA INSPEÇÃO DUAL: {str(e)}")
+            messagebox.showerror("Erro", f"Erro na inspeção dual: {str(e)}")
+    
+    def show_dual_inspection_result(self, results):
+        """Exibe resultado da inspeção dual no canvas (sem popups)."""
+        try:
+            # Carrega informações dos modelos
+            model1_data = self.db_manager.load_modelo(results['model1']['id'])
+            model2_data = self.db_manager.load_modelo(results['model2']['id'])
+            
+            # Cria resumo visual no canvas
+            try:
+                # Dimensões do canvas
+                canvas_w = self.canvas.winfo_width() if hasattr(self, 'canvas') else 800
+                canvas_h = self.canvas.winfo_height() if hasattr(self, 'canvas') else 600
+                if canvas_w <= 1 or canvas_h <= 1:
+                    canvas_w, canvas_h = 800, 600
+
+                # Imagem de fundo
+                bg_color = (30, 30, 30)  # BGR
+                img = np.full((canvas_h, canvas_w, 3), bg_color, dtype=np.uint8)
+
+                # Cabeçalho
+                header_h = int(0.14 * canvas_h)
+                header_color = (0, 140, 0) if results['overall_success'] else (0, 0, 160)  # verde/vermelho
+                cv2.rectangle(img, (0, 0), (canvas_w, header_h), header_color, thickness=-1)
+
+                final_status = "APROVADO" if results['overall_success'] else "REPROVADO"
+                title_text = f"RESULTADO DUAL: {final_status}"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                title_scale = 1.0
+                title_thickness = 2
+                (tw, th), _ = cv2.getTextSize(title_text, font, title_scale, title_thickness)
+                cv2.putText(img, title_text, ((canvas_w - tw) // 2, header_h // 2 + th // 2), font, title_scale, (255, 255, 255), title_thickness, cv2.LINE_AA)
+
+                # Corpo com detalhes dos programas
+                y = header_h + int(0.06 * canvas_h)
+                line_scale = 0.7
+                line_thickness = 2
+                line_height = int(28 * (canvas_h / 600))
+
+                # Programa 1
+                prog1_line = f"PROGRAMA 1: {model1_data['nome']} - {'APROVADO' if results['model1']['success'] else 'REPROVADO'}"
+                cv2.putText(img, prog1_line, (30, y), font, line_scale, (255, 255, 255), line_thickness, cv2.LINE_AA)
+                y += line_height
+                if results['model1']['details']:
+                    cv2.putText(img, f"Detalhes: {results['model1']['details']}", (50, y), font, line_scale, (200, 200, 200), 1, cv2.LINE_AA)
+                    y += line_height
+                y += line_height // 2
+
+                # Programa 2
+                prog2_line = f"PROGRAMA 2: {model2_data['nome']} - {'APROVADO' if results['model2']['success'] else 'REPROVADO'}"
+                cv2.putText(img, prog2_line, (30, y), font, line_scale, (255, 255, 255), line_thickness, cv2.LINE_AA)
+                y += line_height
+                if results['model2']['details']:
+                    cv2.putText(img, f"Detalhes: {results['model2']['details']}", (50, y), font, line_scale, (200, 200, 200), 1, cv2.LINE_AA)
+                    y += line_height
+                y += line_height
+
+                # Status final
+                final_msg = "✅ Ambos os programas passaram!" if results['overall_success'] else "❌ Um ou ambos falharam!"
+                cv2.putText(img, final_msg, (30, y), font, line_scale, (255, 255, 255), line_thickness, cv2.LINE_AA)
+
+                # Exibir no canvas
+                self._display_composite_image(img, results['overall_success'])
+                
+            except Exception as canvas_error:
+                print(f"Erro ao criar resumo visual dual: {canvas_error}")
+                
+        except Exception as e:
+            print(f"Erro ao exibir resultado dual: {e}")
+
+    def run_multi_program_inspection(self, program_ids):
+        """Executa inspeção sequencial para todos os programas fornecidos."""
+        if not program_ids:
+            return
+        try:
+            # Armazena o modelo original para restaurar ao final
+            original_model_id = getattr(self, 'current_model_id', None)
+            overall_all_ok = True
+            per_program_results = []
+            program_images = []  # Lista para armazenar imagens com anotações
+            
+            for idx, mid in enumerate(program_ids, start=1):
+                try:
+                    model_data = self.db_manager.load_modelo(mid)
+                    # Troca de modelo (também ajusta câmera se necessário)
+                    self.status_var.set(f"CARREGANDO PROGRAMA {idx}/{len(program_ids)}...")
+                    self.load_model_from_db(mid)
+                    time.sleep(0.2)
+                    
+                    # Executa inspeção na imagem atual (sem recapturar)
+                    if self.img_test is None:
+                        # se não tiver imagem, não há o que inspecionar
+                        self.status_var.set("Sem imagem capturada para inspecionar")
+                        break
+                    else:
+                        self.run_inspection()
+                    
+                    # Coletar resumo
+                    if hasattr(self, 'inspection_results') and self.inspection_results:
+                        passed = sum(1 for r in self.inspection_results if r.get('passou', False))
+                        total = len(self.inspection_results)
+                        success = passed == total
+                        
+                        # Criar imagem com anotações para este programa
+                        program_image = self._create_annotated_image(
+                            model_data.get('nome', str(mid)), 
+                            success, 
+                            f"{passed}/{total} OK"
+                        )
+                        if program_image is not None:
+                            program_images.append(program_image)
+                        
+                        per_program_results.append({
+                            'id': mid,
+                            'name': model_data.get('nome', str(mid)),
+                            'success': success,
+                            'details': f"{passed}/{total} slots OK",
+                        })
+                        overall_all_ok = overall_all_ok and success
+                    else:
+                        per_program_results.append({
+                            'id': mid,
+                            'name': model_data.get('nome', str(mid)),
+                            'success': False,
+                            'details': 'Erro na inspeção',
+                        })
+                        overall_all_ok = False
+                        
+                except Exception as e:
+                    print(f"Erro ao inspecionar programa {mid}: {e}")
+                    per_program_results.append({
+                        'id': mid,
+                        'name': str(mid),
+                        'success': False,
+                        'details': f"Erro: {e}",
+                    })
+                    overall_all_ok = False
+                    
+            # Restaurar modelo original ao final
+            if original_model_id is not None and (original_model_id not in program_ids or original_model_id != self.current_model_id):
+                try:
+                    self.load_model_from_db(original_model_id)
+                except Exception:
+                    pass
+                    
+            # Atualizar barra e mostrar resumo
+            self.inspection_status_var.set("FINALIZADO")
+            if overall_all_ok:
+                self.status_var.set("TODOS OS PROGRAMAS: APROVADO")
+            else:
+                self.status_var.set("ALGUNS PROGRAMAS: REPROVADO")
+                
+            # Exibir resumo visual se há imagens coletadas
+            if program_images:
+                self._show_multi_program_visual_summary(program_images, per_program_results, overall_all_ok)
+            else:
+                # Fallback visual no canvas (sem popups)
+                try:
+                    # Dimensões do canvas
+                    canvas_w = self.canvas.winfo_width() if hasattr(self, 'canvas') else 800
+                    canvas_h = self.canvas.winfo_height() if hasattr(self, 'canvas') else 600
+                    if canvas_w <= 1 or canvas_h <= 1:
+                        canvas_w, canvas_h = 800, 600
+
+                    # Imagem de fundo
+                    bg_color = (30, 30, 30)  # BGR
+                    img = np.full((canvas_h, canvas_w, 3), bg_color, dtype=np.uint8)
+
+                    # Cabeçalho
+                    header_h = int(0.14 * canvas_h)
+                    header_color = (0, 140, 0) if overall_all_ok else (0, 0, 160)  # verde/azulado para contraste
+                    cv2.rectangle(img, (0, 0), (canvas_w, header_h), header_color, thickness=-1)
+
+                    title_text = f"RESULTADO FINAL: {'APROVADO' if overall_all_ok else 'REPROVADO'}"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    title_scale = 1.0
+                    title_thickness = 2
+                    (tw, th), _ = cv2.getTextSize(title_text, font, title_scale, title_thickness)
+                    cv2.putText(img, title_text, ((canvas_w - tw) // 2, header_h // 2 + th // 2), font, title_scale, (255, 255, 255), title_thickness, cv2.LINE_AA)
+
+                    # Corpo com detalhes por programa
+                    y = header_h + int(0.06 * canvas_h)
+                    line_scale = 0.7
+                    line_thickness = 2
+                    line_height = int(28 * (canvas_h / 600))
+
+                    for r in per_program_results:
+                        program_line = f"PROGRAMA: {r['name']} (ID {r['id']}) - {'APROVADO' if r['success'] else 'REPROVADO'}"
+                        cv2.putText(img, program_line, (30, y), font, line_scale, (255, 255, 255), line_thickness, cv2.LINE_AA)
+                        y += line_height
+                        details = str(r.get('details', ''))
+                        if details:
+                            # Quebra detalhes em linhas menores se necessário
+                            max_chars = 70
+                            for i in range(0, len(details), max_chars):
+                                cv2.putText(img, details[i:i+max_chars], (50, y), font, line_scale, (200, 200, 200), 1, cv2.LINE_AA)
+                                y += line_height
+                        y += line_height // 2
+
+                    # Exibir no canvas
+                    self._display_composite_image(img, overall_all_ok)
+                except Exception as _e:
+                    print(f"Falha ao exibir fallback visual: {_e}")
+                    pass
+                    
+        except Exception as e:
+            print(f"Erro na inspeção multi-programas: {e}")
+            # Exibe erro apenas no status, sem pop-up
+            self.status_var.set(f"ERRO: {str(e)}")
+            self.inspection_status_var.set("ERRO")
     
     def toggle_live_capture_inspection(self):
         """Alterna entre iniciar e parar a captura contínua para inspeção automática."""
@@ -1145,9 +2720,13 @@ class InspecaoWindow(ttk.Frame):
                 # Exibe a imagem em tela cheia
                 self.show_fullscreen_image()
                 
-                # Executa inspeção automática se modelo carregado
-                if hasattr(self, 'slots') and self.slots and hasattr(self, 'img_reference') and self.img_reference is not None:
-                    self.run_inspection()
+                # Se houver múltiplos programas selecionados, capturar de todas as câmeras e executar sequencialmente
+                if hasattr(self, 'selected_program_ids') and self.selected_program_ids:
+                    self.capture_all_cameras_and_run_multi_inspection(self.selected_program_ids)
+                else:
+                    # Executa inspeção automática se modelo carregado
+                    if hasattr(self, 'slots') and self.slots and hasattr(self, 'img_reference') and self.img_reference is not None:
+                        self.run_inspection()
             else:
                 self.status_var.set("Nenhuma imagem disponível para captura")
                 
@@ -1370,16 +2949,18 @@ class InspecaoWindow(ttk.Frame):
                         print(f"Erro ao atualizar display: {display_error}")
                     
                     # Inspeção automática otimizada (menos frequente)
-                    if hasattr(self, 'slots') and self.slots and hasattr(self, '_frame_count'):
-                        self._frame_count += 1
-                        # Executa inspeção a cada 5 frames para melhor performance
-                        if self._frame_count % 5 == 0:
-                            try:
-                                self.run_inspection(show_message=False)
-                            except Exception as inspection_error:
-                                print(f"Erro durante inspeção automática: {inspection_error}")
-                    elif hasattr(self, 'slots') and self.slots:
-                        self._frame_count = 0
+                    # Pausa inspeções automáticas se uma imagem composta está sendo exibida
+                    if not getattr(self, '_composite_active', False):
+                        if hasattr(self, 'slots') and self.slots and hasattr(self, '_frame_count'):
+                            self._frame_count += 1
+                            # Executa inspeção a cada 5 frames para melhor performance
+                            if self._frame_count % 5 == 0:
+                                try:
+                                    self.run_inspection(show_message=False)
+                                except Exception as inspection_error:
+                                    print(f"Erro durante inspeção automática: {inspection_error}")
+                        elif hasattr(self, 'slots') and self.slots:
+                            self._frame_count = 0
             except Exception as camera_error:
                 print(f"Erro ao ler frame da câmera: {camera_error}")
             
@@ -1402,6 +2983,10 @@ class InspecaoWindow(ttk.Frame):
     def update_display(self):
         """Atualiza exibição no canvas de forma otimizada"""
         try:
+            # Se uma imagem composta está ativa, não atualiza para evitar sobreposição da base
+            if getattr(self, '_composite_active', False):
+                return
+            
             # Verifica se os atributos necessários existem
             if not hasattr(self, 'img_test') or self.img_test is None:
                 return
@@ -1449,11 +3034,15 @@ class InspecaoWindow(ttk.Frame):
                 self.y_offset = max(0, (self.canvas.winfo_height() - new_height) // 2)
                 
                 # Cria ou atualiza imagem
-                if not hasattr(self, '_canvas_image_id'):
+                if not hasattr(self, '_canvas_image_id') or self._canvas_image_id is None:
                     self._canvas_image_id = self.canvas.create_image(self.x_offset, self.y_offset, anchor=NW, image=self.img_display)
                 else:
-                    self.canvas.itemconfig(self._canvas_image_id, image=self.img_display)
-                    self.canvas.coords(self._canvas_image_id, self.x_offset, self.y_offset)
+                    try:
+                        self.canvas.itemconfig(self._canvas_image_id, image=self.img_display)
+                        self.canvas.coords(self._canvas_image_id, self.x_offset, self.y_offset)
+                    except Exception:
+                        # Se falhar, cria nova imagem
+                        self._canvas_image_id = self.canvas.create_image(self.x_offset, self.y_offset, anchor=NW, image=self.img_display)
             except Exception as canvas_update_error:
                 print(f"Erro ao atualizar canvas: {canvas_update_error}")
                 return
@@ -1936,7 +3525,7 @@ class InspecaoWindow(ttk.Frame):
             self.results_listbox.delete(*children)  # Mais eficiente que loop
         
         # === CONFIGURAÇÃO DE TAGS ESTILO KEYENCE ===
-        # Carrega as configurações de estilo
+        # Carrega as configurações de estilo (uma única vez)
         style_config = load_style_config()
         
         # Estilo OK - cor personalizada
@@ -1952,8 +3541,6 @@ class InspecaoWindow(ttk.Frame):
                                          font=style_config["ng_font"])
         
         # Estilo cabeçalho - cinza industrial Keyence
-        # Carrega as configurações de estilo
-        style_config = load_style_config()
         self.results_listbox.tag_configure("header", 
                                          foreground=get_color('colors.special_colors.white_text'), 
                                          background=get_color('colors.inspection_colors.pass_bg'), 
@@ -1991,12 +3578,13 @@ class InspecaoWindow(ttk.Frame):
         # Atualizar painel de resumo de status detalhado
         self.update_status_summary_panel()
         
+        # Calcular status geral no estilo Keyence (uma única vez)
+        overall_status = "OK" if total_slots > 0 and passed_slots == total_slots else "NG"
+        
         # Atualizar painel de resumo geral se existir
         if hasattr(self, 'status_label') and hasattr(self, 'score_label') and hasattr(self, 'id_label'):
-            # Calcular status geral no estilo Keyence
             if total_slots > 0:
                 total_score / total_slots
-                overall_status = "OK" if passed_slots == total_slots else "NG"
                 
                 # Atualizar labels com estilo Keyence
                 self.status_label.config(
@@ -2016,7 +3604,6 @@ class InspecaoWindow(ttk.Frame):
         # Atualizar o label grande de resultado NG/OK
         if hasattr(self, 'result_display_label'):
             if total_slots > 0:
-                overall_status = "OK" if passed_slots == total_slots else "NG"
                 
                 # Carrega as configurações de estilo
                 style_config = load_style_config()
@@ -2046,6 +3633,29 @@ class InspecaoWindow(ttk.Frame):
         if not self.inspection_results:
             return
         
+        # Garante que scale_factor e offsets estão atualizados
+        if not hasattr(self, 'scale_factor') or not hasattr(self, 'x_offset') or not hasattr(self, 'y_offset'):
+            # Recalcula scale_factor e offsets se necessário
+            if hasattr(self, 'img_test') and self.img_test is not None:
+                try:
+                    canvas_width = self.canvas.winfo_width() if self.canvas.winfo_width() > 1 else 640
+                    canvas_height = self.canvas.winfo_height() if self.canvas.winfo_height() > 1 else 480
+                    
+                    img_height, img_width = self.img_test.shape[:2]
+                    scale_x = canvas_width / img_width
+                    scale_y = canvas_height / img_height
+                    self.scale_factor = min(scale_x, scale_y)
+                    
+                    new_width = int(img_width * self.scale_factor)
+                    new_height = int(img_height * self.scale_factor)
+                    self.x_offset = max(0, (canvas_width - new_width) // 2)
+                    self.y_offset = max(0, (canvas_height - new_height) // 2)
+                except Exception as e:
+                    print(f"Erro ao recalcular scale_factor: {e}")
+                    return
+            else:
+                return
+        
         for result in self.inspection_results:
             slot = result['slot_data']
             
@@ -2055,7 +3665,7 @@ class InspecaoWindow(ttk.Frame):
             x2 = int((slot['x'] + slot['w']) * self.scale_factor) + self.x_offset
             y2 = int((slot['y'] + slot['h']) * self.scale_factor) + self.y_offset
             
-            # Carrega as configurações de estilo
+            # Carrega as configurações de estilo (uma única vez)
             style_config = load_style_config()
             
             # Cores estilo industrial
@@ -2083,9 +3693,6 @@ class InspecaoWindow(ttk.Frame):
             
             # Adiciona texto com resultado estilo industrial
             status_text = "OK" if result['passou'] else "NG"
-            
-            # Carrega as configurações de estilo
-            style_config = load_style_config()
             
             # Escolhe a fonte baseada no resultado
             font_str = style_config["ok_font"] if result['passou'] else style_config["ng_font"]
@@ -2136,9 +3743,299 @@ class InspecaoWindow(ttk.Frame):
         if self.live_view:
             self.stop_live_view()
         self.master.destroy()
+    
+    def cleanup_on_exit(self):
+        """Método para limpeza de recursos ao sair da aplicação"""
+        try:
+            # Encerra sistema dual se estiver ativo
+            if hasattr(self, 'dual_manager') and self.dual_manager:
+                stop_dual_cameras()
+                print("Sistema dual de câmeras encerrado com sucesso.")
+            
+            # Encerra pool persistente
+            self.shutdown_persistent_pool()
+            print("Pool persistente de câmeras encerrado com sucesso.")
+        except Exception as e:
+            print(f"Erro ao encerrar recursos: {e}")
 
 
 # Função create_main_window() removida - agora centralizada em montagem.py
 # Esta função foi consolidada e melhorada no módulo principal montagem.py
+
+
+class DualInspectionDialog:
+    """Diálogo simples para seleção de dois modelos para inspeção dual."""
+    def __init__(self, parent, db_manager):
+        self.parent = parent  # Instância de InspecaoWindow
+        self.db_manager = db_manager
+        self.top = None
+        self.result = None
+        self.model_list = []
+        self.display_to_id = {}
+
+    def _build_ui(self):
+        self.top = Toplevel(self.parent.master)
+        self.top.title("Inspeção com 2 Programas")
+        self.top.transient(self.parent.master)
+        self.top.grab_set()
+
+        # Dimensões básicas
+        self.top.geometry("420x220")
+
+        # Container principal
+        container = ttk.Frame(self.top, padding=10)
+        container.pack(fill=BOTH, expand=True)
+
+        # Título
+        title = ttk.Label(container, text="Selecione os 2 programas (modelos) para inspeção sequencial:", font=("Segoe UI", 11, "bold"))
+        title.pack(anchor="w", pady=(0, 10))
+
+        # Buscar modelos
+        try:
+            self.model_list = self.db_manager.list_modelos() or []
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao listar modelos: {e}")
+            self.model_list = []
+
+        # Preparar valores de exibição
+        values = []
+        self.display_to_id.clear()
+        for m in self.model_list:
+            mid = m.get('id')
+            nome = m.get('nome', f"Modelo {mid}")
+            cam = m.get('camera_index', '-')
+            display = f"{mid} - {nome} (Cam {cam})"
+            values.append(display)
+            self.display_to_id[display] = mid
+
+        # Linha 1 - Programa 1
+        row1 = ttk.Frame(container)
+        row1.pack(fill=X, pady=5)
+        ttk.Label(row1, text="Programa 1:").pack(side=LEFT)
+        self.combo1 = Combobox(row1, values=values, state="readonly")
+        self.combo1.pack(side=LEFT, fill=X, expand=True, padx=(10, 0))
+
+        # Linha 2 - Programa 2
+        row2 = ttk.Frame(container)
+        row2.pack(fill=X, pady=5)
+        ttk.Label(row2, text="Programa 2:").pack(side=LEFT)
+        self.combo2 = Combobox(row2, values=values, state="readonly")
+        self.combo2.pack(side=LEFT, fill=X, expand=True, padx=(10, 0))
+
+        # Pré-selecionar modelo atual, se disponível
+        try:
+            current_id = getattr(self.parent, 'current_model_id', None)
+            if current_id is not None:
+                for disp, mid in self.display_to_id.items():
+                    if mid == current_id:
+                        self.combo1.set(disp)
+                        break
+        except Exception:
+            pass
+
+        # Botões de ação
+        btns = ttk.Frame(container)
+        btns.pack(fill=X, pady=(15, 0))
+        ttk.Button(btns, text="Cancelar", bootstyle="secondary", command=self._on_cancel).pack(side=RIGHT)
+        ttk.Button(btns, text="OK", bootstyle="success", command=self._on_ok).pack(side=RIGHT, padx=(0, 8))
+
+        # Manter centralizado em relação à janela pai
+        self._center_on_parent()
+        self.top.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+    def _center_on_parent(self):
+        try:
+            self.top.update_idletasks()
+            px = self.parent.master.winfo_rootx()
+            py = self.parent.master.winfo_rooty()
+            pw = self.parent.master.winfo_width()
+            ph = self.parent.master.winfo_height()
+            tw = self.top.winfo_width()
+            th = self.top.winfo_height()
+            x = px + (pw - tw) // 2
+            y = py + (ph - th) // 2
+            self.top.geometry(f"{tw}x{th}+{x}+{y}")
+        except Exception:
+            pass
+
+    def _on_ok(self):
+        sel1 = self.combo1.get()
+        sel2 = self.combo2.get()
+        if not sel1 or not sel2:
+            messagebox.showwarning("Atenção", "Selecione os dois programas.")
+            return
+        if sel1 == sel2:
+            messagebox.showwarning("Atenção", "Os dois programas devem ser diferentes.")
+            return
+        try:
+            model1_id = self.display_to_id.get(sel1)
+            model2_id = self.display_to_id.get(sel2)
+            if model1_id is None or model2_id is None:
+                raise ValueError("Seleção inválida de modelo")
+            self.result = {
+                'model1_id': model1_id,
+                'model2_id': model2_id,
+            }
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao validar seleção: {e}")
+            return
+        self.top.destroy()
+
+    def _on_cancel(self):
+        self.result = None
+        self.top.destroy()
+
+    def show(self):
+        """Exibe o diálogo de forma modal e retorna o resultado."""
+        self._build_ui()
+        self.top.wait_window()
+        return self.result
+
+class MultiProgramDialog:
+    """Diálogo para seleção dinâmica de múltiplos programas, com botão + para adicionar slots."""
+    def __init__(self, parent, db_manager, preselected_ids=None):
+        self.parent = parent
+        self.db_manager = db_manager
+        self.top = None
+        self.result = None
+        self.model_list = []
+        self.display_to_id = {}
+        self.slot_rows = []  # cada item: (frame, label, combobox)
+        self.preselected_ids = preselected_ids or []
+
+    def _build_ui(self):
+        self.top = Toplevel(self.parent.master)
+        self.top.title("Inspeção com Programas")
+        self.top.transient(self.parent.master)
+        self.top.grab_set()
+
+        # Dimensão inicial, cresce conforme slots
+        self.top.geometry("520x360")
+
+        container = ttk.Frame(self.top, padding=10)
+        container.pack(fill=BOTH, expand=True)
+
+        title = ttk.Label(container, text="Selecione os programas (1..N) para inspecionar a cada captura:", font=("Segoe UI", 11, "bold"))
+        title.pack(anchor="w", pady=(0, 10))
+
+        # Buscar modelos
+        try:
+            self.model_list = self.db_manager.list_modelos() or []
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao listar modelos: {e}")
+            self.model_list = []
+
+        # Preparar valores
+        values = []
+        self.display_to_id.clear()
+        for m in self.model_list:
+            mid = m.get('id')
+            nome = m.get('nome', f"Modelo {mid}")
+            cam = m.get('camera_index', '-')
+            display = f"{mid} - {nome} (Cam {cam})"
+            values.append(display)
+            self.display_to_id[display] = mid
+
+        # Área rolável para slots
+        slots_frame = ttk.Frame(container)
+        slots_frame.pack(fill=BOTH, expand=True)
+
+        self.slots_container = ttk.Frame(slots_frame)
+        self.slots_container.pack(fill=BOTH, expand=True)
+
+        # Botão adicionar slot
+        actions_row = ttk.Frame(container)
+        actions_row.pack(fill=X, pady=(8, 0))
+        ttk.Button(actions_row, text="+ Adicionar Programa", bootstyle="info", command=lambda: self._add_slot(values)).pack(side=LEFT)
+
+        # Pré-popular slots: usa preselected_ids se houver, senão 2 vazios
+        if self.preselected_ids:
+            for pid in self.preselected_ids:
+                self._add_slot(values, preselect_id=pid)
+        else:
+            self._add_slot(values)
+            self._add_slot(values)
+
+        # Botões finais
+        btns = ttk.Frame(container)
+        btns.pack(fill=X, pady=(12, 0))
+        ttk.Button(btns, text="Cancelar", bootstyle="secondary", command=self._on_cancel).pack(side=RIGHT)
+        ttk.Button(btns, text="OK", bootstyle="success", command=self._on_ok).pack(side=RIGHT, padx=(0, 8))
+
+        self._center_on_parent()
+        self.top.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+    def _add_slot(self, values, preselect_id=None):
+        idx = len(self.slot_rows) + 1
+        row = ttk.Frame(self.slots_container)
+        row.pack(fill=X, pady=5)
+        ttk.Label(row, text=f"Programa {idx}:").pack(side=LEFT)
+        combo = Combobox(row, values=values, state="readonly")
+        combo.pack(side=LEFT, fill=X, expand=True, padx=(10, 0))
+        # botão remover
+        ttk.Button(row, text="Remover", bootstyle="danger-outline", command=lambda r=row: self._remove_slot(r)).pack(side=LEFT, padx=6)
+        self.slot_rows.append((row, combo))
+        # pré-seleciona
+        if preselect_id is not None:
+            for disp, mid in self.display_to_id.items():
+                if mid == preselect_id:
+                    combo.set(disp)
+                    break
+
+    def _remove_slot(self, row):
+        # garante pelo menos 1 slot
+        if len(self.slot_rows) <= 1:
+            messagebox.showwarning("Atenção", "Mantenha ao menos um programa.")
+            return
+        # remove do array e da UI
+        self.slot_rows = [(r, c) for (r, c) in self.slot_rows if r is not row]
+        row.destroy()
+        # renomeia labels
+        for i, (r, _) in enumerate(self.slot_rows, start=1):
+            for child in r.winfo_children():
+                if isinstance(child, ttk.Label):
+                    child.configure(text=f"Programa {i}:")
+                    break
+
+    def _on_ok(self):
+        selections = []
+        seen = set()
+        for _, combo in self.slot_rows:
+            val = combo.get()
+            if not val:
+                messagebox.showwarning("Atenção", "Selecione todos os programas.")
+                return
+            mid = self.display_to_id.get(val)
+            if mid in seen:
+                messagebox.showwarning("Atenção", "Não selecione o mesmo programa repetido.")
+                return
+            seen.add(mid)
+            selections.append(mid)
+        self.result = {'program_ids': selections}
+        self.top.destroy()
+
+    def _on_cancel(self):
+        self.result = None
+        self.top.destroy()
+
+    def _center_on_parent(self):
+        try:
+            self.top.update_idletasks()
+            px = self.parent.master.winfo_rootx()
+            py = self.parent.master.winfo_rooty()
+            pw = self.parent.master.winfo_width()
+            ph = self.parent.master.winfo_height()
+            tw = self.top.winfo_width()
+            th = self.top.winfo_height()
+            x = px + (pw - tw) // 2
+            y = py + (ph - th) // 2
+            self.top.geometry(f"{tw}x{th}+{x}+{y}")
+        except Exception:
+            pass
+
+    def show(self):
+        self._build_ui()
+        self.top.wait_window()
+        return self.result
 
 

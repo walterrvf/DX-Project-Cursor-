@@ -20,12 +20,20 @@ try:
     from inspection import find_image_transform
     from image_utils import cv2_to_tk
 except ImportError:
-    from utils import get_color, get_font
-    from ml_classifier import MLSlotClassifier
-    from camera_manager import capture_image_from_camera
-    from paths import get_template_dir, get_model_template_dir
-    from inspection import find_image_transform
-    from image_utils import cv2_to_tk
+    try:
+        from utils import get_color, get_font
+        from ml_classifier import MLSlotClassifier
+        from camera_manager import capture_image_from_camera
+        from paths import get_template_dir, get_model_template_dir
+        from inspection import find_image_transform
+        from image_utils import cv2_to_tk
+    except ImportError:
+        from modulos.utils import get_color, get_font
+        from modulos.ml_classifier import MLSlotClassifier
+        from modulos.camera_manager import capture_image_from_camera
+        from modulos.paths import get_template_dir, get_model_template_dir
+        from modulos.inspection import find_image_transform
+        from modulos.image_utils import cv2_to_tk
 
 
 class SlotTrainingDialog(Toplevel):

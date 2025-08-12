@@ -104,7 +104,7 @@ class EditSlotDialog(Toplevel):
         self.y_var = StringVar()
         self.w_var = StringVar()
         self.h_var = StringVar()
-        self.detection_threshold_var = StringVar()
+        self.correlation_threshold_var = StringVar()
 
         mesh_grid = ttk.Frame(mesh_frame)
         mesh_grid.pack(fill=X, padx=10, pady=10)
@@ -125,8 +125,8 @@ class EditSlotDialog(Toplevel):
         config_frame.pack(fill=X, pady=(0, 10))
         threshold_frame = ttk.Frame(config_frame)
         threshold_frame.pack(fill=X, padx=5, pady=5)
-        ttk.Label(threshold_frame, text="Limiar de Detecção (%):").pack(side=LEFT)
-        ttk.Entry(threshold_frame, textvariable=self.detection_threshold_var, width=10).pack(side=LEFT, padx=(5, 0))
+        ttk.Label(threshold_frame, text="Limiar de Correlação (0.0–1.0):").pack(side=LEFT)
+        ttk.Entry(threshold_frame, textvariable=self.correlation_threshold_var, width=10).pack(side=LEFT, padx=(5, 0))
 
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=X, pady=(10, 0))
@@ -139,7 +139,13 @@ class EditSlotDialog(Toplevel):
             self.y_var.set(str(self.slot_data.get('y', 0)))
             self.w_var.set(str(self.slot_data.get('w', 100)))
             self.h_var.set(str(self.slot_data.get('h', 100)))
-            self.detection_threshold_var.set(str(self.slot_data.get('detection_threshold', 50)))
+
+            # Carrega o limiar de correlação direto em 0–1
+            corr_thr = self.slot_data.get('correlation_threshold', self.slot_data.get('detection_threshold', 0.5))
+            try:
+                self.correlation_threshold_var.set(str(float(corr_thr)))
+            except Exception:
+                self.correlation_threshold_var.set(str(corr_thr))
 
     def save_changes(self):
         try:
@@ -147,13 +153,19 @@ class EditSlotDialog(Toplevel):
             y_val = int(self.y_var.get().strip())
             w_val = int(self.w_var.get().strip())
             h_val = int(self.h_var.get().strip())
-            threshold_val = float(self.detection_threshold_var.get().strip())
+            corr_val = float(self.correlation_threshold_var.get().strip())
             if w_val <= 0 or h_val <= 0:
                 raise ValueError("Largura e altura devem ser maiores que zero")
-            if threshold_val < 0 or threshold_val > 100:
-                raise ValueError("Limiar deve estar entre 0 e 100")
+            if corr_val < 0.0 or corr_val > 1.0:
+                raise ValueError("Limiar de correlação deve estar entre 0.0 e 1.0")
 
-            self.slot_data.update({'x': x_val, 'y': y_val, 'w': w_val, 'h': h_val, 'detection_threshold': threshold_val})
+            self.slot_data.update({
+                'x': x_val,
+                'y': y_val,
+                'w': w_val,
+                'h': h_val,
+                'correlation_threshold': corr_val
+            })
             self.malha_frame.update_slot_data(self.slot_data)
             self.destroy()
         except ValueError as ve:
@@ -742,6 +754,81 @@ class SystemConfigDialog(Toplevel):
         self.min_px_var = ttk.IntVar(value=MIN_PX)
         px_spin = ttk.Spinbox(detection_frame, from_=1, to=1000, textvariable=self.min_px_var, width=10); px_spin.pack(anchor='w', padx=5, pady=5)
 
+        # Câmera Padrão
+        camera_frame = ttk.LabelFrame(main_frame, text="Configurações de Câmera (Padrão)")
+        camera_frame.pack(fill=X, pady=(0, 15))
+        # Backend
+        ttk.Label(camera_frame, text="Backend de Captura:").pack(anchor='w', padx=5, pady=2)
+        self.camera_backend_var = StringVar(value=self.style_config.get('system', {}).get('camera_backend', 'AUTO'))
+        ttk.Combobox(camera_frame, textvariable=self.camera_backend_var, state='readonly',
+                     values=["AUTO","DIRECTSHOW","MSMF","V4L2","GSTREAMER"]).pack(anchor='w', padx=5, pady=5)
+        # Resolução/FPS
+        cam_grid = ttk.Frame(camera_frame); cam_grid.pack(fill=X, padx=5, pady=5)
+        ttk.Label(cam_grid, text="Largura:").grid(row=0, column=0, sticky='w', padx=(0,6))
+        self.camera_w_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('camera_width', 1280)))
+        ttk.Spinbox(cam_grid, from_=320, to=3840, increment=160, textvariable=self.camera_w_var, width=8).grid(row=0, column=1, sticky='w')
+        ttk.Label(cam_grid, text="Altura:").grid(row=0, column=2, sticky='w', padx=(12,6))
+        self.camera_h_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('camera_height', 720)))
+        ttk.Spinbox(cam_grid, from_=240, to=2160, increment=120, textvariable=self.camera_h_var, width=8).grid(row=0, column=3, sticky='w')
+        ttk.Label(cam_grid, text="FPS:").grid(row=0, column=4, sticky='w', padx=(12,6))
+        self.camera_fps_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('camera_fps', 30)))
+        ttk.Spinbox(cam_grid, from_=5, to=120, textvariable=self.camera_fps_var, width=6).grid(row=0, column=5, sticky='w')
+        # Auto features
+        toggles_frame = ttk.Frame(camera_frame); toggles_frame.pack(fill=X, padx=5, pady=5)
+        self.auto_exposure_var = ttk.BooleanVar(value=bool(self.style_config.get('system', {}).get('auto_exposure', True)))
+        self.auto_wb_var = ttk.BooleanVar(value=bool(self.style_config.get('system', {}).get('auto_wb', True)))
+        ttk.Checkbutton(toggles_frame, text="Auto-Exposure", variable=self.auto_exposure_var).pack(side=LEFT, padx=(0,12))
+        ttk.Checkbutton(toggles_frame, text="Auto White Balance", variable=self.auto_wb_var).pack(side=LEFT)
+
+        # Performance
+        perf_frame = ttk.LabelFrame(main_frame, text="Performance")
+        perf_frame.pack(fill=X, pady=(0, 15))
+        perf_grid = ttk.Frame(perf_frame); perf_grid.pack(fill=X, padx=5, pady=5)
+        ttk.Label(perf_grid, text="Frame Pump FPS:").grid(row=0, column=0, sticky='w')
+        self.frame_pump_fps_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('frame_pump_fps', 30)))
+        ttk.Spinbox(perf_grid, from_=5, to=120, textvariable=self.frame_pump_fps_var, width=8).grid(row=0, column=1, sticky='w', padx=(6,12))
+        ttk.Label(perf_grid, text="Buffer por Câmera:").grid(row=0, column=2, sticky='w')
+        self.buffer_size_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('buffer_size', 1)))
+        ttk.Spinbox(perf_grid, from_=1, to=10, textvariable=self.buffer_size_var, width=6).grid(row=0, column=3, sticky='w', padx=(6,12))
+        ttk.Label(perf_grid, text="OpenCV Threads:").grid(row=0, column=4, sticky='w')
+        self.cv_threads_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('cv_num_threads', 0)))
+        ttk.Spinbox(perf_grid, from_=0, to=16, textvariable=self.cv_threads_var, width=6).grid(row=0, column=5, sticky='w', padx=(6,0))
+        self.preview_gray_var = ttk.BooleanVar(value=bool(self.style_config.get('system', {}).get('preview_grayscale', False)))
+        ttk.Checkbutton(perf_frame, text="Pré-visualização em tons de cinza (economiza CPU)", variable=self.preview_gray_var).pack(anchor='w', padx=5, pady=(6,0))
+
+        # Logs
+        logs_frame = ttk.LabelFrame(main_frame, text="Logs e Diagnóstico")
+        logs_frame.pack(fill=X, pady=(0, 15))
+        log_grid = ttk.Frame(logs_frame); log_grid.pack(fill=X, padx=5, pady=5)
+        ttk.Label(log_grid, text="Nível de Log:").grid(row=0, column=0, sticky='w')
+        self.log_level_var = StringVar(value=self.style_config.get('system', {}).get('log_level', 'INFO'))
+        ttk.Combobox(log_grid, textvariable=self.log_level_var, state='readonly',
+                     values=["DEBUG","INFO","WARNING","ERROR"]).grid(row=0, column=1, sticky='w', padx=(6,12))
+        self.log_to_file_var = ttk.BooleanVar(value=bool(self.style_config.get('system', {}).get('log_to_file', False)))
+        ttk.Checkbutton(logs_frame, text="Gravar logs em arquivo", variable=self.log_to_file_var).pack(anchor='w', padx=5, pady=(6,0))
+        size_row = ttk.Frame(logs_frame); size_row.pack(fill=X, padx=5, pady=5)
+        ttk.Label(size_row, text="Tamanho máx. do arquivo de log (MB):").pack(side=LEFT)
+        self.log_max_mb_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('log_max_mb', 10)))
+        ttk.Spinbox(size_row, from_=1, to=1024, textvariable=self.log_max_mb_var, width=8).pack(side=LEFT, padx=(6,0))
+
+        # Histórico
+        hist_frame = ttk.LabelFrame(main_frame, text="Histórico de Imagens")
+        hist_frame.pack(fill=X, pady=(0, 15))
+        toggles_hist = ttk.Frame(hist_frame); toggles_hist.pack(fill=X, padx=5, pady=5)
+        self.hist_ok_var = ttk.BooleanVar(value=bool(self.style_config.get('system', {}).get('history_save_ok', True)))
+        self.hist_ng_var = ttk.BooleanVar(value=bool(self.style_config.get('system', {}).get('history_save_ng', True)))
+        ttk.Checkbutton(toggles_hist, text="Salvar imagens OK", variable=self.hist_ok_var).pack(side=LEFT, padx=(0,12))
+        ttk.Checkbutton(toggles_hist, text="Salvar imagens NG", variable=self.hist_ng_var).pack(side=LEFT)
+        qual_row = ttk.Frame(hist_frame); qual_row.pack(fill=X, padx=5, pady=5)
+        ttk.Label(qual_row, text="Qualidade JPEG (histórico):").pack(side=LEFT)
+        self.hist_jpeg_q_var = ttk.IntVar(value=int(self.style_config.get('system', {}).get('history_jpeg_quality', 85)))
+        ttk.Spinbox(qual_row, from_=10, to=100, textvariable=self.hist_jpeg_q_var, width=8).pack(side=LEFT, padx=(6,12))
+        path_row = ttk.Frame(hist_frame); path_row.pack(fill=X, padx=5, pady=5)
+        ttk.Label(path_row, text="Pasta do histórico:").pack(side=LEFT)
+        self.hist_dir_var = StringVar(value=self.style_config.get('system', {}).get('history_dir', str((get_project_root() / 'modelos' / 'historico_fotos').resolve())))
+        entry = ttk.Entry(path_row, textvariable=self.hist_dir_var, width=40); entry.pack(side=LEFT, padx=(6,6))
+        ttk.Button(path_row, text="Procurar", command=self.choose_history_dir).pack(side=LEFT)
+
         # Cores e fontes
         appearance_frame = ttk.LabelFrame(main_frame, text="Configurações de Aparência do Sistema")
         appearance_frame.pack(fill=X, pady=(0, 15))
@@ -813,6 +900,15 @@ class SystemConfigDialog(Toplevel):
         ttk.Button(button_frame, text="Restaurar Padrões", command=self.restore_defaults).pack(side=LEFT, padx=(0, 10), pady=10, expand=True, fill=X)
         ttk.Button(button_frame, text="Cancelar", command=self.cancel).pack(side=LEFT, pady=10, expand=True, fill=X)
 
+    def choose_history_dir(self):
+        try:
+            from tkinter import filedialog
+            d = filedialog.askdirectory(title="Selecionar pasta para histórico de imagens", initialdir=self.hist_dir_var.get())
+            if d:
+                self.hist_dir_var.set(d)
+        except Exception as e:
+            print(f"Erro ao escolher pasta: {e}")
+
     def choose_bg_color(self):
         """Abre seletor de cor para fundo principal."""
         try:
@@ -859,6 +955,24 @@ class SystemConfigDialog(Toplevel):
                 'ACCENT_COLOR': self.accent_color_var.get(),
                 'FONT_SIZE': int(self.font_size_var.get()),
                 'FONT_FAMILY': self.font_family_var.get(),
+                # Sistema (novos)
+                'camera_backend': self.camera_backend_var.get(),
+                'camera_width': int(self.camera_w_var.get()),
+                'camera_height': int(self.camera_h_var.get()),
+                'camera_fps': int(self.camera_fps_var.get()),
+                'auto_exposure': bool(self.auto_exposure_var.get()),
+                'auto_wb': bool(self.auto_wb_var.get()),
+                'frame_pump_fps': int(self.frame_pump_fps_var.get()),
+                'buffer_size': int(self.buffer_size_var.get()),
+                'cv_num_threads': int(self.cv_threads_var.get()),
+                'preview_grayscale': bool(self.preview_gray_var.get()),
+                'log_level': self.log_level_var.get(),
+                'log_to_file': bool(self.log_to_file_var.get()),
+                'log_max_mb': int(self.log_max_mb_var.get()),
+                'history_save_ok': bool(self.hist_ok_var.get()),
+                'history_save_ng': bool(self.hist_ng_var.get()),
+                'history_jpeg_quality': int(self.hist_jpeg_q_var.get()),
+                'history_dir': self.hist_dir_var.get(),
             }
             if callable(self.on_save_callback):
                 self.on_save_callback(cfg)

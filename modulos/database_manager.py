@@ -5,6 +5,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """Gerenciador do banco de dados SQLite para o sistema de inspeção visual."""
@@ -31,6 +34,7 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nome TEXT UNIQUE NOT NULL,
                     image_path TEXT NOT NULL,
+                    camera_index INTEGER DEFAULT 0,
                     criado_em TEXT NOT NULL,
                     atualizado_em TEXT NOT NULL
                 )
@@ -116,14 +120,20 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_inspection_history_result ON inspection_history(result)")
             
             conn.commit()
-            print("Banco de dados inicializado com sucesso")
+            logger.info("Banco de dados inicializado com sucesso")
+            
+            # Garantir coluna camera_index para compatibilidade retroativa
+            try:
+                cursor.execute("ALTER TABLE modelos ADD COLUMN camera_index INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
             
             # Verifica e corrige caminhos absolutos no banco de dados
             try:
                 self.fix_absolute_paths()
             except Exception as e:
-                print(f"Aviso: Não foi possível corrigir caminhos absolutos: {e}")
-            
+                logger.warning(f"Não foi possível corrigir caminhos absolutos: {e}")
+
             # Bootstrap automático de modelos a partir de pastas existentes se a tabela estiver vazia
             try:
                 cursor.execute("SELECT COUNT(1) FROM modelos")
@@ -134,13 +144,14 @@ class DatabaseManager:
             except Exception as e:
                 print(f"Aviso: Não foi possível inicializar modelos a partir das pastas: {e}")
     
-    def save_modelo(self, nome: str, image_path: str, slots: List[Dict]) -> int:
+    def save_modelo(self, nome: str, image_path: str, slots: List[Dict], camera_index: int = 0) -> int:
         """Salva um modelo completo no banco de dados.
         
         Args:
             nome: Nome único do modelo
             image_path: Caminho da imagem de referência
             slots: Lista de dicionários com dados dos slots
+            camera_index: Índice padrão da câmera associado ao modelo
             
         Returns:
             ID do modelo criado
@@ -156,9 +167,9 @@ class DatabaseManager:
             try:
                 # Insere o modelo
                 cursor.execute("""
-                    INSERT INTO modelos (nome, image_path, criado_em, atualizado_em)
-                    VALUES (?, ?, ?, ?)
-                """, (nome, rel_image_path, now, now))
+                    INSERT INTO modelos (nome, image_path, camera_index, criado_em, atualizado_em)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (nome, rel_image_path, int(camera_index or 0), now, now))
                 
                 modelo_id = cursor.lastrowid
                 
@@ -178,7 +189,7 @@ class DatabaseManager:
                     raise ValueError(f"Já existe um modelo com o nome '{nome}'")
                 raise
     
-    def update_modelo(self, modelo_id: int, nome: str = None, image_path: str = None, slots: List[Dict] = None):
+    def update_modelo(self, modelo_id: int, nome: str = None, image_path: str = None, slots: List[Dict] = None, camera_index: int = None):
         """Atualiza um modelo existente.
         
         Args:
@@ -186,6 +197,7 @@ class DatabaseManager:
             nome: Novo nome (opcional)
             image_path: Novo caminho da imagem (opcional)
             slots: Nova lista de slots (opcional, substitui todos os slots existentes)
+            camera_index: Atualiza índice da câmera (opcional)
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -198,7 +210,7 @@ class DatabaseManager:
             now = datetime.now().isoformat()
             
             # Atualiza campos do modelo se fornecidos
-            if nome is not None or image_path is not None:
+            if nome is not None or image_path is not None or camera_index is not None:
                 updates = []
                 params = []
                 
@@ -211,6 +223,10 @@ class DatabaseManager:
                     rel_image_path = self._convert_to_relative_path(image_path)
                     updates.append("image_path = ?")
                     params.append(rel_image_path)
+                
+                if camera_index is not None:
+                    updates.append("camera_index = ?")
+                    params.append(int(camera_index))
                 
                 updates.append("atualizado_em = ?")
                 params.append(now)
@@ -247,7 +263,7 @@ class DatabaseManager:
             
             # Carrega dados do modelo
             cursor.execute("""
-                SELECT nome, image_path, criado_em, atualizado_em
+                SELECT nome, image_path, camera_index, criado_em, atualizado_em
                 FROM modelos WHERE id = ?
             """, (modelo_id,))
             
@@ -255,7 +271,7 @@ class DatabaseManager:
             if not modelo_row:
                 raise ValueError(f"Modelo com ID {modelo_id} não encontrado")
             
-            nome, image_path, criado_em, atualizado_em = modelo_row
+            nome, image_path, camera_index, criado_em, atualizado_em = modelo_row
             
             # Converte caminho relativo para absoluto
             abs_image_path = self._convert_to_absolute_path(image_path)
@@ -314,6 +330,7 @@ class DatabaseManager:
                 'nome': nome,
                 'image_path': abs_image_path,
                 'slots': slots,
+                'camera_index': int(camera_index or 0),
                 'criado_em': criado_em,
                 'atualizado_em': atualizado_em
             }
@@ -331,7 +348,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT id, nome, image_path, criado_em, atualizado_em
+                SELECT id, nome, image_path, camera_index, criado_em, atualizado_em
                 FROM modelos WHERE id = ?
             """, (modelo_id,))
             
@@ -343,8 +360,9 @@ class DatabaseManager:
                 'id': row[0],
                 'nome': row[1],
                 'image_path': row[2],
-                'criado_em': row[3],
-                'atualizado_em': row[4]
+                'camera_index': int(row[3] or 0),
+                'criado_em': row[4],
+                'atualizado_em': row[5]
             }
     
     def load_modelo_by_name(self, nome: str) -> Dict:
@@ -384,11 +402,11 @@ class DatabaseManager:
             if 'modelos' in tables:
                 cursor.execute(
                     """
-                    SELECT m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em,
+                    SELECT m.id, m.nome, m.image_path, m.camera_index, m.criado_em, m.atualizado_em,
                            COUNT(s.id) as num_slots
                     FROM modelos m
                     LEFT JOIN slots s ON m.id = s.modelo_id
-                    GROUP BY m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em
+                    GROUP BY m.id, m.nome, m.image_path, m.camera_index, m.criado_em, m.atualizado_em
                     ORDER BY m.atualizado_em DESC
                     """
                 )
@@ -397,9 +415,10 @@ class DatabaseManager:
                         'id': row[0],
                         'nome': row[1],
                         'image_path': row[2],
-                        'criado_em': row[3],
-                        'atualizado_em': row[4],
-                        'num_slots': row[5],
+                        'camera_index': int(row[3] or 0),
+                        'criado_em': row[4],
+                        'atualizado_em': row[5],
+                        'num_slots': row[6],
                     })
                 
                 # Se a tabela existir mas estiver vazia e houver legado, tenta fallback
@@ -411,17 +430,17 @@ class DatabaseManager:
                             conn.commit()
                             cursor.execute(
                                 """
-                                SELECT m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em,
+                                SELECT m.id, m.nome, m.image_path, m.camera_index, m.criado_em, m.atualizado_em,
                                        COUNT(s.id) as num_slots
                                 FROM modelos m
                                 LEFT JOIN slots s ON m.id = s.modelo_id
-                                GROUP BY m.id, m.nome, m.image_path, m.criado_em, m.atualizado_em
+                                GROUP BY m.id, m.nome, m.image_path, m.camera_index, m.criado_em, m.atualizado_em
                                 ORDER BY m.atualizado_em DESC
                                 """
                             )
                             modelos = [{
-                                'id': r[0], 'nome': r[1], 'image_path': r[2],
-                                'criado_em': r[3], 'atualizado_em': r[4], 'num_slots': r[5]
+                                'id': r[0], 'nome': r[1], 'image_path': r[2], 'camera_index': int(r[3] or 0),
+                                'criado_em': r[4], 'atualizado_em': r[5], 'num_slots': r[6]
                             } for r in cursor.fetchall()]
                         except Exception:
                             pass
@@ -896,7 +915,7 @@ class DatabaseManager:
                                 new_rel_path = f"modelos/{nome}_{modelo_id}/{nome}_reference.jpg"
                                 abs_new_path = self.project_root / new_rel_path
                                 if not abs_new_path.exists():
-                                    print(f"Aviso: Não foi possível encontrar um arquivo de imagem válido para o modelo {nome} (ID {modelo_id})")
+                                    logger.warning(f"Não foi possível encontrar um arquivo de imagem válido para o modelo {nome} (ID {modelo_id})")
                                     continue
                             
                             rel_path = new_rel_path
@@ -906,9 +925,9 @@ class DatabaseManager:
                             "UPDATE modelos SET image_path = ? WHERE id = ?",
                             (rel_path, modelo_id)
                         )
-                        print(f"Caminho de imagem corrigido para modelo ID {modelo_id}: {image_path} -> {rel_path}")
+                        logger.info(f"Caminho de imagem corrigido para modelo ID {modelo_id}: {image_path} -> {rel_path}")
                     except Exception as e:
-                        print(f"Erro ao converter caminho de imagem para modelo ID {modelo_id}: {e}")
+                        logger.error(f"Erro ao converter caminho de imagem para modelo ID {modelo_id}: {e}")
             
             # Corrige caminhos de templates na tabela slots
             cursor.execute("SELECT id, modelo_id, slot_id, template_path FROM slots WHERE template_path IS NOT NULL")
@@ -932,7 +951,7 @@ class DatabaseManager:
                             # Verifica se o arquivo existe no novo caminho
                             abs_new_path = self.project_root / new_rel_path
                             if not abs_new_path.exists():
-                                print(f"Aviso: Não foi possível encontrar um arquivo de template válido para o slot {slot_num} do modelo ID {modelo_id}")
+                                logger.warning(f"Não foi possível encontrar um arquivo de template válido para o slot {slot_num} do modelo ID {modelo_id}")
                                 continue
                             
                             rel_path = new_rel_path
@@ -942,9 +961,9 @@ class DatabaseManager:
                             "UPDATE slots SET template_path = ? WHERE id = ?",
                             (rel_path, slot_id)
                         )
-                        print(f"Caminho de template corrigido para slot {slot_num} do modelo ID {modelo_id}: {template_path} -> {rel_path}")
+                        logger.info(f"Caminho de template corrigido para slot {slot_num} do modelo ID {modelo_id}: {template_path} -> {rel_path}")
                     except Exception as e:
-                        print(f"Erro ao converter caminho de template para slot {slot_num} do modelo ID {modelo_id}: {e}")
+                        logger.error(f"Erro ao converter caminho de template para slot {slot_num} do modelo ID {modelo_id}: {e}")
             
             conn.commit()
             print("Verificação e correção de caminhos absolutos concluída")
@@ -991,7 +1010,8 @@ class DatabaseManager:
         return self.save_modelo(
             nome=modelo_name,
             image_path=image_path,
-            slots=slots
+            slots=slots,
+            camera_index=0  # Valor padrão para migração
         )
     
     def log_inspection_result(self, modelo_id: int, modelo_nome: str, slot_id: int, 

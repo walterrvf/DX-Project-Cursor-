@@ -1,21 +1,21 @@
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import BOTH, LEFT, RIGHT, Y, CENTER, VERTICAL, X, SUCCESS, DANGER, INFO, PRIMARY, DISABLED, NORMAL, END
+from ttkbootstrap.constants import BOTH, LEFT, RIGHT, Y, CENTER, VERTICAL, X, SUCCESS, DANGER, PRIMARY, DISABLED, NORMAL, END
 from tkinter import messagebox, simpledialog
 from datetime import datetime
 from pathlib import Path
 try:
     # Quando importado como módulo
     from database_manager import DatabaseManager
-    from utils import load_style_config
+    from utils import load_style_config, get_font
 except ImportError:
     # Quando executado diretamente
     try:
         from database_manager import DatabaseManager
-        from utils import load_style_config
+        from utils import load_style_config, get_font
     except ImportError:
         # Quando executado a partir do diretório raiz
         from modulos.database_manager import DatabaseManager
-        from modulos.utils import load_style_config
+        from modulos.utils import load_style_config, get_font
 
 class ModelSelectorDialog:
     """Diálogo para seleção, criação e gerenciamento de modelos."""
@@ -28,15 +28,15 @@ class ModelSelectorDialog:
         
         self.dialog = ttk.Toplevel(parent)
         self.dialog.title("Gerenciar Modelos")
-        self.dialog.geometry("800x600")
+        self.dialog.geometry("900x650")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
         # Centraliza o diálogo
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (800 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (600 // 2)
-        self.dialog.geometry(f"800x600+{x}+{y}")
+        x = (self.dialog.winfo_screenwidth() // 2) - (900 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (650 // 2)
+        self.dialog.geometry(f"900x650+{x}+{y}")
         
         self.setup_ui()
         self.refresh_models()
@@ -46,47 +46,47 @@ class ModelSelectorDialog:
     
     def setup_ui(self):
         """Configura a interface do diálogo."""
-        main_frame = ttk.Frame(self.dialog, padding=10)
+        main_frame = ttk.Frame(self.dialog, padding=15)
         main_frame.pack(fill=BOTH, expand=True)
         
-        # Título
-        # Carrega as configurações de estilo
-        style_config = load_style_config()
-            
+        # Título com fonte maior
         title_label = ttk.Label(main_frame, text="Gerenciar Modelos de Inspeção", 
-                               font=style_config["ok_font"]) 
+                               font=get_font('title_font')) 
         title_label.pack(pady=(0, 20))
         
         # Frame para lista de modelos
         list_frame = ttk.LabelFrame(main_frame, text="Modelos Disponíveis", padding=10)
         list_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
         
-        # Estilo para garantir contraste no modo escuro/claro
+        # Configurar label do LabelFrame com fonte maior
         style = ttk.Style()
-        style.configure('Models.Treeview',
-                        background='#ffffff',
-                        fieldbackground='#ffffff',
-                        foreground='#000000')
-        style.configure('Models.Treeview.Heading',
-                        foreground='#000000')
-        style.map('Models.Treeview',
-                  background=[('selected', '#0d6efd')],
-                  foreground=[('selected', '#ffffff')])
-
-        # Treeview para modelos
-        columns = ('nome', 'slots', 'criado', 'atualizado')
-        self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15, style='Models.Treeview')
+        style.configure('Big.TLabelframe.Label', font=get_font('header_font'))
+        list_frame.configure(style='Big.TLabelframe')
         
-        # Configurar colunas
+        # Configuração do estilo do Treeview com fontes maiores alinhado ao tema escuro
+        style.configure('Models.Treeview',
+                        font=get_font('medium_font'),
+                        rowheight=30)
+        style.configure('Models.Treeview.Heading',
+                        font=get_font('header_font'))
+        style.map('Models.Treeview',
+                  background=[('selected', '#93C5FD')],
+                  foreground=[('selected', '#0B1220')])
+
+        # Treeview para modelos com altura aumentada
+        columns = ('nome', 'slots', 'criado', 'atualizado')
+        self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=12, style='Models.Treeview')
+        
+        # Configurar colunas com larguras otimizadas
         self.tree.heading('nome', text='Nome do Modelo')
         self.tree.heading('slots', text='Slots')
         self.tree.heading('criado', text='Criado em')
         self.tree.heading('atualizado', text='Atualizado em')
         
-        self.tree.column('nome', width=200)
-        self.tree.column('slots', width=80, anchor=CENTER)
-        self.tree.column('criado', width=150)
-        self.tree.column('atualizado', width=150)
+        self.tree.column('nome', width=250)
+        self.tree.column('slots', width=100, anchor=CENTER)
+        self.tree.column('criado', width=180)
+        self.tree.column('atualizado', width=180)
         
         # Scrollbar para treeview
         scrollbar = ttk.Scrollbar(list_frame, orient=VERTICAL, command=self.tree.yview)
@@ -101,28 +101,30 @@ class ModelSelectorDialog:
         
         # Frame para botões
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=X, pady=(10, 0))
+        button_frame.pack(fill=X, pady=(15, 0))
         
         # Botões da esquerda (ações de modelo)
         left_buttons = ttk.Frame(button_frame)
         left_buttons.pack(side=LEFT)
         
+        # Criar estilo para botões com fonte maior
+        style.configure('BigButton.TButton', font=get_font('small_font'))
+        
         self.btn_new = ttk.Button(left_buttons, text="Novo Modelo", 
-                                 command=self.on_new_model, bootstyle=SUCCESS)
-        self.btn_new.pack(side=LEFT, padx=(0, 5))
+                                 command=self.on_new_model, bootstyle=SUCCESS,
+                                 style='BigButton.TButton')
+        self.btn_new.pack(side=LEFT, padx=(0, 10))
         
         self.btn_rename = ttk.Button(left_buttons, text="Renomear", 
-                                    command=self.on_rename_model, state=DISABLED)
-        self.btn_rename.pack(side=LEFT, padx=5)
+                                    command=self.on_rename_model, state=DISABLED,
+                                    style='BigButton.TButton')
+        self.btn_rename.pack(side=LEFT, padx=10)
         
         self.btn_delete = ttk.Button(left_buttons, text="Excluir", 
                                     command=self.on_delete_model, 
-                                    bootstyle=DANGER, state=DISABLED)
-        self.btn_delete.pack(side=LEFT, padx=5)
-        
-        self.btn_migrate = ttk.Button(left_buttons, text="Migrar JSON", 
-                                     command=self.on_migrate_json, bootstyle=INFO)
-        self.btn_migrate.pack(side=LEFT, padx=5)
+                                    bootstyle=DANGER, state=DISABLED,
+                                    style='BigButton.TButton')
+        self.btn_delete.pack(side=LEFT, padx=10)
         
         # Botões da direita (ações do diálogo)
         right_buttons = ttk.Frame(button_frame)
@@ -130,18 +132,23 @@ class ModelSelectorDialog:
         
         self.btn_load = ttk.Button(right_buttons, text="Carregar Modelo", 
                                   command=self.on_load_model, 
-                                  bootstyle=PRIMARY, state=DISABLED)
-        self.btn_load.pack(side=LEFT, padx=5)
+                                  bootstyle=PRIMARY, state=DISABLED,
+                                  style='BigButton.TButton')
+        self.btn_load.pack(side=LEFT, padx=10)
         
         self.btn_cancel = ttk.Button(right_buttons, text="Cancelar", 
-                                    command=self.on_cancel)
-        self.btn_cancel.pack(side=LEFT, padx=(5, 0))
+                                    command=self.on_cancel,
+                                    style='BigButton.TButton')
+        self.btn_cancel.pack(side=LEFT, padx=(10, 0))
         
         # Frame para informações do modelo selecionado
-        info_frame = ttk.LabelFrame(main_frame, text="Informações do Modelo", padding=10)
-        info_frame.pack(fill=X, pady=(10, 0))
+        info_frame = ttk.LabelFrame(main_frame, text="Informações do Modelo", padding=15)
+        info_frame.pack(fill=X, pady=(15, 0))
         
-        self.info_text = ttk.Text(info_frame, height=4, state=DISABLED)
+        # Configurar label do info_frame com fonte maior
+        info_frame.configure(style='Big.TLabelframe')
+        
+        self.info_text = ttk.Text(info_frame, height=5, font=get_font('small_font'), state=DISABLED)
         self.info_text.pack(fill=X)
     
     def refresh_models(self):
@@ -284,7 +291,14 @@ class ModelSelectorDialog:
                     messagebox.showwarning("Aviso", "Nome não pode estar vazio.", parent=self.dialog)
                     return
                 
-                self.db_manager.update_modelo(self.selected_model, nome=novo_nome)
+                # Mantém o camera_index atual do modelo ao renomear
+                try:
+                    current = self.db_manager.get_model_by_id(self.selected_model)
+                    cam_ix = current.get('camera_index', 0) if current else None
+                except Exception:
+                    cam_ix = None
+                
+                self.db_manager.update_modelo(self.selected_model, nome=novo_nome, camera_index=cam_ix)
                 self.refresh_models()
                 messagebox.showinfo("Sucesso", f"Modelo renomeado para '{novo_nome}'", parent=self.dialog)
                 
@@ -381,15 +395,15 @@ class SaveModelDialog:
         
         self.dialog = ttk.Toplevel(parent)
         self.dialog.title("Salvar Modelo")
-        self.dialog.geometry("400x200")
+        self.dialog.geometry("450x250")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
         # Centraliza o diálogo
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (400 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (200 // 2)
-        self.dialog.geometry(f"400x200+{x}+{y}")
+        x = (self.dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (250 // 2)
+        self.dialog.geometry(f"450x250+{x}+{y}")
         
         self.setup_ui()
         
@@ -408,23 +422,29 @@ class SaveModelDialog:
                 
                 title_label = ttk.Label(main_frame, 
                                        text=f"Salvar alterações no modelo '{modelo['nome']}'?",
-                                       font=self.style_config["ok_font"])
-                title_label.pack(pady=(0, 20))
+                                       font=get_font('header_font'))
+                title_label.pack(pady=(0, 25))
                 
-                # Botões para modelo existente
+                # Botões para modelo existente com fontes maiores
                 btn_frame = ttk.Frame(main_frame)
-                btn_frame.pack(fill=X, pady=10)
+                btn_frame.pack(fill=X, pady=15)
+                
+                style = ttk.Style()
+                style.configure('BigSave.TButton', font=get_font('small_font'))
                 
                 ttk.Button(btn_frame, text="Sobrescrever", 
                           command=self.on_overwrite, 
-                          bootstyle=PRIMARY).pack(side=LEFT, padx=(0, 10))
+                          bootstyle=PRIMARY,
+                          style='BigSave.TButton').pack(side=LEFT, padx=(0, 15))
                 
                 ttk.Button(btn_frame, text="Salvar Como...", 
                           command=self.on_save_as, 
-                          bootstyle=SUCCESS).pack(side=LEFT, padx=10)
+                          bootstyle=SUCCESS,
+                          style='BigSave.TButton').pack(side=LEFT, padx=15)
                 
                 ttk.Button(btn_frame, text="Cancelar", 
-                          command=self.on_cancel).pack(side=RIGHT)
+                          command=self.on_cancel,
+                          style='BigSave.TButton').pack(side=RIGHT)
                 
             except Exception:
                 # Se erro ao carregar modelo atual, trata como novo
@@ -436,36 +456,43 @@ class SaveModelDialog:
     def setup_new_model_ui(self, parent_frame):
         """Configura UI para novo modelo."""
         title_label = ttk.Label(parent_frame, text="Salvar Novo Modelo",
-                               font=self.style_config["ok_font"])
-        title_label.pack(pady=(0, 20))
+                               font=get_font('header_font'))
+        title_label.pack(pady=(0, 25))
         
-        # Campo para nome
-        ttk.Label(parent_frame, text="Nome do modelo:").pack(anchor=W)
+        # Campo para nome com fonte maior
+        ttk.Label(parent_frame, text="Nome do modelo:", 
+                 font=get_font('small_font')).pack(anchor='w')
         
         self.name_var = ttk.StringVar()
-        name_entry = ttk.Entry(parent_frame, textvariable=self.name_var, width=40)
-        name_entry.pack(fill=X, pady=(5, 20))
+        name_entry = ttk.Entry(parent_frame, textvariable=self.name_var, 
+                              width=40, font=get_font('small_font'))
+        name_entry.pack(fill=X, pady=(8, 25))
         name_entry.focus()
         
-        # Botões
+        # Botões com fontes maiores
         btn_frame = ttk.Frame(parent_frame)
         btn_frame.pack(fill=X)
         
+        style = ttk.Style()
+        style.configure('BigSave.TButton', font=get_font('small_font'))
+        
         ttk.Button(btn_frame, text="Salvar", 
                   command=self.on_save_new, 
-                  bootstyle=PRIMARY).pack(side=LEFT)
+                  bootstyle=PRIMARY,
+                  style='BigSave.TButton').pack(side=LEFT)
         
         ttk.Button(btn_frame, text="Cancelar", 
-                  command=self.on_cancel).pack(side=RIGHT)
+                  command=self.on_cancel,
+                  style='BigSave.TButton').pack(side=RIGHT)
         
         # Bind Enter para salvar
         name_entry.bind('<Return>', lambda e: self.on_save_new())
-    
+
     def on_overwrite(self):
         """Sobrescreve o modelo atual."""
         self.result = {'action': 'overwrite', 'model_id': self.current_model_id}
         self.dialog.destroy()
-    
+
     def on_save_as(self):
         """Salva como novo modelo."""
         nome = simpledialog.askstring(
@@ -482,7 +509,7 @@ class SaveModelDialog:
             
             self.result = {'action': 'save_as', 'name': nome}
             self.dialog.destroy()
-    
+
     def on_save_new(self):
         """Salva novo modelo."""
         nome = self.name_var.get().strip()
@@ -493,12 +520,12 @@ class SaveModelDialog:
         
         self.result = {'action': 'save_new', 'name': nome}
         self.dialog.destroy()
-    
+
     def on_cancel(self):
         """Cancela o diálogo."""
         self.result = None
         self.dialog.destroy()
-    
+
     def show(self):
         """Mostra o diálogo e retorna o resultado."""
         self.dialog.wait_window()
