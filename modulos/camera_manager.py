@@ -151,6 +151,10 @@ def configure_video_capture(cap: cv2.VideoCapture, camera_index: int) -> None:
 def _open_camera(camera_index: int) -> Optional[cv2.VideoCapture]:
     """Abre a câmera respeitando diferenças entre Windows e outros SOs."""
     is_windows = platform.system() == 'Windows'
+    is_linux = platform.system() == 'Linux'
+    machine = platform.machine().lower()
+    platform_str = platform.platform().lower()
+    is_rpi = is_linux and (('arm' in machine or 'aarch64' in machine) or ('raspbian' in platform_str or 'raspberry' in platform_str))
 
     def try_open_with_backend(backend_flag) -> Optional[cv2.VideoCapture]:
         cap_try = cv2.VideoCapture(camera_index, backend_flag) if backend_flag is not None else cv2.VideoCapture(camera_index)
@@ -213,28 +217,88 @@ def _open_camera(camera_index: int) -> Optional[cv2.VideoCapture]:
             if cap is not None:
                 break
     else:
-        # Em Linux/RPi tenta conforme configuração
+        # Em Linux/RPi tenta conforme configuração, com suporte a libcamera via GStreamer
         try:
             from .utils import load_style_config
-            backend_name = load_style_config().get('system', {}).get('camera_backend', 'V4L2').upper()
+            backend_name = load_style_config().get('system', {}).get('camera_backend', 'AUTO').upper()
+            width_cfg = int(load_style_config().get('system', {}).get('camera_width', 1280))
+            height_cfg = int(load_style_config().get('system', {}).get('camera_height', 720))
+            fps_cfg = int(load_style_config().get('system', {}).get('camera_fps', 30))
         except Exception:
-            backend_name = 'V4L2'
-        name_to_flag = {
-            'AUTO': None,
-            'V4L2': cv2.CAP_V4L2,
-            'GSTREAMER': cv2.CAP_GSTREAMER,
-            'DIRECTSHOW': cv2.CAP_DSHOW,
-            'MSMF': cv2.CAP_MSMF,
-        }
-        order = [name_to_flag.get(backend_name, cv2.CAP_V4L2), None]
-        cap = None
-        for bflag in order:
+            backend_name, width_cfg, height_cfg, fps_cfg = 'AUTO', 1280, 720, 30
+
+        def try_open_libcamera_pipeline() -> Optional[cv2.VideoCapture]:
             try:
-                cap = try_open_with_backend(bflag)
+                # Pipeline GStreamer para libcamera (Bullseye/Bookworm)
+                pipeline = (
+                    f"libcamerasrc ! video/x-raw,width={width_cfg},height={height_cfg},"
+                    f"framerate={max(1, fps_cfg)}/1 ! videoconvert ! appsink"
+                )
+                cap_try = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+                if not cap_try or not cap_try.isOpened():
+                    try:
+                        if cap_try:
+                            cap_try.release()
+                    except Exception:
+                        pass
+                    return None
+                # Configurar e validar
+                configure_video_capture(cap_try, camera_index)
+                ok = False
+                for _ in range(5):
+                    ret, frame = cap_try.read()
+                    if ret and frame is not None and getattr(frame, 'size', 0) > 0:
+                        ok = True
+                        break
+                    time.sleep(0.05)
+                if not ok:
+                    try:
+                        cap_try.release()
+                    except Exception:
+                        pass
+                    return None
+                return cap_try
             except Exception:
-                cap = None
-            if cap is not None:
-                break
+                return None
+
+        # Ordem de tentativas em Linux/RPi
+        attempts: list[Optional[cv2.VideoCapture]] = []
+        cap = None
+
+        # 1) Em Raspberry Pi, prioriza libcamera quando AUTO ou LIBCAMERA
+        if is_rpi and (backend_name in ('AUTO', 'LIBCAMERA')):
+            cap = try_open_libcamera_pipeline()
+            if cap is None:
+                # fallback para V4L2 por índice (USB webcams)
+                try:
+                    cap = try_open_with_backend(cv2.CAP_V4L2)
+                except Exception:
+                    cap = None
+        else:
+            # 2) Em Linux comum, respeita backend configurado (V4L2/GSTREAMER/AUTO)
+            name_to_flag = {
+                'AUTO': None,
+                'V4L2': cv2.CAP_V4L2,
+                'GSTREAMER': cv2.CAP_GSTREAMER,
+                'DIRECTSHOW': cv2.CAP_DSHOW,
+                'MSMF': cv2.CAP_MSMF,
+            }
+            order = [name_to_flag.get(backend_name, None), cv2.CAP_V4L2, None]
+            tried = set()
+            for bflag in order:
+                if bflag in tried:
+                    continue
+                tried.add(bflag)
+                try:
+                    cap = try_open_with_backend(bflag)
+                except Exception:
+                    cap = None
+                if cap is not None:
+                    break
+
+        # 3) Fallback final no RPi: tenta libcamera mesmo se backend especificado não for AUTO/LIBCAMERA
+        if cap is None and is_rpi:
+            cap = try_open_libcamera_pipeline()
 
     if cap is None:
         logger.error(f"Erro: Não foi possível abrir a câmera {camera_index}")
