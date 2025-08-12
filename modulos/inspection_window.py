@@ -2063,18 +2063,30 @@ class InspecaoWindow(ttk.Frame):
             return None
 
     def _show_multi_program_visual_summary(self, program_images, results, overall_success):
-        """Exibe resumo visual com uma única imagem em tamanho completo no canvas."""
+        """Exibe resumo visual lado a lado (2), 2+1 (3) ou grid (>3) no canvas."""
         try:
             if not program_images:
                 return
-                
-            # Usa apenas a primeira imagem em tamanho completo
-            # ao invés de criar thumbnails ou grid
-            composite_img = program_images[0] if program_images else None
-            
+
+            composite_img = None
+            num = len(program_images)
+
+            if num == 1:
+                composite_img = program_images[0]
+            elif num == 2:
+                composite_img = self._create_side_by_side_layout(program_images)
+            elif num == 3:
+                composite_img = self._create_three_program_layout(program_images)
+            else:
+                composite_img = self._create_grid_layout(program_images)
+
+            # Fallback se algum compositor retornou None
+            if composite_img is None and program_images:
+                composite_img = program_images[0]
+
             if composite_img is not None:
                 self._display_composite_image(composite_img, overall_success)
-                
+
         except Exception as e:
             print(f"Erro ao mostrar resumo visual: {e}")
 
@@ -2225,16 +2237,22 @@ class InspecaoWindow(ttk.Frame):
             if canvas_width <= 1 or canvas_height <= 1:
                 canvas_width, canvas_height = 800, 600
                 
-            composite_tk, scale = cv2_to_tk(composite_img, max_w=canvas_width, max_h=canvas_height)
+            # Reduz levemente a área alvo para garantir que o composto não extrapole e force repositionamento
+            composite_tk, scale = cv2_to_tk(composite_img, max_w=max(1, canvas_width - 2), max_h=max(1, canvas_height - 2))
             
             if composite_tk is None:
                 self._composite_active = False
                 return
                 
-            # Remove apenas overlays, preservando a imagem base se possível
+            # Remove overlays existentes e oculta a imagem base para evitar sobreposição
             self.canvas.delete("result_overlay")
             self.canvas.delete("composite_display")
             self.canvas.delete("composite_text")
+            try:
+                if hasattr(self, '_canvas_image_id') and self._canvas_image_id is not None:
+                    self.canvas.itemconfigure(self._canvas_image_id, state='hidden')
+            except Exception:
+                pass
             
             # Centraliza a imagem composta e calcula offsets
             img_height, img_width = composite_img.shape[:2]
@@ -2243,10 +2261,16 @@ class InspecaoWindow(ttk.Frame):
             x_offset = max(0, (canvas_width - new_width) // 2)
             y_offset = max(0, (canvas_height - new_height) // 2)
             
-            # Cria imagem composta com tag específica
+            # Cria imagem composta com tag específica e zera qualquer coordenação antiga
             self._composite_image_id = self.canvas.create_image(
                 x_offset, y_offset, anchor=NW, image=composite_tk, tags=("composite_display", "result_overlay")
             )
+            try:
+                # Garante que o composto fique no topo
+                self.canvas.tag_raise("composite_display")
+                self.canvas.tag_raise("composite_text")
+            except Exception:
+                pass
             
             # Armazena referência para evitar garbage collection
             self._composite_image_ref = composite_tk
@@ -2254,13 +2278,22 @@ class InspecaoWindow(ttk.Frame):
             # Adiciona texto de alta qualidade diretamente no canvas usando Tkinter
             self._add_canvas_text_overlay(x_offset, y_offset, new_width, new_height, overall_success)
             
-            # Agenda restauração da imagem original após alguns segundos (sem popup)
+            # Agenda restauração da imagem original após 15s (ou antes, ao iniciar nova análise)
             if hasattr(self, '_composite_restore_timer'):
                 try:
                     self.master.after_cancel(self._composite_restore_timer)
                 except Exception:
                     pass
-            self._composite_restore_timer = self.master.after(5000, self._restore_original_display)
+            self._composite_restore_timer = self.master.after(15000, self._restore_original_display)
+
+            # Intercepta cliques do mouse na área para evitar updates concorrentes
+            try:
+                def _eat_click(event):
+                    return "break"
+                self.canvas.tag_bind("composite_display", "<Button-1>", _eat_click)
+                self.canvas.tag_bind("composite_text", "<Button-1>", _eat_click)
+            except Exception:
+                pass
             
         except Exception as e:
             print(f"Erro ao exibir imagem composta: {e}")
@@ -2366,7 +2399,7 @@ class InspecaoWindow(ttk.Frame):
                 self.master.after_cancel(self._composite_restore_timer)
                 delattr(self, '_composite_restore_timer')
                 
-            # Remove apenas overlays, mantém a imagem base
+            # Remove overlays e restaura visibilidade da imagem base
             if hasattr(self, 'canvas'):
                 self.canvas.delete("composite_display")
                 self.canvas.delete("composite_text")
@@ -2374,6 +2407,12 @@ class InspecaoWindow(ttk.Frame):
                 # Reset do ID da imagem para forçar recriação limpa
                 if hasattr(self, '_canvas_image_id'):
                     self._canvas_image_id = None
+                # Caso a imagem base ainda exista, garante visibilidade
+                try:
+                    if hasattr(self, '_saved_canvas_image_id') and self._saved_canvas_image_id:
+                        self.canvas.itemconfigure(self._saved_canvas_image_id, state='normal')
+                except Exception:
+                    pass
             
             # Limpa referência da imagem composta
             if hasattr(self, '_composite_image_ref'):
@@ -3091,6 +3130,25 @@ class InspecaoWindow(ttk.Frame):
                 return
             
             print("--- Iniciando Inspeção Keyence ---")
+
+            # Limpa qualquer overlay composto (resultado multi-modelo) ativo
+            try:
+                if hasattr(self, '_composite_restore_timer'):
+                    self.master.after_cancel(self._composite_restore_timer)
+                    delattr(self, '_composite_restore_timer')
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'canvas'):
+                    self.canvas.delete("composite_display")
+                    self.canvas.delete("composite_text")
+                if hasattr(self, '_composite_image_ref'):
+                    delattr(self, '_composite_image_ref')
+                if hasattr(self, '_composite_image_id'):
+                    delattr(self, '_composite_image_id')
+                self._composite_active = False
+            except Exception as clear_comp_e:
+                print(f"Aviso: erro ao limpar overlay composto: {clear_comp_e}")
             
             # Limpa resultados anteriores
             if hasattr(self, 'canvas'):

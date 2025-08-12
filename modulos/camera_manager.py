@@ -72,23 +72,63 @@ def configure_video_capture(cap: cv2.VideoCapture, camera_index: int) -> None:
 
     try:
         auto_exp = bool(cfg.get('auto_exposure', True))
-        # DirectShow: 0.25 auto, 0.75 manual
-        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25 if auto_exp else 0.75)
+        # Ajuste robusto por backend:
+        # - DirectShow (Windows): 0.75 = auto, 0.25 = manual
+        # - MSMF (Windows): 1 = auto, 0 = manual
+        backend_name = ""
+        try:
+            backend_name = cap.getBackendName() if hasattr(cap, "getBackendName") else ""
+        except Exception:
+            backend_name = ""
+        backend_upper = str(backend_name).upper()
+
+        if "DSHOW" in backend_upper:
+            value = 0.75 if auto_exp else 0.25
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, value)
+        elif "MSMF" in backend_upper:
+            value = 1 if auto_exp else 0
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, value)
+        else:
+            # Fallback: tenta sequências comuns
+            if not cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if auto_exp else 0.25):
+                cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1 if auto_exp else 0)
     except Exception:
         pass
 
     try:
+        # Define exposição apenas se auto-exposure estiver desligado
         if not bool(cfg.get('auto_exposure', True)):
-            base_exposure = float(cfg.get('base_exposure', -6 if camera_index > 0 else -5))
+            # Valores típicos de exposição em DSHOW/MSMF são negativos em log2s.
+            # Deixe a câmera 1 (externa) um pouco mais clara por padrão.
+            base_exposure = float(cfg.get('base_exposure', -5 if camera_index > 0 else -6))
             cap.set(cv2.CAP_PROP_EXPOSURE, base_exposure)
+        # Ajuste de ganho com preferência por 0 para evitar escurecimento progressivo por AGC
         gain = float(cfg.get('gain', 0))
         cap.set(cv2.CAP_PROP_GAIN, gain)
     except Exception:
         pass
 
     try:
-        # Ganho mínimo para reduzir ruído e evitar superexposição por ganho
-        cap.set(cv2.CAP_PROP_GAIN, 0)
+        # Garante ganho mínimo quando auto exposure está ON (evita drift de brilho)
+        if bool(cfg.get('auto_exposure', True)):
+            cap.set(cv2.CAP_PROP_GAIN, 0)
+    except Exception:
+        pass
+
+    # Log de diagnóstico dos valores efetivos
+    try:
+        backend_name = ""
+        try:
+            backend_name = cap.getBackendName() if hasattr(cap, "getBackendName") else ""
+        except Exception:
+            backend_name = ""
+        eff_auto = cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
+        eff_exp = cap.get(cv2.CAP_PROP_EXPOSURE)
+        eff_gain = cap.get(cv2.CAP_PROP_GAIN)
+        eff_wb_auto = cap.get(cv2.CAP_PROP_AUTO_WB) if hasattr(cv2, 'CAP_PROP_AUTO_WB') else None
+        logger.info(
+            f"Camera {camera_index} backend={backend_name} autoExp={eff_auto} exp={eff_exp} gain={eff_gain} autoWB={eff_wb_auto}"
+        )
     except Exception:
         pass
 
