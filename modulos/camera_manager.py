@@ -1,4 +1,5 @@
 import cv2
+import os
 import time
 import platform
 import logging
@@ -220,12 +221,19 @@ def _open_camera(camera_index: int) -> Optional[cv2.VideoCapture]:
         # Em Linux/RPi tenta conforme configuração, com suporte a libcamera via GStreamer
         try:
             from .utils import load_style_config
-            backend_name = load_style_config().get('system', {}).get('camera_backend', 'AUTO').upper()
-            width_cfg = int(load_style_config().get('system', {}).get('camera_width', 1280))
-            height_cfg = int(load_style_config().get('system', {}).get('camera_height', 720))
-            fps_cfg = int(load_style_config().get('system', {}).get('camera_fps', 30))
+            cfg_sys = load_style_config().get('system', {})
+            backend_name = str(cfg_sys.get('camera_backend', 'AUTO')).upper()
+            width_cfg = int(cfg_sys.get('camera_width', 1280))
+            height_cfg = int(cfg_sys.get('camera_height', 720))
+            fps_cfg = int(cfg_sys.get('camera_fps', 30))
         except Exception:
             backend_name, width_cfg, height_cfg, fps_cfg = 'AUTO', 1280, 720, 30
+
+        # Overrides por variável de ambiente (útil no Raspberry)
+        backend_name = str(os.getenv('DX_CAMERA_BACKEND', backend_name)).upper()
+        width_cfg = int(os.getenv('DX_CAMERA_WIDTH', width_cfg))
+        height_cfg = int(os.getenv('DX_CAMERA_HEIGHT', height_cfg))
+        fps_cfg = int(os.getenv('DX_CAMERA_FPS', fps_cfg))
 
         use_libcamera = is_rpi and (backend_name in ('AUTO', 'LIBCAMERA'))
 
