@@ -454,18 +454,29 @@ def detect_cameras(max_cameras: int = 5, callback=None) -> List[int]:
 
     for idx in range(max_cameras):
         try:
-            cap = _open_camera(idx)
-            if cap is not None:
+            # Estratégia simples e multiplataforma para detecção por índice
+            is_windows = platform.system() == 'Windows'
+            cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if is_windows else cv2.VideoCapture(idx)
+            ok = cap is not None and cap.isOpened()
+            if ok:
+                # Valida leitura de um frame para garantir dispositivo válido
+                try:
+                    ret, frame = cap.read()
+                    ok = ret and frame is not None and getattr(frame, 'size', 0) > 0
+                except Exception:
+                    ok = False
+            if ok:
                 found.append(idx)
                 if callback:
                     try:
                         callback(idx)
                     except Exception as cb_err:
                         logger.debug(f"Callback de detect_cameras falhou para índice {idx}: {cb_err}")
-                try:
+            try:
+                if cap:
                     cap.release()
-                except Exception:
-                    pass
+            except Exception:
+                pass
         except Exception as e:
             logger.debug(f"Erro ao testar câmera {idx}: {e}")
     logger.info(f"Câmeras detectadas: {found}")
@@ -476,6 +487,16 @@ def detect_cameras(max_cameras: int = 5, callback=None) -> List[int]:
 def get_cached_camera(camera_index: int = 0, force_new: bool = False) -> Optional[cv2.VideoCapture]:
     """Obtém uma instância de câmera do cache ou cria uma nova."""
     global _camera_cache, _camera_last_used
+
+    # Se o pool persistente está ativo, prioriza reutilizar a câmera do pool
+    try:
+        if _pool_initialized and not force_new:
+            cam = get_persistent_camera(camera_index)
+            if cam is not None and cam.isOpened():
+                _camera_last_used[camera_index] = time.time()
+                return cam
+    except Exception:
+        pass
 
     if force_new and camera_index in _camera_cache:
         try:
