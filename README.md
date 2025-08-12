@@ -4,10 +4,10 @@
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)
-![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-red.svg)
+![Tkinter](https://img.shields.io/badge/Tkinter-stdlib-blueviolet.svg)
 ![ttkbootstrap](https://img.shields.io/badge/ttkbootstrap-1.10+-purple.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Status](https://img.shields.io/badge/Status-Production-brightgreen.svg)
+![Status](https://img.shields.io/badge/Status-Production%20(Desktop)-brightgreen.svg)
 ![Version](https://img.shields.io/badge/Version-2.0-blue.svg)
 
 **Sistema avançado de inspeção visual automatizada para controle de qualidade industrial**
@@ -45,7 +45,7 @@ O **Sistema de Visão Computacional DX v2.0** é uma solução completa e avanç
 - **🔍 Inspeção Automatizada**: Verificação automática de montagem de componentes com múltiplos algoritmos
 - **🤖 Machine Learning**: Classificadores Random Forest e SVM para classificação OK/NG
 - **📹 Multi-Câmera**: Suporte a múltiplas câmeras (USB, Industrial, IP) com cache inteligente
-- **🎨 Interface Moderna**: Interface gráfica avançada com PyQt5 e ttkbootstrap
+- **🎨 Interface Moderna**: Interface gráfica avançada com Tkinter + ttkbootstrap
 - **💾 Banco de Dados**: Sistema SQLite robusto com backup automático e histórico completo
 - **📊 Analytics**: Relatórios em tempo real com métricas detalhadas e estatísticas
 - **🔧 Configurável**: Sistema de configuração visual avançado com temas personalizáveis
@@ -127,7 +127,7 @@ graph TB
     
     B --> M[UI Components]
     M --> N[ttkbootstrap]
-    M --> O[PyQt5]
+    M --> O[Tkinter]
 ```
 
 ### 🔧 **Módulos Principais**
@@ -290,6 +290,14 @@ F1-Score = 2 · (Precision · Recall) / (Precision + Recall)
 CV_Score = (1/k) · Σ(Accuracy_i)
 ```
 
+### 🧪 Metodologia e Reprodutibilidade
+
+- Pipeline: captura → alinhamento (ORB+RANSAC) → ROI por slot → template matching ou ML → registro no banco.
+- Template matching: correlação normalizada; redimensionamento do template para caber na ROI; limiar ajustado por amostras, usando separação mínima OK×NG e média OK com margem.
+- Classificação ML: 66 features (estatísticas, histograma 32, LBP 16, contorno, gradiente); `StandardScaler`; Random Forest (padrão) ou SVM; validação cruzada K-fold (k=5 quando possível).
+- Boas práticas: ≥10 amostras por classe/slot; relatar accuracy/precision/recall/F1; evitar vazamento entre treino/validação; salvar modelos `.joblib` por slot.
+- Reprodutibilidade: versões fixadas em `requirements.txt`; caminhos relativos em `modelos/`; execução com `--debug` para auditoria.
+
 ---
 
 ## ⚙️ Requisitos do Sistema
@@ -309,9 +317,9 @@ CV_Score = (1/k) · Σ(Accuracy_i)
 
 ### 🔧 **Requisitos de Software**
 - **OpenCV**: 4.8.1.78 ou superior
-- **PyQt5**: 5.15.10 ou superior
 - **NumPy**: 1.24.3 ou superior
 - **Scikit-learn**: 1.3.0 ou superior
+- **Tkinter**: módulo padrão do Python (UI via `ttkbootstrap`)
 
 ---
 
@@ -344,7 +352,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Verificar instalação
-python -c "import cv2, PyQt5, ttkbootstrap, numpy, sklearn; print('✅ Instalação bem-sucedida!')"
+python -c "import cv2, ttkbootstrap, numpy, sklearn; print('✅ Instalação bem-sucedida!')"
 ```
 
 ### 3️⃣ **Execução do Sistema**
@@ -643,8 +651,7 @@ set OPENCV_LOG_LEVEL=DEBUG     # Windows
 pip list
 
 # Verificar versões específicas
-python -c "import cv2; print(cv2.__version__)"
-python -c "import PyQt5; print(PyQt5.QtCore.QT_VERSION_STR)"
+python -c "import cv2, ttkbootstrap; print('OpenCV:', cv2.__version__, 'ttkbootstrap:', ttkbootstrap.__version__)"
 ```
 
 ---
@@ -691,7 +698,7 @@ python -c "import PyQt5; print(PyQt5.QtCore.QT_VERSION_STR)"
 
 ### 🚀 **Versão Atual (v2.0) ✅**
 - ✅ Sistema de inspeção de montagem avançado
-- ✅ Interface gráfica moderna com PyQt5 e ttkbootstrap
+- ✅ Interface gráfica moderna com Tkinter + ttkbootstrap
 - ✅ Banco de dados SQLite com backup automático
 - ✅ Template matching com múltiplos algoritmos
 - ✅ Sistema de treinamento com machine learning
@@ -832,7 +839,7 @@ Este projeto é desenvolvido pela **equipe DX (Desenvolvimento Digital)** sob li
 #### **Core Technologies**
 - **Python 3.11+**: Linguagem principal de desenvolvimento
 - **OpenCV 4.8+**: Biblioteca de visão computacional
-- **PyQt5 5.15+**: Framework de interface gráfica
+- **Tkinter + ttkbootstrap 1.10+**: Interface gráfica desktop
 - **ttkbootstrap 1.10+**: Interface moderna para módulos específicos
 
 #### **Machine Learning e Dados**

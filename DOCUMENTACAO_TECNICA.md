@@ -9,7 +9,7 @@ Esta versão representa uma evolução significativa do sistema, introduzindo me
 ### 🚀 **Características Principais**
 - **Arquitetura Híbrida**: Combina OpenCV + Machine Learning
 - **Treinamento Adaptativo**: Sistema de retreinamento automático com validação cruzada
-- **Interface Moderna**: PyQt5 com design responsivo e temas personalizáveis
+- **Interface Moderna**: Tkinter + ttkbootstrap com design responsivo e temas personalizáveis
 - **Performance Otimizada**: Processamento em tempo real com otimizações de GPU
 - **Escalabilidade**: Arquitetura modular extensível com plugins
 - **Multi-Câmera**: Suporte para USB, Industrial e IP cameras
@@ -18,11 +18,11 @@ Esta versão representa uma evolução significativa do sistema, introduzindo me
 - **Otimização de Imagens**: Sistema avançado para compressão e armazenamento
 - **Configuração de Estilos**: Sistema flexível de personalização visual
 
-### 📊 **Métricas de Performance**
+### 📊 **Métricas de Performance (exemplos reprodutíveis)**
 - **Acurácia**: > 97% em condições controladas (melhorado de 95%)
 - **Velocidade**: < 30ms por inspeção (otimizado de 50ms)
 - **Throughput**: 30+ FPS em resolução HD (melhorado de 20+)
-- **Confiabilidade**: 99.95% uptime em produção (melhorado de 99.9%)
+- **Confiabilidade**: medido via taxa de falhas de captura e persistência; relatório por `inspection_history`
 - **Precisão ML**: > 94% em classificação de defeitos
 - **Latência de Rede**: < 100ms para IP cameras
 - **Uso de Memória**: Otimizado para sistemas com 4GB+ RAM
@@ -36,8 +36,8 @@ O sistema segue uma arquitetura modular híbrida que combina padrões MVC (Model
 
 ```mermaid
 graph TB
-    subgraph "🖥️ Camada de Apresentação"
-        A[Dashboard Principal] --> B[Interface PyQt5]
+    subgraph "🖥️ Camada de Apresentação (Tkinter + ttkbootstrap)"
+        A[Dashboard Principal] --> B[Interface Tkinter/ttkbootstrap]
         B --> C[Módulo Montagem]
         B --> D[Seletor de Modelos]
         B --> E[Configurações]
@@ -53,9 +53,9 @@ graph TB
     end
     
     subgraph "💾 Camada de Dados"
-        M[(SQLite Database)] --> N[Models Table]
-        M --> O[Slots Table]
-        M --> P[Training Data]
+    M[(SQLite Database)] --> N[modelos]
+    M --> O[slots]
+    M --> P[inspection_history]
         Q[File System] --> R[Templates]
         Q --> S[ML Models]
         Q --> T[Logs]
@@ -98,7 +98,7 @@ sequenceDiagram
     participant CAM as 📷 Camera
     
     U->>UI: Iniciar Inspeção
-    UI->>DB: Carregar Modelo
+     UI->>DB: Carregar Modelo (tabelas `modelos`/`slots`)
     DB-->>UI: Dados do Modelo
     UI->>FS: Carregar Templates
     FS-->>UI: Templates/ML Models
@@ -245,7 +245,7 @@ def estimate_homography_ransac(src_points, dst_points,
 - **Support Vector Machine (SVM)**: Classificação com margem máxima
 - **Gradient Boosting**: Boosting sequencial de modelos fracos
 
-**Feature Extraction (39+ Features):**
+**Feature Extraction (≈66 Features):**
 ```python
 def extract_features(image):
     features = []
@@ -317,7 +317,7 @@ def evaluate_model_performance(X, y, model, cv=5):
     return results
 ```
 
-## 🤖 **Sistema de Otimização de Imagens** ⭐ **NOVO**
+## 🤖 **Sistema de Otimização de Imagens**
 
 ### 🎯 **Funcionalidades Principais**
 
@@ -392,7 +392,7 @@ def batch_optimize_directory(self, input_dir: str, output_dir: str,
 - **Tempo de Processamento**: < 100ms por imagem
 - **Uso de Memória**: Otimizado para lotes grandes
 
-## 🎨 **Sistema de Configuração de Estilos** ⭐ **ATUALIZADO**
+## 🎨 **Sistema de Configuração de Estilos**
 
 ### 🎯 **Arquitetura de Estilos**
 
@@ -464,11 +464,11 @@ def get_color(category: str, name: str) -> str:
 - **Interface**: USB 3.0+ para alta performance
 
 **Requisitos de Software:**
-- **OpenCV**: 4.5.0+
-- **NumPy**: 1.19.0+
-- **PyQt5**: 5.15.0+
-- **scikit-learn**: 1.0.0+
-- **PIL/Pillow**: 8.0.0+
+- **OpenCV**: 4.8.1+
+- **NumPy**: 1.24+
+- **scikit-learn**: 1.3+
+- **PIL/Pillow**: 10.0+
+- **Tkinter/ttkbootstrap**: UI desktop
 
 ### 📄 Estrutura do Projeto Atualizada
 
@@ -566,7 +566,7 @@ v2-main/
 └── 🍓 RASPBERRY_PI_OPTIMIZATION.md # Otimizações para Raspberry Pi
 ```
 
-## 🎮 Guia de Uso Atualizado
+## 🎮 Guia de Uso
 
 ### 🖥️ **Dashboard Principal**
 
@@ -649,7 +649,53 @@ v2-main/
 
 ### 🔌 **APIs e Interfaces**
 
-**Database API:**
+**Database API (SQLite):**
+## 🗄️ Esquema de Banco de Dados (SQLite)
+
+Tabelas principais e colunas (chaves principais/estrangeiras e defaults):
+
+- `modelos`:
+  - `id` INTEGER PK AUTOINCREMENT
+  - `nome` TEXT UNIQUE NOT NULL
+  - `image_path` TEXT NOT NULL (relativo à raiz do projeto)
+  - `camera_index` INTEGER DEFAULT 0
+  - `criado_em` TEXT NOT NULL (ISO8601)
+  - `atualizado_em` TEXT NOT NULL (ISO8601)
+
+- `slots`:
+  - `id` INTEGER PK AUTOINCREMENT
+  - `modelo_id` INTEGER NOT NULL REFERENCES `modelos`(id) ON DELETE CASCADE
+  - `slot_id` INTEGER NOT NULL
+  - `tipo` TEXT NOT NULL
+  - `x` `y` `w` `h` INTEGER NOT NULL
+  - `cor_r` `cor_g` `cor_b` INTEGER DEFAULT (0,0,255)
+  - `h_tolerance` INTEGER DEFAULT 10
+  - `s_tolerance` INTEGER DEFAULT 50
+  - `v_tolerance` INTEGER DEFAULT 50
+  - `detection_threshold` REAL DEFAULT 0.8
+  - `correlation_threshold` REAL DEFAULT 0.5
+  - `template_method` TEXT DEFAULT 'TM_CCOEFF_NORMED'
+  - `scale_tolerance` REAL DEFAULT 0.5
+  - `template_path` TEXT (relativo)
+  - `detection_method` TEXT DEFAULT 'template_matching'
+  - `shape` TEXT DEFAULT 'rectangle'
+  - `rotation` REAL DEFAULT 0
+  - `ok_threshold` INTEGER DEFAULT 70
+  - `use_ml` INTEGER DEFAULT 0
+  - `ml_model_path` TEXT (relativo)
+
+- `inspection_history`:
+  - `id` INTEGER PK AUTOINCREMENT
+  - `modelo_id` INTEGER NOT NULL REFERENCES `modelos`(id) ON DELETE CASCADE
+  - `modelo_nome` TEXT NOT NULL
+  - `slot_id` INTEGER NOT NULL
+  - `result` TEXT NOT NULL CHECK(result IN ('ok','ng'))
+  - `confidence` REAL NOT NULL
+  - `processing_time` REAL NULL
+  - `image_path` TEXT NULL (relativo)
+  - `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+Índices: `idx_slots_modelo_id`, `idx_slots_slot_id`, `idx_inspection_history_modelo_id`, `idx_inspection_history_created_at`, `idx_inspection_history_result`.
 ```python
 class DatabaseManager:
     def create_model(self, name: str, description: str) -> int:
@@ -766,7 +812,7 @@ print(f"Config path: {get_style_config_path()}")
 **Verificação de Dependências:**
 ```bash
 # Listar versões instaladas
-pip list | grep -E "(opencv|numpy|PyQt5|scikit-learn)"
+pip list | grep -E "(opencv|numpy|ttkbootstrap|scikit-learn)"
 
 # Verificar compatibilidade
 python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
@@ -882,7 +928,7 @@ print(f"Config path: {get_style_config_path()}")
 **Verificação de Dependências:**
 ```bash
 # Listar versões instaladas
-pip list | grep -E "(opencv|numpy|PyQt5|scikit-learn)"
+pip list | grep -E "(opencv|numpy|ttkbootstrap|scikit-learn)"
 
 # Verificar compatibilidade
 python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
@@ -927,7 +973,7 @@ python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
 - **Velocidade**: < 100ms por imagem
 - **Qualidade**: Mantida em 85%+ da original
 
-## 🗺️ Roadmap Atualizado
+## 🗺️ Roadmap (alto nível)
 
 ### 🚀 **Versão 2.1 (Q2 2025)**
 - **IoT Integration**: Conectividade com dispositivos IoT
@@ -947,17 +993,7 @@ python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
 - **Advanced Security**: Segurança avançada e criptografia
 - **Scalability**: Escalabilidade horizontal
 
-## 🏅 **Reconhecimentos e Certificações**
-
-### 🏆 **Prêmios Recebidos**
-- 🥇 **Melhor Inovação em Visão Computacional 2024** - Tech Innovation Awards
-- 🥈 **Excellence in Industrial AI** - Industry 4.0 Summit
-- 🥉 **Best Open Source Contribution** - Computer Vision Conference
-
-### 📜 **Certificações Técnicas**
-- ✅ **ISO/IEC 25010** - Qualidade de Software
-- ✅ **IEEE 2857** - Padrões de Visão Computacional
-- ✅ **NIST Cybersecurity Framework** - Segurança
+<!-- Seção de prêmios e certificações removida para manter foco técnico e reprodutibilidade. -->
 
 ## 👥 **Equipe e Contribuições**
 
@@ -980,10 +1016,8 @@ python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
 ### 🆘 **Canais de Suporte**
 
 **Suporte Técnico:**
-- 📧 Email: suporte@dx-vision.com
-- 💬 Discord: [DX Vision Community](https://discord.gg/dx-vision)
--  WhatsApp: +55 (11) 99999-9999
-- 🐙 GitHub Issues: [Reportar Bugs](https://github.com/dx-team/vision-system/issues)
+- GitHub Issues (recomendado)
+- Documentação incluída no repositório
 
 **Documentação:**
 -  README.md: Guia de início rápido
@@ -1026,22 +1060,14 @@ python -c "import cv2; print(f'OpenCV: {cv2.__version__}')"
 **Recursos de Aprendizado:**
 - OpenCV Documentation
 - scikit-learn User Guide
-- PyQt5 Tutorial
+- Tkinter/ttkbootstrap Tutorial
 - Computer Vision Fundamentals
 
 ## 📄 Licença
 
 Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](LICENSE) para detalhes.
 
-**Permissões:**
-- ✅ Uso comercial
-- ✅ Modificação
-- ✅ Distribuição
-- ✅ Uso privado
-
-**Limitações:**
-- ❌ Garantia
-- ❌ Responsabilidade
+Ver arquivo LICENSE (MIT). Permite uso comercial, modificação, distribuição e uso privado; sem garantias.
 
 ## 🤝 Créditos e Agradecimentos
 
@@ -1057,7 +1083,7 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 **Tecnologias e Bibliotecas:**
 - **OpenCV**: Visão computacional e processamento de imagem
 - **scikit-learn**: Machine learning e validação cruzada
-- **PyQt5**: Interface gráfica do usuário
+- **Tkinter/ttkbootstrap**: Interface gráfica do usuário
 - **NumPy**: Computação numérica e arrays
 - **PIL/Pillow**: Processamento de imagens
 - **ttkbootstrap**: Temas modernos para interface
