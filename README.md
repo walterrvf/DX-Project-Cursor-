@@ -300,6 +300,77 @@ CV_Score = (1/k) · Σ(Accuracy_i)
 
 ---
 
+## 🧠 Fundamentos Científicos (por que funciona)
+
+- **Formação de imagem (pinhole/câmera fina)**: cada pixel amostra a irradiância projetada por uma transformação projetiva. A relação entre planos é modelada por homografia em cenas planas e por pose 3D em geral.
+- **Amostragem e Nyquist**: para evitar aliasing, a frequência espacial máxima da cena deve ser ≤ metade da frequência de amostragem do sensor. Na prática, definimos ROI e redimensionamos para manter textura relevante acima do ruído.
+- **MTF, SNR e ruído**: contraste transferido (MTF) e relação sinal‑ruído (SNR) determinam a detectabilidade. O sistema reduz variância de ruído (média móvel/INTER_AREA), fixa ganho e controla exposição para maximizar SNR sem saturação.
+- **Modelo de cor e invariância**: trabalhamos em espaços RGB/HSV/Lab conforme a tarefa. Normalização fotométrica (equalização local/opcional) e controle de balanço de branco mitigam variações de iluminação.
+- **Geometria computacional**: ORB + RANSAC estimam transformações; homografia alinha referência↔teste; template matching opera após alinhamento para robustez.
+- **Validação estatística**: thresholds e modelos ML são validados por K‑Fold; reportamos accuracy/precision/recall/F1, podendo traçar ROC/PR e AUC. Para ambiente industrial, recomenda‑se MSA (Gage R&R) aplicado a visão para repetir/replicar medições.
+
+> Insight chave: visão computacional é, primordialmente, software/algoritmo. Melhor lente/sensor ajuda, mas o que garante repetibilidade e robustez é o pipeline (pré‑processamento, alinhamento, extração de evidência e decisão com validação estatística).
+
+---
+
+## 🏭 Indústria 4.0 e Integração
+
+- **Sistemas ciber‑físicos**: aquisição no bordo (edge), processamento local e publicação de resultados para o chão de fábrica.
+- **Integração**: suporte planejado a `MQTT/OPC‑UA/REST` para MES/SCADA; rastreabilidade via banco (histórico de imagens e metadados).
+- **Qualidade e OEE**: resultados por lote/ordem de produção alimentam KPIs (FPY, scrap rate) e permitem SPC (controle estatístico de processo).
+- **Manutenção preditiva**: logs de falhas e drifts alimentam data lake/ML para antecipar degradação (ex.: iluminação, foco, sujeira de lente).
+
+---
+
+## 🚗 Estudo de Caso: por que a Tesla prioriza visão por câmeras
+
+Fabricantes como a Tesla demonstram que um stack de percepção baseado majoritariamente em câmeras alcança alto desempenho quando há:
+
+- calibração multi‑câmera, sincronização temporal e fusão; 
+- algoritmos de percepção robustos (ocupancy/segmentação/estimativa de movimento);
+- grandes volumes de dados anotados e feedback de campo (data engine);
+- forte engenharia de software para padronizar pré‑processamento e normalização.
+
+Paralelo com este projeto: nosso foco é a engenharia do pipeline e a repetibilidade estatística. A câmera é um componente; o resultado deriva da consistência do processo (iluminação controlada, exposição estável, software determinístico e validação contínua).
+
+Boas práticas de aquisição (independentes do modelo de câmera)
+- **Exposição/Ganho**: prefira exposição fixa e ganho baixo; evite auto‑exposure em esteiras com variação brusca de luz.
+- **Óptica**: use foco fixo e distância controlada; evite zoom variável.
+- **Iluminação**: padronize temperatura/cintilação; use difusores; evite reflexos especulares na ROI.
+- **Geometria**: mantenha peça e câmera com relação rígida; se houver variação, alinhe via homografia (como implementado).
+
+---
+
+## 🔌 Câmeras, Backends e Variáveis de Ambiente
+
+- Windows: preferencial `DirectShow (DSHOW)` com mapeamento de auto‑exposição correto (auto=0.75, manual=0.25); fallback `MSMF` (auto=1, manual=0).
+- Linux/Raspberry Pi: suporte a `V4L2` (webcams) e `libcamera` via GStreamer (`libcamerasrc`).
+
+Variáveis de ambiente (sobrepõem `config/style_config.json`):
+```bash
+# Seleciona backend e parâmetros de captura
+DX_CAMERA_BACKEND=AUTO|LIBCAMERA|V4L2
+DX_CAMERA_WIDTH=1280
+DX_CAMERA_HEIGHT=720
+DX_CAMERA_FPS=30
+```
+
+Guia rápido Raspberry Pi
+- Libcamera (recomendado): `sudo apt install gstreamer1.0-libcamera gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-bad libcamera-apps`
+- V4L2 bridge (opcional p/ apps por índice): `sudo apt install v4l2loopback-dkms libcamera-bridge && sudo modprobe v4l2loopback devices=1 video_nr=0 exclusive_caps=1 && libcamera-bridge -v 0 &`
+
+---
+
+## 🧪 Multi‑modelo lado a lado (UI)
+
+- 2 modelos: composição lado a lado automática.
+- 3 modelos: 2 acima + 1 abaixo.
+- 4+ modelos: grid adaptativo.
+- Resultado fixo no canvas por 15s (ou até nova análise), sem sobreposição da imagem base.
+
+
+---
+
 ## ⚙️ Requisitos do Sistema
 
 ### 💻 **Requisitos Mínimos**
