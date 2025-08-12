@@ -227,20 +227,37 @@ def _open_camera(camera_index: int) -> Optional[cv2.VideoCapture]:
         except Exception:
             backend_name, width_cfg, height_cfg, fps_cfg = 'AUTO', 1280, 720, 30
 
+        use_libcamera = is_rpi and (backend_name in ('AUTO', 'LIBCAMERA'))
+
+        # Em libcamera por GStreamer, tratamos como dispositivo único (índice 0)
+        if use_libcamera and camera_index != 0:
+            return None
+
         def try_open_libcamera_pipeline() -> Optional[cv2.VideoCapture]:
             try:
-                # Pipeline GStreamer para libcamera (Bullseye/Bookworm)
-                pipeline = (
-                    f"libcamerasrc ! video/x-raw,width={width_cfg},height={height_cfg},"
-                    f"framerate={max(1, fps_cfg)}/1 ! videoconvert ! appsink"
-                )
-                cap_try = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
-                if not cap_try or not cap_try.isOpened():
-                    try:
-                        if cap_try:
+                # Pipelines GStreamer para libcamera (Bullseye/Bookworm): tenta RAW e MJPEG
+                candidates = [
+                    (
+                        f"libcamerasrc ! video/x-raw,width={width_cfg},height={height_cfg},framerate={max(1, fps_cfg)}/1 ! "
+                        f"videoconvert ! appsink"
+                    ),
+                    (
+                        f"libcamerasrc ! image/jpeg,width={width_cfg},height={height_cfg},framerate={max(1, fps_cfg)}/1 ! "
+                        f"jpegdec ! videoconvert ! appsink"
+                    )
+                ]
+                cap_try = None
+                for pipeline in candidates:
+                    cap_try = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+                    if cap_try and cap_try.isOpened():
+                        break
+                    if cap_try:
+                        try:
                             cap_try.release()
-                    except Exception:
-                        pass
+                        except Exception:
+                            pass
+                        cap_try = None
+                if not cap_try or not cap_try.isOpened():
                     return None
                 # Configurar e validar
                 configure_video_capture(cap_try, camera_index)
@@ -266,7 +283,7 @@ def _open_camera(camera_index: int) -> Optional[cv2.VideoCapture]:
         cap = None
 
         # 1) Em Raspberry Pi, prioriza libcamera quando AUTO ou LIBCAMERA
-        if is_rpi and (backend_name in ('AUTO', 'LIBCAMERA')):
+        if use_libcamera:
             cap = try_open_libcamera_pipeline()
             if cap is None:
                 # fallback para V4L2 por índice (USB webcams)
@@ -319,6 +336,22 @@ def start_frame_pump(camera_indices: List[int] = None, fps: float = 30.0) -> boo
 
     if camera_indices is None:
         camera_indices = list(_persistent_camera_pool.keys())
+    # Em Raspberry Pi com libcamera, apenas índice 0 é válido no frame pump
+    try:
+        is_linux = platform.system() == 'Linux'
+        machine = platform.machine().lower()
+        platform_str = platform.platform().lower()
+        is_rpi = is_linux and (('arm' in machine or 'aarch64' in machine) or ('raspbian' in platform_str or 'raspberry' in platform_str))
+    except Exception:
+        is_rpi = False
+    if is_rpi:
+        try:
+            from .utils import load_style_config
+            backend_name = load_style_config().get('system', {}).get('camera_backend', 'AUTO').upper()
+        except Exception:
+            backend_name = 'AUTO'
+        if backend_name in ('AUTO', 'LIBCAMERA'):
+            camera_indices = [idx for idx in camera_indices if idx == 0]
 
     if not camera_indices:
         return False
@@ -394,6 +427,31 @@ def detect_cameras(max_cameras: int = 5, callback=None) -> List[int]:
     Se callback for fornecido, é chamado com o índice encontrado.
     """
     found: List[int] = []
+
+    # Otimização/compatibilidade: em Raspberry Pi com libcamera trate como dispositivo único (0)
+    try:
+        is_linux = platform.system() == 'Linux'
+        machine = platform.machine().lower()
+        platform_str = platform.platform().lower()
+        is_rpi = is_linux and (('arm' in machine or 'aarch64' in machine) or ('raspbian' in platform_str or 'raspberry' in platform_str))
+    except Exception:
+        is_rpi = False
+
+    backend_name = 'AUTO'
+    try:
+        from .utils import load_style_config
+        backend_name = load_style_config().get('system', {}).get('camera_backend', 'AUTO').upper()
+    except Exception:
+        backend_name = 'AUTO'
+
+    if is_rpi and backend_name in ('AUTO', 'LIBCAMERA'):
+        # Considera apenas índice lógico 0
+        return [0]
+
+    # Em RPi com V4L2, evita iterar múltiplos índices para não poluir logs
+    if is_rpi and backend_name == 'V4L2':
+        max_cameras = min(max_cameras, 1)
+
     for idx in range(max_cameras):
         try:
             cap = _open_camera(idx)
