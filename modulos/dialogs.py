@@ -12,7 +12,7 @@ try:
     from modulos.utils import load_style_config, get_color, get_font, save_style_config, apply_style_config
     from modulos.ml_classifier import MLSlotClassifier
     from modulos.camera_manager import capture_image_from_camera
-    from modulos.paths import get_template_dir, get_model_template_dir
+    from modulos.paths import get_template_dir, get_model_template_dir, get_project_root
     from modulos.inspection import find_image_transform
     from modulos.image_utils import cv2_to_tk
 except Exception:
@@ -20,7 +20,7 @@ except Exception:
         from utils import load_style_config, get_color, get_font, save_style_config, apply_style_config
         from ml_classifier import MLSlotClassifier
         from camera_manager import capture_image_from_camera
-        from paths import get_template_dir, get_model_template_dir
+        from paths import get_template_dir, get_model_template_dir, get_project_root
         from inspection import find_image_transform
         from image_utils import cv2_to_tk
     except Exception:
