@@ -912,13 +912,13 @@ class InspecaoWindow(ttk.Frame):
             print(f"Erro ao trocar câmera: {e}")
     
     def setup_ui(self):
-        # Configuração de estilo industrial Keyence
+        # Configuração de estilo industrial
         self.style = ttk.Style()
         
         # Carrega as configurações de estilo personalizadas
         style_config = load_style_config()
         
-        # Cores industriais Keyence com personalização
+        # Paleta industrial com personalização
         self.bg_color = get_color('colors.background_color', style_config)  # Fundo escuro mais profundo
         self.panel_color = get_color('colors.canvas_colors.panel_bg', style_config)  # Cor dos painéis
         self.accent_color = get_color('colors.button_color', style_config)  # Cor de destaque
@@ -978,7 +978,7 @@ class InspecaoWindow(ttk.Frame):
         left_pane = ttk.Frame(paned)
         paned.add(left_pane)
         try:
-            paned.paneconfigure(left_pane, minsize=200)
+            paned.paneconfigure(left_pane, minsize=100)
         except Exception:
             pass
 
@@ -1028,26 +1028,41 @@ class InspecaoWindow(ttk.Frame):
         right_panel = ttk.Frame(paned)
         paned.add(right_panel)
         try:
-            paned.paneconfigure(right_panel, minsize=240)
+            paned.paneconfigure(right_panel, minsize=120)
         except Exception:
             pass
 
         # Posição inicial das divisórias (após renderizar)
+        self._sashes_initialized = False
         def _init_sashes():
             try:
-                total_w = paned.winfo_width() or main_frame.winfo_width()
-                left_w = 260
-                right_w = 320
-                if total_w and total_w > left_w + right_w + 100:
-                    paned.sashpos(0, left_w)
-                    paned.sashpos(1, total_w - right_w)
+                self.update_idletasks()
+                total_w = paned.winfo_width() or main_frame.winfo_width() or self.winfo_width()
+                if not total_w or total_w < 300:
+                    return
+                # Define larguras iniciais por percentuais (~40% maiores que o ajuste anterior)
+                left_w = max(140, int(total_w * 0.17))
+                right_w = max(180, int(total_w * 0.20))
+                paned.sashpos(0, left_w)
+                paned.sashpos(1, total_w - right_w)
+                self._sashes_initialized = True
             except Exception:
                 pass
-        self.after(50, _init_sashes)
+        # Tenta posicionar as sashes algumas vezes no início para garantir aplicação após layout
+        self.after(80, _init_sashes)
+        self.after(300, lambda: (not self._sashes_initialized) and _init_sashes())
+        self.after(1000, lambda: (not self._sashes_initialized) and _init_sashes())
+        self.after(2000, lambda: (not self._sashes_initialized) and _init_sashes())
+
+        # Ajusta na primeira mudança de tamanho do paned
+        def _on_paned_configure(event):
+            if not getattr(self, '_sashes_initialized', False):
+                _init_sashes()
+        paned.bind('<Configure>', _on_paned_configure)
         
         # === PAINEL ESQUERDO ===
         
-        # Cabeçalho com título estilo Keyence
+        # Cabeçalho com título
         header_frame = ttk.Frame(left_panel, style='Header.TFrame')
         header_frame.pack(fill=X, pady=(0, 15))
         
@@ -1065,7 +1080,7 @@ class InspecaoWindow(ttk.Frame):
             
             if os.path.exists(logo_path):
                 # Carregar e redimensionar a imagem
-                pil_image = Image.open(logo_path)
+                pil_image = Image.open(logo_path).convert("RGBA")
                 # Redimensionar mantendo proporção - altura de aproximadamente 100px
                 original_width, original_height = pil_image.size
                 new_height = 100
@@ -1075,12 +1090,13 @@ class InspecaoWindow(ttk.Frame):
                 # Converter para PhotoImage
                 logo_image = ImageTk.PhotoImage(pil_image)
                 
-                # Frame para a logo - sem estilo para evitar fundo verde
-                logo_frame = ttk.Frame(header_frame)
+                # Frame para a logo com fundo do cabeçalho para preservar transparência
+                import tkinter as tk
+                logo_frame = tk.Frame(header_frame, bg=self.accent_color, highlightthickness=0, bd=0)
                 logo_frame.pack(pady=15, fill=X)
                 
-                # Label com a imagem da logo - sem background para ficar transparente
-                logo_label = ttk.Label(logo_frame, image=logo_image)
+                # Label com a imagem da logo com fundo do cabeçalho (áreas transparentes ficam corretas)
+                logo_label = tk.Label(logo_frame, image=logo_image, bg=self.accent_color, borderwidth=0, highlightthickness=0)
                 logo_label.image = logo_image  # Manter referência para evitar garbage collection
                 logo_label.pack(side="left", padx=(20, 20))
             else:
@@ -1118,7 +1134,7 @@ class InspecaoWindow(ttk.Frame):
                                 font=style_config["ok_font"].replace("12", "8"), foreground="gray")
         version_label.pack(pady=(0, 10))
         
-        # Seção de Modelo - Estilo industrial Keyence
+        # Seção de Modelo
         model_frame = ttk.LabelFrame(left_panel, text="Modelo de Inspeção")
         model_frame.pack(fill=X, pady=(0, 10))
         
@@ -1182,7 +1198,7 @@ class InspecaoWindow(ttk.Frame):
                                           command=self.capture_test_from_webcam)
         self.btn_capture_test.pack(fill=X, padx=5, pady=2)
         
-        # Seção de Inspeção - Estilo industrial Keyence com destaque
+        # Seção de Inspeção
         inspection_frame = ttk.LabelFrame(left_panel, text="INSPEÇÃO AUTOMÁTICA")
         inspection_frame.pack(fill=X, pady=(0, 10))
         
@@ -1268,7 +1284,7 @@ class InspecaoWindow(ttk.Frame):
         self.status_grid_frame = ttk.Frame(status_summary_frame)
         self.status_grid_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
-        # Resultados - Estilo industrial Keyence (reduzido) - Movido para parte inferior
+        # Resultados - Painel inferior
         results_frame = ttk.LabelFrame(right_panel, text="RESULTADOS DE INSPEÇÃO")
         results_frame.pack(fill=X, expand=False, side=BOTTOM, pady=(0, 10))
         
@@ -1286,7 +1302,7 @@ class InspecaoWindow(ttk.Frame):
         scrollbar_results = ttk.Scrollbar(list_container)
         scrollbar_results.pack(side=RIGHT, fill=Y)
         
-        # Configurar estilo da Treeview para parecer com sistemas Keyence
+        # Configurar estilo da Treeview
         self.style.configure("Treeview", 
                            foreground=self.text_color, 
                            borderwidth=1,
@@ -3215,7 +3231,7 @@ class InspecaoWindow(ttk.Frame):
             print(f"Erro ao garantir geometria de exibição: {e}")
     
     def run_inspection(self, show_message=False):
-        """Executa inspeção otimizada com estilo industrial Keyence"""
+        """Executa inspeção otimizada."""
         try:
             # === ATUALIZAÇÃO DE STATUS ===
             try:
@@ -3239,7 +3255,7 @@ class InspecaoWindow(ttk.Frame):
             # Garante que scale_factor e offsets estejam corretos antes de qualquer desenho
             self._ensure_display_geometry()
             
-            print("--- Iniciando Inspeção Keyence ---")
+            print("--- Iniciando Inspeção ---")
 
             # Limpa qualquer overlay composto (resultado multi-modelo) ativo
             try:
@@ -3289,7 +3305,7 @@ class InspecaoWindow(ttk.Frame):
                 if hasattr(self, 'status_var'):
                     self.status_var.set(f"Falha no Alinhamento: Não foi possível alinhar as imagens. Erro: {align_error}")
                 
-                # Desenha slots de referência em cor de erro (estilo Keyence)
+                # Desenha slots de referência em cor de erro
                 if hasattr(self, 'canvas') and hasattr(self, 'scale_factor'):
                     try:
                         for slot in self.slots:
@@ -3309,7 +3325,7 @@ class InspecaoWindow(ttk.Frame):
                         print(f"Erro ao desenhar slots de referência: {draw_error}")
                 return
             
-            # === 2. VERIFICAÇÃO DOS SLOTS (ESTILO KEYENCE) ===
+            # === 2. VERIFICAÇÃO DOS SLOTS ===
             try:
                 if hasattr(self, 'inspection_status_var'):
                     self.inspection_status_var.set("INSPECIONANDO...")
@@ -3352,7 +3368,7 @@ class InspecaoWindow(ttk.Frame):
                             for msg in log_msgs:
                                 print(f"  -> {msg}")
                         
-                        # Armazena resultado otimizado com estilo Keyence
+                        # Armazena resultado otimizado
                         result = {
                             'slot_id': slot['id'],
                             'passou': is_ok,
@@ -3364,6 +3380,30 @@ class InspecaoWindow(ttk.Frame):
                             'model_id': model_id
                         }
                         self.inspection_results.append(result)
+
+                        # Registrar no histórico do banco (sempre que inspecionar)
+                        try:
+                            if hasattr(self, 'db_manager') and self.db_manager:
+                                # Descobre nome do modelo atual
+                                modelo_nome = getattr(self, 'current_model_name', None)
+                                if not modelo_nome and hasattr(self, 'current_model_id') and self.current_model_id:
+                                    try:
+                                        info = self.db_manager.get_model_by_id(self.current_model_id)
+                                        modelo_nome = info['nome'] if info else None
+                                    except Exception:
+                                        modelo_nome = None
+                                # Grava registro por slot
+                                self.db_manager.log_inspection_result(
+                                    modelo_id=self.current_model_id if hasattr(self, 'current_model_id') else None,
+                                    modelo_nome=modelo_nome or '--',
+                                    slot_id=slot['id'],
+                                    result='ok' if is_ok else 'ng',
+                                    confidence=float(correlation or 0.0),
+                                    processing_time=None,
+                                    image_path=None
+                                )
+                        except Exception as hist_err:
+                            print(f"Aviso: falha ao registrar histórico no DB: {hist_err}")
                         
                         if not is_ok:
                             overall_ok = False
@@ -3378,7 +3418,7 @@ class InspecaoWindow(ttk.Frame):
                     self.status_var.set(f"Erro durante inspeção: {e}")
                 return
             
-            # === 3. DESENHO OTIMIZADO NO CANVAS COM ESTILO KEYENCE ===
+            # === 3. DESENHO OTIMIZADO NO CANVAS ===
             try:
                 if not hasattr(self, 'canvas') or not hasattr(self, 'inspection_results') or not hasattr(self, 'scale_factor'):
                     print("Atributos necessários para desenho não estão disponíveis")
@@ -3391,7 +3431,7 @@ class InspecaoWindow(ttk.Frame):
                         bbox = result.get('bbox', [0,0,0,0])
                         slot_id = result.get('slot_id', '?')
                         
-                        # Cores no estilo Keyence
+                        # Cores no estilo industrial
                         fill_color = get_color('colors.inspection_colors.pass_color') if is_ok else get_color('colors.inspection_colors.fail_color')
                         
                         if corners is not None:
@@ -3399,15 +3439,15 @@ class InspecaoWindow(ttk.Frame):
                                 # Conversão otimizada de coordenadas
                                 canvas_corners = [(int(pt[0] * self.scale_factor) + self.x_offset, int(pt[1] * self.scale_factor) + self.y_offset) for pt in corners]
                                 
-                                # Desenha polígono transformado estilo Keyence
+                                # Desenha polígono transformado
                                 self.canvas.create_polygon(canvas_corners, outline=fill_color, fill="", width=2, tags="result_overlay")
                                 
-                                # Adiciona um pequeno retângulo de status no canto estilo Keyence
+                                # Adiciona um pequeno retângulo de status no canto
                                 status_x, status_y = canvas_corners[0][0], canvas_corners[0][1] - 20
                                 self.canvas.create_rectangle(status_x, status_y, status_x + 40, status_y + 16, 
                                                            fill=fill_color, outline="", tags="result_overlay")
                                 
-                                # Label otimizado estilo Keyence
+                                # Label otimizado
                                 try:
                                     # Carrega as configurações de estilo
                                     style_config = load_style_config()
@@ -3432,7 +3472,7 @@ class InspecaoWindow(ttk.Frame):
                             except Exception as corner_error:
                                 print(f"Erro ao processar corners para slot {slot_id}: {corner_error}")
                         
-                        if bbox != [0,0,0,0]:  # Fallback para bbox com estilo Keyence
+                        if bbox != [0,0,0,0]:  # Fallback para bbox
                                 try:
                                     xa, ya = bbox[0] * self.scale_factor, bbox[1] * self.scale_factor
                                     wa, ha = bbox[2] * self.scale_factor, bbox[3] * self.scale_factor
@@ -3447,7 +3487,7 @@ class InspecaoWindow(ttk.Frame):
                 print(f"Erro ao desenhar resultados no canvas: {draw_error}")
             # Continua com o processamento para atualizar o status
             
-            # === 4. RESULTADO FINAL ESTILO KEYENCE ===
+            # === 4. RESULTADO FINAL ===
             try:
                 if not hasattr(self, 'inspection_results'):
                     print("Resultados de inspeção não disponíveis")
@@ -3472,12 +3512,12 @@ class InspecaoWindow(ttk.Frame):
                 except Exception as status_error:
                     print(f"Erro ao atualizar status de inspeção: {status_error}")
             
-            # Log otimizado estilo Keyence
+            # Log otimizado
             if failed_slots:
                 print(f"Falhas detectadas em: {', '.join(failed_slots)}")
-            print(f"--- Inspeção Keyence Concluída: {final_status} ({passed}/{total}) ---")
+            print(f"--- Inspeção Concluída: {final_status} ({passed}/{total}) ---")
             
-            # Atualiza interface com estilo industrial Keyence
+            # Atualiza interface
             if hasattr(self, 'update_results_list') and callable(self.update_results_list):
                 try:
                     self.update_results_list()
@@ -3488,10 +3528,30 @@ class InspecaoWindow(ttk.Frame):
             if hasattr(self, 'save_inspection_result_to_history') and callable(self.save_inspection_result_to_history):
                 try:
                     self.save_inspection_result_to_history(final_status, passed, total)
+                    # Opcional: registrar uma linha agregada por inspeção
+                    try:
+                        if hasattr(self, 'db_manager') and self.db_manager:
+                            modelo_nome = getattr(self, 'current_model_name', None)
+                            if not modelo_nome and hasattr(self, 'current_model_id') and self.current_model_id:
+                                info = self.db_manager.get_model_by_id(self.current_model_id)
+                                if info:
+                                    modelo_nome = info['nome']
+                            # Gravar um registro sintético de inspeção geral (slot_id=0)
+                            self.db_manager.log_inspection_result(
+                                modelo_id=self.current_model_id if hasattr(self, 'current_model_id') else None,
+                                modelo_nome=modelo_nome or '--',
+                                slot_id=0,
+                                result='ok' if overall_ok else 'ng',
+                                confidence=float(passed/total) if total else 0.0,
+                                processing_time=None,
+                                image_path=None
+                            )
+                    except Exception as agg_err:
+                        print(f"Aviso: falha ao registrar linha agregada: {agg_err}")
                 except Exception as save_error:
                     print(f"Erro ao salvar resultado no histórico: {save_error}")
             
-            # Status com estilo industrial Keyence
+            # Status
             status_text = f"INSPEÇÃO: {final_status} - {passed}/{total} SLOTS OK, {failed} FALHAS"
             if hasattr(self, 'status_var'):
                 try:
@@ -3499,7 +3559,7 @@ class InspecaoWindow(ttk.Frame):
                 except Exception as status_var_error:
                     print(f"Erro ao atualizar texto de status: {status_var_error}")
             
-            # Atualiza cor da barra de status baseado no resultado estilo Keyence
+            # Atualiza cor da barra de status baseado no resultado
             try:
                 # Armazenamos uma referência direta ao status_bar durante a criação
                 if hasattr(self, 'status_bar'):
@@ -3523,7 +3583,7 @@ class InspecaoWindow(ttk.Frame):
             print(f"Erro ao processar resultado final: {final_error}")
     
     def create_status_summary_panel(self, parent_frame=None):
-        """Cria o painel de resumo de status estilo Keyence IV3"""
+        """Cria o painel de resumo de status."""
         # Se um frame pai for fornecido, criar um painel de resumo geral
         if parent_frame:
             # Frame para o painel de status geral
@@ -3539,7 +3599,7 @@ class InspecaoWindow(ttk.Frame):
             
             ttk.Label(status_row, text="STATUS:", font=style_config["ok_font"]).pack(side=LEFT, padx=(5, 5))
             
-            # Label para status (OK/NG) com estilo industrial Keyence
+            # Label para status (OK/NG)
             self.status_label = ttk.Label(status_row, text="--", font=style_config["ok_font"], 
                                         background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'), 
                                         width=6, anchor="center", padding=3)
@@ -3552,7 +3612,7 @@ class InspecaoWindow(ttk.Frame):
             # Usa as configurações de estilo já carregadas
             ttk.Label(details_row, text="SCORE:", font=style_config["ok_font"]).pack(side=LEFT, padx=(5, 5))
             
-            # Label para score com estilo industrial Keyence
+            # Label para score
             self.score_label = ttk.Label(details_row, text="--", font=style_config["ok_font"], 
                                        background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'), 
                                        width=8, anchor="center", padding=3)
@@ -3560,7 +3620,7 @@ class InspecaoWindow(ttk.Frame):
             
             ttk.Label(details_row, text="ID:", font=style_config["ok_font"]).pack(side=LEFT, padx=(10, 5))
             
-            # Label para ID do modelo com estilo industrial Keyence
+            # Label para ID do modelo
             self.id_label = ttk.Label(details_row, text="--", font=style_config["ok_font"], 
                                     background=get_color('colors.inspection_colors.pass_bg'), foreground=get_color('colors.special_colors.white_text'), 
                                     anchor="center", padding=3)
@@ -3689,13 +3749,13 @@ class InspecaoWindow(ttk.Frame):
                     print(f"Erro ao atualizar widget do slot {slot_id}: {e}")
     
     def update_results_list(self):
-        """Atualiza lista de resultados com estilo industrial Keyence"""
+        """Atualiza lista de resultados."""
         # === LIMPEZA OTIMIZADA ===
         children = self.results_listbox.get_children()
         if children:
             self.results_listbox.delete(*children)  # Mais eficiente que loop
         
-        # === CONFIGURAÇÃO DE TAGS ESTILO KEYENCE ===
+        # === CONFIGURAÇÃO DE TAGS ===
         # Carrega as configurações de estilo (uma única vez)
         style_config = load_style_config()
         
@@ -3711,7 +3771,7 @@ class InspecaoWindow(ttk.Frame):
                                          background=get_color('colors.ng_color', style_config), 
                                          font=style_config["ng_font"])
         
-        # Estilo cabeçalho - cinza industrial Keyence
+        # Estilo cabeçalho
         self.results_listbox.tag_configure("header", 
                                          foreground=get_color('colors.special_colors.white_text'), 
                                          background=get_color('colors.inspection_colors.pass_bg'), 
@@ -3723,7 +3783,7 @@ class InspecaoWindow(ttk.Frame):
         total_score = 0
         model_id = "--"
         
-        # === INSERÇÃO OTIMIZADA COM ESTILO INDUSTRIAL KEYENCE ===
+        # === INSERÇÃO OTIMIZADA ===
         for result in self.inspection_results:
             status = "OK" if result['passou'] else "NG"
             score_text = f"{result['score']:.3f}"
@@ -3738,7 +3798,7 @@ class InspecaoWindow(ttk.Frame):
             if 'model_id' in result and model_id == "--":
                 model_id = result['model_id']
             
-            # Detalhes formatados para estilo industrial Keyence
+            # Detalhes formatados
             detalhes = result['detalhes'].upper() if result['passou'] else f"⚠ {result['detalhes'].upper()}"
             
             self.results_listbox.insert("", "end",
@@ -3749,7 +3809,7 @@ class InspecaoWindow(ttk.Frame):
         # Atualizar painel de resumo de status detalhado
         self.update_status_summary_panel()
         
-        # Calcular status geral no estilo Keyence (uma única vez)
+        # Calcular status geral (uma única vez)
         overall_status = "OK" if total_slots > 0 and passed_slots == total_slots else "NG"
         
         # Atualizar painel de resumo geral se existir
@@ -3757,7 +3817,7 @@ class InspecaoWindow(ttk.Frame):
             if total_slots > 0:
                 total_score / total_slots
                 
-                # Atualizar labels com estilo Keyence
+                # Atualizar labels
                 self.status_label.config(
                     text=overall_status,
                     background=get_color('colors.status_colors.success_bg') if overall_status == "OK" else get_color('colors.status_colors.error_bg'),

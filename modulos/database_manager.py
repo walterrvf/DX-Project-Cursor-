@@ -1223,14 +1223,14 @@ class DatabaseManager:
                 SELECT 
                     m.nome as modelo_nome,
                     COUNT(i.id) as total_inspections,
-                    SUM(CASE WHEN i.resultado = 'OK' THEN 1 ELSE 0 END) as ok_count,
-                    SUM(CASE WHEN i.resultado = 'NG' THEN 1 ELSE 0 END) as ng_count,
+                    SUM(CASE WHEN i.result = 'ok' THEN 1 ELSE 0 END) as ok_count,
+                    SUM(CASE WHEN i.result = 'ng' THEN 1 ELSE 0 END) as ng_count,
                     CASE 
                         WHEN COUNT(i.id) > 0 THEN 
-                            ROUND(SUM(CASE WHEN i.resultado = 'OK' THEN 1 ELSE 0 END) * 100.0 / COUNT(i.id), 2)
+                            ROUND(SUM(CASE WHEN i.result = 'ok' THEN 1 ELSE 0 END) * 100.0 / COUNT(i.id), 2)
                         ELSE 0 
                     END as approval_rate,
-                    MAX(i.timestamp) as last_inspection
+                    MAX(i.created_at) as last_inspection
                 FROM modelos m
                 LEFT JOIN inspection_history i ON m.nome = i.modelo_nome
                 GROUP BY m.id, m.nome
