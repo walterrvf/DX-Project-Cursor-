@@ -1,9 +1,19 @@
 from pathlib import Path
+import sys
 
 
 def get_project_root() -> Path:
-    """Retorna o caminho da raiz do projeto."""
-    return Path(__file__).parent.parent
+    """Retorna o caminho da raiz do projeto.
+
+    - Em execução normal (dev): raiz do repo
+    - Em execução congelada (PyInstaller): pasta onde o executável está
+    """
+    try:
+        if getattr(sys, 'frozen', False):  # PyInstaller onefile/onefolder
+            return Path(sys.executable).parent
+    except Exception:
+        pass
+    return Path(__file__).resolve().parent.parent
 
 
 def get_model_dir() -> Path:

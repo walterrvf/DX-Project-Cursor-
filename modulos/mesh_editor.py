@@ -18,20 +18,21 @@ import time
 # Valores padrão compartilhados (fallback quando não carregados de outro lugar)
 PREVIEW_W = 1200
 PREVIEW_H = 900
-THR_CORR = 0.1
+THR_CORR = 0.5
 MIN_PX = 10
 ORB_FEATURES = 5000
 ORB_SCALE_FACTOR = 1.2
 ORB_N_LEVELS = 8
 
 try:
-    from database_manager import DatabaseManager
-    from model_selector import ModelSelectorDialog, SaveModelDialog
-    from dialogs import EditSlotDialog, SystemConfigDialog
-    from training_dialog import SlotTrainingDialog
-    from utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
-    from ml_classifier import MLSlotClassifier
-    from camera_manager import (
+    # Execução como módulo dentro de pacote 'modulos'
+    from .database_manager import DatabaseManager
+    from .model_selector import ModelSelectorDialog, SaveModelDialog
+    from .dialogs import EditSlotDialog, SystemConfigDialog
+    from .training_dialog import SlotTrainingDialog
+    from .utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
+    from .ml_classifier import MLSlotClassifier
+    from .camera_manager import (
         detect_cameras,
         get_cached_camera,
         release_cached_camera,
@@ -39,27 +40,48 @@ try:
         release_all_cached_cameras,
         capture_image_from_camera,
     )
-    from image_utils import cv2_to_tk
-    from paths import get_model_dir, get_template_dir, get_model_template_dir
-    from inspection import find_image_transform
-except ImportError:
-    from database_manager import DatabaseManager
-    from model_selector import ModelSelectorDialog, SaveModelDialog
-    from dialogs import EditSlotDialog, SystemConfigDialog
-    from training_dialog import SlotTrainingDialog
-    from utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
-    from ml_classifier import MLSlotClassifier
-    from camera_manager import (
-        detect_cameras,
-        get_cached_camera,
-        release_cached_camera,
-        cleanup_unused_cameras,
-        release_all_cached_cameras,
-        capture_image_from_camera,
-    )
-    from image_utils import cv2_to_tk
-    from paths import get_model_dir, get_template_dir, get_model_template_dir
-    from inspection import find_image_transform
+    from .image_utils import cv2_to_tk
+    from .paths import get_model_dir, get_template_dir, get_model_template_dir
+    from .inspection import find_image_transform
+except Exception:
+    try:
+        # Execução com import relativo ao workspace (modulos no sys.path)
+        from modulos.database_manager import DatabaseManager
+        from modulos.model_selector import ModelSelectorDialog, SaveModelDialog
+        from modulos.dialogs import EditSlotDialog, SystemConfigDialog
+        from modulos.training_dialog import SlotTrainingDialog
+        from modulos.utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
+        from modulos.ml_classifier import MLSlotClassifier
+        from modulos.camera_manager import (
+            detect_cameras,
+            get_cached_camera,
+            release_cached_camera,
+            cleanup_unused_cameras,
+            release_all_cached_cameras,
+            capture_image_from_camera,
+        )
+        from modulos.image_utils import cv2_to_tk
+        from modulos.paths import get_model_dir, get_template_dir, get_model_template_dir
+        from modulos.inspection import find_image_transform
+    except Exception:
+        # Fallback para execução direta dentro de 'modulos'
+        from database_manager import DatabaseManager
+        from model_selector import ModelSelectorDialog, SaveModelDialog
+        from dialogs import EditSlotDialog, SystemConfigDialog
+        from training_dialog import SlotTrainingDialog
+        from utils import load_style_config, save_style_config, apply_style_config, get_style_config_path, get_color, get_colors_group, get_font
+        from ml_classifier import MLSlotClassifier
+        from camera_manager import (
+            detect_cameras,
+            get_cached_camera,
+            release_cached_camera,
+            cleanup_unused_cameras,
+            release_all_cached_cameras,
+            capture_image_from_camera,
+        )
+        from image_utils import cv2_to_tk
+        from paths import get_model_dir, get_template_dir, get_model_template_dir
+        from inspection import find_image_transform
 
 # Variáveis globais
 MODEL_DIR = get_model_dir()
@@ -85,6 +107,8 @@ class MontagemWindow(ttk.Frame):
         self.current_model_id = None  # ID do modelo atual no banco
         self.current_model = None  # Dados do modelo atual
         self.model_modified = False  # Flag para indicar se o modelo foi modificado
+        # Ajuste automático da imagem ao canvas; desativa ao usar zoom manual
+        self.auto_fit_image = True
         
         # Estado do desenho
         self.drawing = False
@@ -362,28 +386,83 @@ class MontagemWindow(ttk.Frame):
         main_frame = ttk.Frame(self)
         main_frame.pack(fill=BOTH, expand=True, padx=15, pady=15)
         
-        # Configura grid para layout responsivo
-        main_frame.grid_columnconfigure(0, weight=0, minsize=300)  # Painel esquerdo - largura fixa mínima
-        main_frame.grid_columnconfigure(1, weight=1)  # Painel central - expansível
-        main_frame.grid_columnconfigure(2, weight=0, minsize=380)  # Painel direito - largura fixa
-        main_frame.grid_rowconfigure(0, weight=1)
-        
-        # Painel esquerdo - Controles com design card
-        left_panel = ttk.Frame(main_frame)
-        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+        # Usa um PanedWindow para permitir redimensionar lateralmente as áreas
+        paned = ttk.Panedwindow(main_frame, orient=HORIZONTAL)
+        paned.pack(fill=BOTH, expand=True)
+
+        # Painel esquerdo - Controles com scroll vertical quando necessário
+        left_panel = ttk.Frame(paned)
+        paned.add(left_panel, weight=0)
+        # Reduz a largura solicitada do painel esquerdo (~30% menor)
+        try:
+            paned.paneconfigure(left_panel, width=224, minsize=180)
+        except Exception:
+            pass
+        # Container com Canvas + Scrollbar para permitir rolagem vertical no painel esquerdo
+        left_scroll_canvas = Canvas(left_panel,
+                                    bg=get_color('colors.dialog_colors.left_panel_bg'),
+                                    highlightthickness=0,
+                                    borderwidth=0)
+        left_v_scroll = ttk.Scrollbar(left_panel, orient=VERTICAL, command=left_scroll_canvas.yview)
+        left_scroll_canvas.configure(yscrollcommand=left_v_scroll.set)
+        left_scroll_canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        left_v_scroll.pack(side=RIGHT, fill=Y)
+        # Frame real de conteúdo que receberá os widgets
+        left_content = ttk.Frame(left_scroll_canvas)
+        left_canvas_window = left_scroll_canvas.create_window((0, 0), window=left_content, anchor=NW)
+        # Ajusta a scrollregion ao tamanho do conteúdo
+        def _on_left_content_configure(event):
+            try:
+                left_scroll_canvas.configure(scrollregion=left_scroll_canvas.bbox("all"))
+                # Mantém a largura do conteúdo igual à do canvas para evitar barra horizontal
+                left_scroll_canvas.itemconfig(left_canvas_window, width=left_scroll_canvas.winfo_width())
+            except Exception:
+                pass
+        left_content.bind("<Configure>", _on_left_content_configure)
+        # Atualiza largura do conteúdo ao redimensionar o canvas
+        def _on_left_canvas_configure(event):
+            try:
+                left_scroll_canvas.itemconfig(left_canvas_window, width=event.width)
+            except Exception:
+                pass
+        left_scroll_canvas.bind("<Configure>", _on_left_canvas_configure)
+        # Rolagem via roda do mouse no painel esquerdo
+        def _on_mousewheel(event):
+            try:
+                delta = -1 if event.delta > 0 else 1
+                left_scroll_canvas.yview_scroll(delta, "units")
+            except Exception:
+                pass
+        left_scroll_canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
         # Painel central - Editor de malha com bordas arredondadas
-        center_panel = ttk.Frame(main_frame)
-        center_panel.grid(row=0, column=1, sticky="nsew")
+        center_panel = ttk.Frame(paned)
+        paned.add(center_panel, weight=1)
         
         # Painel direito - Editor de slot com design moderno
-        self.right_panel = ttk.Frame(main_frame)
-        self.right_panel.grid(row=0, column=2, sticky="nsew", padx=(15, 0))
+        self.right_panel = ttk.Frame(paned)
+        paned.add(self.right_panel, weight=0)
+
+        # Posiciona sashes depois de renderizar
+        def _init_sashes():
+            try:
+                paned.update_idletasks()
+                paned.sashpos(0, 224)  # ~30% menor que 320
+                try:
+                    paned.paneconfigure(left_panel, width=224)
+                except Exception:
+                    pass
+                # sash 1 automático conforme conteúdo do direito
+            except Exception:
+                pass
+        self.after(100, _init_sashes)
+        # Ajuste tardio adicional para garantir aplicação após toda a UI
+        self.after(500, _init_sashes)
         
         # === PAINEL ESQUERDO - DESIGN MODERNO ===
         
         # Seção de Imagem com ícones
-        img_frame = ttk.LabelFrame(left_panel, text="Imagem")
+        img_frame = ttk.LabelFrame(left_content, text="Imagem")
         img_frame.pack(fill=X, pady=(0, 15))
         
         self.btn_load_image = ttk.Button(img_frame, text="Carregar Imagem", 
@@ -391,7 +470,7 @@ class MontagemWindow(ttk.Frame):
         self.btn_load_image.pack(fill=X, padx=10, pady=8)
         
         # Seção de Webcam com design moderno
-        webcam_frame = ttk.LabelFrame(left_panel, text="Webcam")
+        webcam_frame = ttk.LabelFrame(left_content, text="Webcam")
         webcam_frame.pack(fill=X, pady=(0, 15))
         
         # Combobox para seleção de câmera com estilo moderno
@@ -416,7 +495,7 @@ class MontagemWindow(ttk.Frame):
         self.btn_capture.pack(fill=X, padx=10, pady=(8, 8))
         
         # Seção de Modelo com design moderno
-        model_frame = ttk.LabelFrame(left_panel, text="Modelo")
+        model_frame = ttk.LabelFrame(left_content, text="Modelo")
         model_frame.pack(fill=X, pady=(0, 15))
         
         self.btn_load_model = ttk.Button(model_frame, text="Carregar Modelo", 
@@ -428,7 +507,7 @@ class MontagemWindow(ttk.Frame):
         self.btn_save_model.pack(fill=X, padx=10, pady=(4, 8))
         
         # Seção de Ferramentas de Edição com design moderno
-        tools_frame = ttk.LabelFrame(left_panel, text="Ferramentas de Edição", )
+        tools_frame = ttk.LabelFrame(left_content, text="Ferramentas de Edição", )
         tools_frame.pack(fill=X, pady=(0, 15))
         
         # Modo de desenho com cards
@@ -469,7 +548,7 @@ class MontagemWindow(ttk.Frame):
         status_label.pack(padx=10, pady=(0, 8))
         
         # Seção de Slots com design moderno
-        slots_frame = ttk.LabelFrame(left_panel, text="Slots", )
+        slots_frame = ttk.LabelFrame(left_content, text="Slots", )
         slots_frame.pack(fill=X, pady=(0, 15))
         
         self.btn_clear_slots = ttk.Button(slots_frame, text="Limpar Todos os Slots", 
@@ -499,7 +578,7 @@ class MontagemWindow(ttk.Frame):
         self.slot_info_label.pack(fill=X, padx=8, pady=8)
         
         # Seção de Ajuda com design moderno
-        help_frame = ttk.LabelFrame(left_panel, text="Ajuda & Configurações", )
+        help_frame = ttk.LabelFrame(left_content, text="Ajuda & Configurações", )
         help_frame.pack(fill=X, pady=(0, 15))
         
         self.btn_help = ttk.Button(help_frame, text="Mostrar Ajuda", 
@@ -523,25 +602,24 @@ class MontagemWindow(ttk.Frame):
         canvas_container = ttk.Frame(canvas_frame, )
         canvas_container.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
-        # Scrollbars
-        v_scrollbar = ttk.Scrollbar(canvas_container, orient=VERTICAL)
-        v_scrollbar.pack(side=RIGHT, fill=Y)
-        
-        h_scrollbar = ttk.Scrollbar(canvas_container, orient=HORIZONTAL)
-        h_scrollbar.pack(side=BOTTOM, fill=X)
+        # Scrollbars (mostradas somente quando necessário)
+        self.v_scrollbar = ttk.Scrollbar(canvas_container, orient=VERTICAL)
+        self.h_scrollbar = ttk.Scrollbar(canvas_container, orient=HORIZONTAL)
         
         # Canvas com design moderno
         self.canvas = Canvas(canvas_container, 
                            bg=get_color('colors.canvas_colors.modern_bg'),  # Cor de fundo moderna
                            highlightthickness=0,
                            relief="flat",
-                           yscrollcommand=v_scrollbar.set,
-                           xscrollcommand=h_scrollbar.set)
+                           yscrollcommand=self.v_scrollbar.set,
+                           xscrollcommand=self.h_scrollbar.set)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
         
         # Configurar scrollbars
-        v_scrollbar.config(command=self.canvas.yview)
-        h_scrollbar.config(command=self.canvas.xview)
+        self.v_scrollbar.config(command=self.canvas.yview)
+        self.h_scrollbar.config(command=self.canvas.xview)
+        # Reagir a redimensionamentos do canvas para ajustar a imagem
+        self.canvas.bind("<Configure>", self.on_canvas_configure)
         
         # Binds do canvas
         self.canvas.bind("<Button-1>", self.on_canvas_press)
@@ -553,6 +631,10 @@ class MontagemWindow(ttk.Frame):
         self.canvas.bind("<Button-2>", self.on_canvas_pan_start)  # Botão do meio
         self.canvas.bind("<B2-Motion>", self.on_canvas_pan_drag)
         self.canvas.bind("<ButtonRelease-2>", self.on_canvas_pan_end)
+        # Suporte também ao botão direito para pan
+        self.canvas.bind("<Button-3>", self.on_canvas_pan_start)
+        self.canvas.bind("<B3-Motion>", self.on_canvas_pan_drag)
+        self.canvas.bind("<ButtonRelease-3>", self.on_canvas_pan_end)
         
         # Variáveis para zoom e pan
         self.zoom_level = 1.0
@@ -610,9 +692,9 @@ class MontagemWindow(ttk.Frame):
             screen_width = parent.winfo_screenwidth()
             screen_height = parent.winfo_screenheight()
             
-            # Calcula tamanho ideal (80% da tela, mas com limites)
-            ideal_width = min(max(int(screen_width * 0.8), 1200), screen_width - 100)
-            ideal_height = min(max(int(screen_height * 0.8), 800), screen_height - 100)
+            # Calcula tamanho ideal (~56% da tela, ~30% menor que 80%), com limites ajustados
+            ideal_width = min(max(int(screen_width * 0.56), 840), screen_width - 100)
+            ideal_height = min(max(int(screen_height * 0.56), 560), screen_height - 100)
             
             # Centraliza a janela
             x = (screen_width - ideal_width) // 2
@@ -626,9 +708,9 @@ class MontagemWindow(ttk.Frame):
                 if current_geometry != new_geometry:
                     parent.geometry(new_geometry)
                     
-                    # Define tamanho mínimo
+                    # Define tamanho mínimo (~30% menor que antes)
                     if hasattr(parent, 'minsize'):
-                        parent.minsize(1000, 700)
+                        parent.minsize(700, 490)
                     
                     print(f"Janela configurada: {ideal_width}x{ideal_height} (Tela: {screen_width}x{screen_height})")
             except Exception as geo_error:
@@ -784,8 +866,10 @@ class MontagemWindow(ttk.Frame):
             print(f"Imagem carregada: {image_path}")
             print(f"Dimensões: {self.img_original.shape}")
             
-            # Converte para exibição no canvas
-            self.img_display, self.scale_factor = cv2_to_tk(self.img_original, PREVIEW_W, PREVIEW_H)
+            # Converte para exibição usando o tamanho atual do canvas quando disponível
+            canvas_w = self.canvas.winfo_width() if self.canvas.winfo_width() > 1 else PREVIEW_W
+            canvas_h = self.canvas.winfo_height() if self.canvas.winfo_height() > 1 else PREVIEW_H
+            self.img_display, self.scale_factor = cv2_to_tk(self.img_original, canvas_w, canvas_h)
             
             if self.img_display is None:
                 raise ValueError("Erro ao converter imagem para exibição")
@@ -796,8 +880,9 @@ class MontagemWindow(ttk.Frame):
             self.canvas.delete("all")
             self.canvas.create_image(0, 0, anchor=NW, image=self.img_display)
             
-            # Atualiza região de scroll
+            # Atualiza região de scroll e visibilidade das barras
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self.update_scrollbars_visibility()
             
             return True
             
@@ -885,6 +970,12 @@ class MontagemWindow(ttk.Frame):
     def on_canvas_zoom(self, event):
         """Implementa zoom no canvas com a roda do mouse."""
         try:
+            # Ao aplicar zoom manual, desativa ajuste automático e sincroniza nível inicial
+            if self.auto_fit_image:
+                self.auto_fit_image = False
+                if hasattr(self, 'scale_factor') and self.scale_factor:
+                    self.zoom_level = float(self.scale_factor)
+
             # Determinar direção do zoom
             if event.delta > 0:
                 # Zoom in
@@ -897,12 +988,23 @@ class MontagemWindow(ttk.Frame):
             old_zoom = self.zoom_level
             self.zoom_level *= zoom_factor
             
-            # Limitar zoom entre 0.1x e 5.0x
-            self.zoom_level = max(0.1, min(self.zoom_level, 5.0))
+            # Calcula zoom mínimo para que a imagem caiba no canvas (não menor que o ajuste à tela)
+            min_zoom = 0.1
+            if self.img_original is not None:
+                canvas_w = self.canvas.winfo_width() if self.canvas.winfo_width() > 1 else PREVIEW_W
+                canvas_h = self.canvas.winfo_height() if self.canvas.winfo_height() > 1 else PREVIEW_H
+                img_h, img_w = self.img_original.shape[:2]
+                if img_w > 0 and img_h > 0 and canvas_w > 0 and canvas_h > 0:
+                    fit_w = canvas_w / img_w
+                    fit_h = canvas_h / img_h
+                    min_zoom = max(min(fit_w, fit_h), 0.1)
+            # Limitar zoom entre min_zoom e 5.0x
+            self.zoom_level = max(min_zoom, min(self.zoom_level, 5.0))
             
             # Se o zoom mudou, redimensionar a imagem
-            if self.zoom_level != old_zoom and hasattr(self, 'current_image') and self.current_image is not None:
+            if self.zoom_level != old_zoom and self.img_original is not None:
                 self.update_canvas_image()
+                self.update_scrollbars_visibility()
                 
         except Exception as e:
             print(f"Erro no zoom: {e}")
@@ -911,6 +1013,10 @@ class MontagemWindow(ttk.Frame):
         """Inicia o pan com o botão do meio do mouse."""
         self.pan_start_x = event.x
         self.pan_start_y = event.y
+        try:
+            self.canvas.scan_mark(event.x, event.y)
+        except Exception:
+            pass
         self.canvas.config(cursor="fleur")
     
     def on_canvas_pan_drag(self, event):
@@ -933,19 +1039,21 @@ class MontagemWindow(ttk.Frame):
     def update_canvas_image(self):
         """Atualiza a imagem no canvas com o nível de zoom atual."""
         try:
-            if hasattr(self, 'current_image') and self.current_image is not None:
+            if self.img_original is not None:
                 # Calcular novo tamanho
-                original_height, original_width = self.current_image.shape[:2]
+                original_height, original_width = self.img_original.shape[:2]
                 new_width = int(original_width * self.zoom_level)
                 new_height = int(original_height * self.zoom_level)
                 
                 # Redimensionar imagem
-                resized_image = cv2.resize(self.current_image, (new_width, new_height))
+                resized_image = cv2.resize(self.img_original, (new_width, new_height))
                 
                 # Converter para formato do Tkinter
                 image_rgb = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
                 image_pil = Image.fromarray(image_rgb)
                 self.photo = ImageTk.PhotoImage(image_pil)
+                # Mantém o fator de escala alinhado ao nível de zoom para os overlays
+                self.scale_factor = float(self.zoom_level)
                 
                 # Atualizar canvas
                 self.canvas.delete("image")
@@ -955,10 +1063,73 @@ class MontagemWindow(ttk.Frame):
                 self.canvas.configure(scrollregion=self.canvas.bbox("all"))
                 
                 # Redesenhar slots
-                self.draw_slots()
+                self.redraw_slots()
                 
         except Exception as e:
             print(f"Erro ao atualizar imagem do canvas: {e}")
+
+    def on_canvas_configure(self, event):
+        """Ajusta a imagem ao tamanho do canvas quando redimensionado (modo auto-fit)."""
+        try:
+            if not self.auto_fit_image:
+                return
+            if self.img_original is None:
+                return
+            if event.width <= 1 or event.height <= 1:
+                return
+            # Recalcula a imagem para caber no canvas
+            self.img_display, self.scale_factor = cv2_to_tk(self.img_original, event.width, event.height)
+            if self.img_display is None:
+                return
+            self.canvas.delete("all")
+            self.canvas.create_image(0, 0, anchor=NW, image=self.img_display)
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self.update_scrollbars_visibility()
+            # Redesenha slots e reaplica handles na seleção
+            self.redraw_slots()
+            # Reexibe handles para o slot selecionado após redraw
+            try:
+                selected_slot = next((s for s in self.slots if s['id'] == self.selected_slot_id), None)
+                if selected_slot:
+                    self.show_edit_handles(selected_slot)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def update_scrollbars_visibility(self):
+        """Mostra/oculta scrollbars conforme a imagem excede o canvas."""
+        try:
+            canvas_w = self.canvas.winfo_width()
+            canvas_h = self.canvas.winfo_height()
+            if canvas_w <= 1 or canvas_h <= 1:
+                return
+            if self.auto_fit_image and self.img_original is not None and self.img_display is not None:
+                scaled_w = int(self.img_original.shape[1] * self.scale_factor)
+                scaled_h = int(self.img_original.shape[0] * self.scale_factor)
+            elif hasattr(self, 'photo') and self.photo is not None:
+                scaled_w = self.photo.width()
+                scaled_h = self.photo.height()
+            else:
+                bbox = self.canvas.bbox("all") or (0, 0, 0, 0)
+                scaled_w = max(0, bbox[2])
+                scaled_h = max(0, bbox[3])
+            need_h = scaled_w > canvas_w
+            need_v = scaled_h > canvas_h
+            try:
+                self.v_scrollbar.pack_forget()
+            except Exception:
+                pass
+            try:
+                self.h_scrollbar.pack_forget()
+            except Exception:
+                pass
+            if need_v:
+                self.v_scrollbar.pack(side=RIGHT, fill=Y)
+            if need_h:
+                self.h_scrollbar.pack(side=BOTTOM, fill=X)
+        except Exception:
+            pass
     
     def start_live_capture(self):
         """Inicia captura contínua da câmera em segundo plano."""
@@ -1067,16 +1238,19 @@ class MontagemWindow(ttk.Frame):
                 # Carrega a imagem capturada
                 self.img_original = captured_image
                 
-                # Converte para exibição
-                self.img_display, self.scale_factor = cv2_to_tk(self.img_original, PREVIEW_W, PREVIEW_H)
+                # Converte para exibição usando tamanho real do canvas
+                canvas_w = self.canvas.winfo_width() if self.canvas.winfo_width() > 1 else PREVIEW_W
+                canvas_h = self.canvas.winfo_height() if self.canvas.winfo_height() > 1 else PREVIEW_H
+                self.img_display, self.scale_factor = cv2_to_tk(self.img_original, canvas_w, canvas_h)
                 
                 if self.img_display:
                     # Limpa o canvas e exibe a nova imagem
                     self.canvas.delete("all")
                     self.canvas.create_image(0, 0, anchor=NW, image=self.img_display)
                     
-                    # Atualiza a região de scroll
+                    # Atualiza a região de scroll e visibilidade
                     self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+                    self.update_scrollbars_visibility()
                     
                     # Atualiza estado dos botões
                     self.update_button_states()
@@ -1546,7 +1720,11 @@ class MontagemWindow(ttk.Frame):
             x2 = (slot['x'] + slot['w']) * self.scale_factor
             y2 = (slot['y'] + slot['h']) * self.scale_factor
             
-            # Verificação simples de retângulo
+            # Verificação simples de retângulo (com offset aplicado)
+            x1 = int(slot['x'] * self.scale_factor) + self.x_offset
+            y1 = int(slot['y'] * self.scale_factor) + self.y_offset
+            x2 = int((slot['x'] + slot['w']) * self.scale_factor) + self.x_offset
+            y2 = int((slot['y'] + slot['h']) * self.scale_factor) + self.y_offset
             if x1 <= canvas_x <= x2 and y1 <= canvas_y <= y2:
                 return slot
                     
@@ -1784,12 +1962,19 @@ class MontagemWindow(ttk.Frame):
                         slot['detection_method'] = new_method
                         print(f"Método de detecção alterado de {old_method} para {new_method}")
                         
-                        # Limiar de correlação
-                        if 'detection_threshold' in self.edit_vars:
+                        # Limiar de correlação (suporta UI atual em % e compatibilidade antiga)
+                        if 'correlation_threshold_percent' in self.edit_vars:
+                            try:
+                                percent_val = float(self.edit_vars['correlation_threshold_percent'].get())
+                            except Exception:
+                                percent_val = 50.0
+                            percent_val = max(0.0, min(100.0, percent_val))
+                            slot['correlation_threshold'] = percent_val / 100.0
+                        elif 'correlation_threshold' in self.edit_vars:
+                            slot['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
+                        elif 'detection_threshold' in self.edit_vars:
                             # Compat: se ainda existir este campo, trata como correlação
                             slot['correlation_threshold'] = float(self.edit_vars['detection_threshold'].get())
-                        if 'correlation_threshold' in self.edit_vars:
-                            slot['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
                         # Alinhamento por slot
                         if 'use_alignment' in self.edit_vars:
                             slot['use_alignment'] = (self.edit_vars['use_alignment'].get() not in ("0","False","false","no","nao"))
@@ -2017,7 +2202,12 @@ class MontagemWindow(ttk.Frame):
             self.preview_canvas.pack(fill='both', expand=True, padx=5, pady=5)
             
             # Definir variáveis antes da função update_preview_filter
-            threshold_var = StringVar(value=str(slot_data.get('correlation_threshold', slot_data.get('detection_threshold', 0.5))))
+            corr_initial = slot_data.get('correlation_threshold', slot_data.get('detection_threshold', 0.5))
+            try:
+                corr_initial = float(corr_initial)
+            except Exception:
+                corr_initial = 0.5
+            corr_percent_var = StringVar(value=str(int(round(corr_initial * 100))))
             
             # Função para atualizar o preview quando o método de detecção mudar
             def update_preview_filter(*args):
@@ -2118,9 +2308,10 @@ class MontagemWindow(ttk.Frame):
                 
                 # Adiciona informações sobre os parâmetros atuais
                 try:
-                    detection_threshold = float(threshold_var.get())
-                    # Adiciona texto com o valor atual da correlação
-                    cv2.putText(filtered_roi, f"Correlação: {detection_threshold:.2f}", (10, h-20), 
+                    corr_percent = float(corr_percent_var.get())
+                    corr_display = max(0.0, min(100.0, corr_percent))
+                    # Adiciona texto com o valor atual da correlação em %
+                    cv2.putText(filtered_roi, f"Correlação: {corr_display:.0f}%", (10, h-20), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                 except Exception as e:
                     print(f"Erro ao adicionar informações ao preview: {e}")
@@ -2148,40 +2339,21 @@ class MontagemWindow(ttk.Frame):
             # Inicializa o preview
             update_preview_filter()
             
-            # Limiar de detecção
-            threshold_frame = ttk.Frame(detection_frame)
-            threshold_frame.pack(fill='x', pady=2, padx=5)
-            
-            threshold_label = ttk.Label(threshold_frame, text="Correlação:", width=8)
-            threshold_label.pack(side='left')
-            
-            self.edit_vars['detection_threshold'] = threshold_var
-            threshold_entry = ttk.Entry(threshold_frame, textvariable=threshold_var, width=8)
-            threshold_entry.pack(side='left', padx=(5, 0))
-            
-            # Vincula a função de atualização do preview ao limiar de detecção
-            threshold_var.trace("w", update_preview_filter)
-            
-            threshold_tip = ttk.Label(threshold_frame, text="Limiar de correlação (0.0–1.0)", 
-                                    font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
-            threshold_tip.pack(side='left', padx=(5, 0))
-            
-            # Limiar de correlação
+            # Limiar de correlação (único campo, em porcentagem)
             correlation_threshold_frame = ttk.Frame(detection_frame)
             correlation_threshold_frame.pack(fill='x', pady=2, padx=5)
             
-            correlation_threshold_label = ttk.Label(correlation_threshold_frame, text="Correlação:", width=8)
+            correlation_threshold_label = ttk.Label(correlation_threshold_frame, text="Correlação (%):", width=12)
             correlation_threshold_label.pack(side='left')
             
-            correlation_threshold_var = StringVar(value=str(slot_data.get('correlation_threshold', 0.5)))
-            self.edit_vars['correlation_threshold'] = correlation_threshold_var
-            correlation_threshold_entry = ttk.Entry(correlation_threshold_frame, textvariable=correlation_threshold_var, width=8)
+            self.edit_vars['correlation_threshold_percent'] = corr_percent_var
+            correlation_threshold_entry = ttk.Entry(correlation_threshold_frame, textvariable=corr_percent_var, width=8)
             correlation_threshold_entry.pack(side='left', padx=(5, 0))
             
-            # Vincula a função de atualização do preview ao limiar de correlação
-            correlation_threshold_var.trace("w", update_preview_filter)
+            # Atualiza o preview ao alterar a porcentagem
+            corr_percent_var.trace("w", update_preview_filter)
             
-            correlation_threshold_tip = ttk.Label(correlation_threshold_frame, text="Limiar de correlação (0.0-1.0)", 
+            correlation_threshold_tip = ttk.Label(correlation_threshold_frame, text="Limiar de correlação em porcentagem (0–100%)", 
                                                  font=get_font('tiny_font'), foreground=get_color('colors.special_colors.tooltip_fg'))
             correlation_threshold_tip.pack(side='left', padx=(5, 0))
 
@@ -2439,12 +2611,14 @@ class MontagemWindow(ttk.Frame):
             if slot_data.get('tipo') == 'clip':
                 if 'detection_method' in self.edit_vars:
                     slot_data['detection_method'] = self.edit_vars['detection_method'].get()
-                # Tratar sempre correlação como fonte única
-                if 'correlation_threshold' in self.edit_vars:
-                    slot_data['correlation_threshold'] = float(self.edit_vars['correlation_threshold'].get())
-                elif 'detection_threshold' in self.edit_vars:
-                    # Compat: se vier deste campo, usa como correlação
-                    slot_data['correlation_threshold'] = float(self.edit_vars['detection_threshold'].get())
+                # Campo único em porcentagem
+                if 'correlation_threshold_percent' in self.edit_vars:
+                    try:
+                        percent_val = float(self.edit_vars['correlation_threshold_percent'].get())
+                    except Exception:
+                        percent_val = 50.0
+                    percent_val = max(0.0, min(100.0, percent_val))
+                    slot_data['correlation_threshold'] = percent_val / 100.0
                 if 'template_method' in self.edit_vars:
                     slot_data['template_method'] = self.edit_vars['template_method'].get()
                 if 'scale_tolerance' in self.edit_vars:
@@ -2618,8 +2792,17 @@ class MontagemWindow(ttk.Frame):
                     template_path = templates_folder / slot_data['template_filename']
                     cv2.imwrite(str(template_path), slot_data['roi_data'])
                     
-                    # Atualiza o caminho do template no slot
-                    slot_data['template_path'] = str(template_path)
+                    # Atualiza o caminho do template no slot (relativo à raiz do projeto)
+                    try:
+                        try:
+                            from .paths import get_project_root as _get_root
+                        except Exception:
+                            from modulos.paths import get_project_root as _get_root
+                        rel_path = template_path.resolve().relative_to(_get_root().resolve())
+                        slot_data['template_path'] = str(rel_path).replace('\\', '/')
+                    except Exception:
+                        # Fallback para string absoluta (DB converterá para relativo na gravação)
+                        slot_data['template_path'] = str(template_path)
                     
                     # Remove os dados temporários
                     del slot_data['roi_data']
@@ -2769,10 +2952,11 @@ class MontagemWindow(ttk.Frame):
         """Mostra handles de edição para o slot selecionado."""
         self.hide_edit_handles()  # Remove handles anteriores
         
-        x = slot['x'] * self.scale_factor
-        y = slot['y'] * self.scale_factor
-        w = slot['w'] * self.scale_factor
-        h = slot['h'] * self.scale_factor
+        # Converte coordenadas da imagem para canvas (inclui offsets, igual ao draw_slot)
+        x = int(slot['x'] * self.scale_factor) + self.x_offset
+        y = int(slot['y'] * self.scale_factor) + self.y_offset
+        w = int(slot['w'] * self.scale_factor)
+        h = int(slot['h'] * self.scale_factor)
         
         handle_size = 8
         handle_color = get_color('colors.editor_colors.handle_color')
@@ -3027,8 +3211,12 @@ class MontagemWindow(ttk.Frame):
                     print(f"⚠️ Template {template_path} não pertence ao modelo {current_model['nome']}")
                     return False
                 
-                # Verifica se o arquivo existe
-                abs_path = get_project_root() / template_path
+                # Verifica se o arquivo existe (compatível com PyInstaller)
+                try:
+                    from .paths import get_project_root as _get_root
+                except Exception:
+                    from modulos.paths import get_project_root as _get_root
+                abs_path = _get_root() / template_path
                 if not abs_path.exists():
                     print(f"⚠️ Template não encontrado: {template_path}")
                     return False

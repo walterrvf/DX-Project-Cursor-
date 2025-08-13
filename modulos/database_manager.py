@@ -6,6 +6,14 @@ from datetime import datetime
 from typing import List, Dict
 from pathlib import Path
 import logging
+try:
+	from .paths import get_project_root as _get_project_root
+except Exception:
+	try:
+		from paths import get_project_root as _get_project_root
+	except Exception:
+		def _get_project_root():
+			return Path(__file__).resolve().parent.parent
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +21,16 @@ class DatabaseManager:
     """Gerenciador do banco de dados SQLite para o sistema de inspeção visual."""
     
     def __init__(self, db_path: str = None):
+        # Usa raiz do projeto compatível com modo congelado (PyInstaller)
+        try:
+            self.project_root = _get_project_root()
+        except Exception:
+            self.project_root = Path(__file__).resolve().parent.parent
         # Se nenhum caminho for fornecido, usa o caminho padrão na raiz do projeto
         if db_path is None:
-            project_root = Path(__file__).parent.parent
-            db_path = str(project_root / "modelos" / "models.db")
+            db_path = str(self.project_root / "modelos" / "models.db")
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(exist_ok=True)
-        # Armazena o caminho da raiz do projeto para uso em caminhos relativos
-        self.project_root = Path(__file__).parent.parent
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
     
     def init_database(self):

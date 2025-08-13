@@ -26,6 +26,7 @@
 - [🧮 Algoritmos e Tecnologias](#-algoritmos-e-tecnologias)
 - [⚙️ Requisitos do Sistema](#️-requisitos-do-sistema)
 - [🚀 Instalação e Configuração](#-instalação-e-configuração)
+- [📦 Build em EXE (Windows)](#-build-em-exe-windows)
 - [📁 Estrutura do Projeto](#-estrutura-do-projeto)
 - [🎮 Guia de Uso](#-guia-de-uso)
 - [🔧 Desenvolvimento e Extensibilidade](#-desenvolvimento-e-extensibilidade)
@@ -425,6 +426,47 @@ pip install -r requirements.txt
 # Verificar instalação
 python -c "import cv2, ttkbootstrap, numpy, sklearn; print('✅ Instalação bem-sucedida!')"
 ```
+
+---
+
+## 📦 Build em EXE (Windows)
+
+Este projeto pode ser empacotado em executável único (.exe) com o PyInstaller para rodar em máquinas sem Python.
+
+1) Criar venv e instalar dependências
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m ensurepip --upgrade
+.venv\Scripts\python -m pip install --upgrade pip wheel setuptools
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m pip install pyinstaller
+```
+
+2) Gerar executáveis
+```powershell
+# Versão onefile, sem console (uso final)
+.venv\Scripts\pyinstaller --name DX-Inspecao --onefile --noconsole ^
+  --paths modulos ^
+  --hidden-import montagem --hidden-import utils ^
+  --add-data "assets;assets" --add-data "config;config" --add-data "modelos;modelos" ^
+  main.py
+
+# Versão com console (debug)
+.venv\Scripts\pyinstaller --name DX-Inspecao-Console --console ^
+  --paths modulos ^
+  --hidden-import montagem --hidden-import utils ^
+  --add-data "assets;assets" --add-data "config;config" --add-data "modelos;modelos" ^
+  main.py
+```
+
+3) Onde fica o executável
+- Sem console: `dist\DX-Inspecao.exe`
+- Com console: `dist\DX-Inspecao-Console\DX-Inspecao-Console.exe`
+
+4) Observações importantes
+- Em modo congelado, os diretórios `assets`, `config` e `modelos` são disponibilizados ao lado do .exe automaticamente.
+- Logs são gravados como `run.log` ao lado do .exe quando executado com `--debug`.
+- Se quiser ícone, adicione `assets/dx_project_logo.ico` e use `--icon assets\\dx_project_logo.ico`.
 
 ### 3️⃣ **Execução do Sistema**
 
