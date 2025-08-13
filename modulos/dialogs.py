@@ -127,7 +127,7 @@ class EditSlotDialog(Toplevel):
         config_frame.pack(fill=X, pady=(0, 10))
         threshold_frame = ttk.Frame(config_frame)
         threshold_frame.pack(fill=X, padx=5, pady=5)
-        ttk.Label(threshold_frame, text="Limiar de Correlação (0.0–1.0):").pack(side=LEFT)
+        ttk.Label(threshold_frame, text="Limiar de Correlação (%):").pack(side=LEFT)
         ttk.Entry(threshold_frame, textvariable=self.correlation_threshold_var, width=10).pack(side=LEFT, padx=(5, 0))
 
         # Toggle: alinhamento por slot
@@ -157,12 +157,14 @@ class EditSlotDialog(Toplevel):
             self.w_var.set(str(self.slot_data.get('w', 100)))
             self.h_var.set(str(self.slot_data.get('h', 100)))
 
-            # Carrega o limiar de correlação direto em 0–1
+            # Carrega o limiar de correlação como porcentagem
             corr_thr = self.slot_data.get('correlation_threshold', self.slot_data.get('detection_threshold', 0.5))
             try:
-                self.correlation_threshold_var.set(str(float(corr_thr)))
+                corr_thr = float(corr_thr)
             except Exception:
-                self.correlation_threshold_var.set(str(corr_thr))
+                corr_thr = 0.5
+            corr_percent = int(round(max(0.0, min(1.0, corr_thr)) * 100))
+            self.correlation_threshold_var.set(str(corr_percent))
             # Sincroniza alinhamento
             try:
                 use_alignment = bool(self.slot_data.get('use_alignment', True))
@@ -180,7 +182,12 @@ class EditSlotDialog(Toplevel):
             y_val = int(self.y_var.get().strip())
             w_val = int(self.w_var.get().strip())
             h_val = int(self.h_var.get().strip())
-            corr_val = float(self.correlation_threshold_var.get().strip())
+            # Aceita como porcentagem
+            corr_input = float(self.correlation_threshold_var.get().strip())
+            if corr_input > 1.0:
+                corr_val = corr_input / 100.0
+            else:
+                corr_val = corr_input
             if w_val <= 0 or h_val <= 0:
                 raise ValueError("Largura e altura devem ser maiores que zero")
             if corr_val < 0.0 or corr_val > 1.0:
@@ -383,7 +390,10 @@ class SlotTrainingDialog(Toplevel):
 
         current_threshold = self.slot_data.get('correlation_threshold', self.slot_data.get('detection_threshold', 'N/A'))
         if current_threshold != 'N/A':
-            self.threshold_label.config(text=f"Threshold atual: {current_threshold:.3f}")
+            try:
+                self.threshold_label.config(text=f"Threshold atual: {float(current_threshold)*100:.0f}%")
+            except Exception:
+                self.threshold_label.config(text=f"Threshold atual: {current_threshold}")
         self.load_existing_samples()
 
     def capture_from_webcam(self):

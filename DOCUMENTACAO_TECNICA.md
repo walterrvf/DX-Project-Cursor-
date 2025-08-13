@@ -1245,6 +1245,27 @@ O Sistema de Visão Computacional DX v2.0 representa um marco significativo na e
 
 ---
 
+## Apêndice A — Notas acadêmicas e referências
+
+### A.1. Fundamentação matemática adicional
+
+- Homografia: \(x' \sim Hx\), com \(H = K' [r_1\ r_2\ t] K^{-1}\) para cenas planas; estimada por DLT + RANSAC.
+- LBP simplificado: código binário de 8 vizinhos comparados ao centro; histograma normalizado como vetor de textura.
+- Métrica de correlação normalizada do template matching: ver seção correspondente no README (equação de \(\gamma\)).
+
+### A.2. Estudos e práticas na indústria (visão por câmeras)
+
+Empresas automotivas e de tecnologia aplicam visão baseada em câmeras em larga escala (ex.: montadoras e ADAS). A ênfase está em calibração, consistência do pipeline, telemetria e feedback de campo para adaptação contínua. Este projeto adota o mesmo princípio: prioriza engenharia de dados e robustez do pipeline sobre dependência de hardware proprietário.
+
+### A.3. Reprodutibilidade
+
+- Versões fixadas em `requirements.txt`.
+- Random seeds definidos nos treinos (quando aplicável).
+- Artefatos versionados por slot (`.joblib`) com metadados.
+
+
+---
+
 *"Transformando a inspeção visual através da convergência entre visão computacional clássica e inteligência artificial moderna, com otimização inteligente de recursos e interface personalizável."*
 
 **© 2025 Equipe DX - Todos os direitos reservados**

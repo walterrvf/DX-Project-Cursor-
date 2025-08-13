@@ -997,7 +997,7 @@ class InspecaoWindow(ttk.Frame):
         left_v_scroll.config(command=left_canvas.yview)
 
         # Frame interno real para os controles do menu esquerdo
-        left_panel = ttk.Frame(left_canvas)
+        left_panel = ttk.Frame(left_canvas, padding=(10, 0))
         left_window = left_canvas.create_window((0, 0), window=left_panel, anchor='nw')
 
         def _on_left_frame_configure(event=None):
@@ -1008,8 +1008,9 @@ class InspecaoWindow(ttk.Frame):
 
         def _on_left_container_configure(event):
             try:
-                # Garante que a largura do frame interno acompanhe o canvas
+                # Mantém o frame interno com a largura total do canvas
                 left_canvas.itemconfigure(left_window, width=event.width)
+                left_canvas.coords(left_window, 0, 0)
             except Exception:
                 pass
 
@@ -1040,8 +1041,8 @@ class InspecaoWindow(ttk.Frame):
                 total_w = paned.winfo_width() or main_frame.winfo_width() or self.winfo_width()
                 if not total_w or total_w < 300:
                     return
-                # Define larguras iniciais por percentuais (~40% maiores que o ajuste anterior)
-                left_w = max(140, int(total_w * 0.17))
+                # Define larguras iniciais por percentuais (painel esquerdo 15% maior que antes)
+                left_w = max(140, int(total_w * 0.195))
                 right_w = max(180, int(total_w * 0.20))
                 paned.sashpos(0, left_w)
                 paned.sashpos(1, total_w - right_w)
@@ -1140,7 +1141,7 @@ class InspecaoWindow(ttk.Frame):
         
         # Indicador de modelo carregado
         model_indicator_frame = ttk.Frame(model_frame)
-        model_indicator_frame.pack(fill=X, padx=5, pady=2)
+        model_indicator_frame.pack(fill=X, padx=10, pady=2)
         
         ttk.Label(model_indicator_frame, text="Status:", font=get_font('tiny_font')).pack(side=LEFT, padx=(0, 5))
         
@@ -1155,16 +1156,16 @@ class InspecaoWindow(ttk.Frame):
         
         # Botão com ícone industrial
         self.btn_load_model = ttk.Button(model_frame, text="Carregar Modelo", 
-                                       command=self.load_model_dialog, )
-        self.btn_load_model.pack(fill=X, padx=5, pady=5)
+                                       command=self.load_model_dialog, style='Accent.TButton')
+        self.btn_load_model.pack(fill=X, padx=10, pady=5)
         
         # Seção de Imagem de Teste - Estilo industrial
         test_frame = ttk.LabelFrame(left_panel, text="Imagem de Teste")
         test_frame.pack(fill=X, pady=(0, 10))
         
         self.btn_load_test = ttk.Button(test_frame, text="Carregar Imagem", 
-                                       command=self.load_test_image)
-        self.btn_load_test.pack(fill=X, padx=5, pady=2)
+                                       command=self.load_test_image, style='Accent.TButton')
+        self.btn_load_test.pack(fill=X, padx=10, pady=2)
         
         # Seção de Webcam - Estilo industrial
         webcam_frame = ttk.LabelFrame(left_panel, text="Câmera")
@@ -1172,7 +1173,7 @@ class InspecaoWindow(ttk.Frame):
         
         # Combobox para seleção de câmera
         camera_selection_frame = ttk.Frame(webcam_frame)
-        camera_selection_frame.pack(fill=X, padx=5, pady=2)
+        camera_selection_frame.pack(fill=X, padx=10, pady=2)
         
         ttk.Label(camera_selection_frame, text="Câmera:").pack(side=LEFT)
         self.camera_combo = Combobox(camera_selection_frame, 
@@ -1187,7 +1188,7 @@ class InspecaoWindow(ttk.Frame):
         
         # Nota informativa sobre o ajuste automático
         info_frame = ttk.Frame(webcam_frame)
-        info_frame.pack(fill=X, padx=5, pady=2)
+        info_frame.pack(fill=X, padx=10, pady=2)
         
         ttk.Label(info_frame, text="A imagem será ajustada automaticamente", 
                  font=get_font('small_font'), foreground=get_color('colors.special_colors.gray_text'))\
@@ -1195,8 +1196,8 @@ class InspecaoWindow(ttk.Frame):
         
         # Botão para iniciar/parar captura contínua
         self.btn_capture_test = ttk.Button(webcam_frame, text="CAPTURAR IMAGEM", 
-                                          command=self.capture_test_from_webcam)
-        self.btn_capture_test.pack(fill=X, padx=5, pady=2)
+                                          command=self.capture_test_from_webcam, style='Accent.TButton')
+        self.btn_capture_test.pack(fill=X, padx=10, pady=2)
         
         # Seção de Inspeção
         inspection_frame = ttk.LabelFrame(left_panel, text="INSPEÇÃO AUTOMÁTICA")
@@ -1204,7 +1205,7 @@ class InspecaoWindow(ttk.Frame):
         
         # Indicador de status de inspeção
         inspection_status_frame = ttk.Frame(inspection_frame)
-        inspection_status_frame.pack(fill=X, padx=5, pady=2)
+        inspection_status_frame.pack(fill=X, padx=10, pady=2)
         
         ttk.Label(inspection_status_frame, text="SISTEMA:", font=("Arial", 8, "bold")).pack(side=LEFT, padx=(0, 5))
         
@@ -1217,15 +1218,14 @@ class InspecaoWindow(ttk.Frame):
         
         # Botão para inspecionar sem tirar foto
         self.btn_inspect_only = ttk.Button(inspection_frame, text="INSPECIONAR SEM CAPTURAR", 
-                                        command=self.inspect_without_capture,
-                                        )
-        self.btn_inspect_only.pack(fill=X, padx=5, pady=5)
+                                        command=self.inspect_without_capture, style='Success.TButton')
+        self.btn_inspect_only.pack(fill=X, padx=10, pady=5)
         
         # Botão para inspeção com múltiplos programas
         self.btn_dual_inspect = ttk.Button(inspection_frame, text="INSPECIONAR COM PROGRAMAS...", 
                                         command=self.open_multi_program_dialog,
                                         style='Inspect.TButton')
-        self.btn_dual_inspect.pack(fill=X, padx=5, pady=5)
+        self.btn_dual_inspect.pack(fill=X, padx=10, pady=5)
         
         # Label grande para resultado NG/OK
         self.result_display_label = ttk.Label(inspection_frame, text="--", 
@@ -1236,7 +1236,7 @@ class InspecaoWindow(ttk.Frame):
                                             relief="raised",
                                             borderwidth=4,
                                             padding=(20, 15))
-        self.result_display_label.pack(fill=X, padx=5, pady=(10, 5), ipady=20)
+        self.result_display_label.pack(fill=X, padx=10, pady=(10, 5), ipady=20)
         
         # === PAINEL CENTRAL - CANVAS DE INSPEÇÃO ===
         

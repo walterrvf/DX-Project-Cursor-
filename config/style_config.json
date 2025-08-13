@@ -11,11 +11,11 @@
         "ok_font": "Segoe UI 10 bold",
         "ng_font": "Segoe UI 10 bold",
         "title_font": "Segoe UI 24 bold",
-        "subtitle_font": "Segoe UI 16",
+        "subtitle_font": "Segoe UI 15",
         "header_font": "Segoe UI 14 bold",
         "small_font": "Segoe UI 8",
         "tiny_font": "Segoe UI 8",
-        "console_font": "Segoe UI 10"
+        "console_font": "Segoe UI 9"
     },
     "colors": {
         "background_color": "#0F172A",

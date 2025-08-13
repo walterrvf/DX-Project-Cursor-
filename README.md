@@ -95,6 +95,16 @@ O **Sistema de Visão Computacional DX v2.0** é uma solução completa e avanç
 - **Responsividade**: Interface adaptável para diferentes resoluções
 - **Acessibilidade**: Controles intuitivos com feedback visual claro
 
+### 🖵 Escala dinâmica de UI e responsividade (novo)
+
+Para manter proporções em telas menores que Full HD, a interface aplica uma escala global baseada na resolução do monitor:
+
+```
+s = clamp(min(W/1920, H/1080), 0.9, 1.1)
+```
+
+Onde `W×H` é a resolução atual. O fator `s` é aplicado via `tk scaling` (afetando fontes em pontos) e nas fontes nomeadas padrão do Tk. Na aba de inspeção, o painel esquerdo abre com largura inicial ~15% maior e botões recebem margens laterais para evitar contato com a borda.
+
 ### 📊 **Sistema de Relatórios**
 - **Histórico de Inspeções**: Registro completo de todas as verificações
 - **Estatísticas Avançadas**: Métricas de performance e tendências
@@ -240,6 +250,16 @@ H, mask = cv2.findHomography(
 )
 ```
 
+#### Formalização da homografia e retificação
+
+Seja um ponto homogêneo \(x = (x, y, 1)^T\). Entre imagens de um plano, vale \(x' \sim Hx\), onde \(H \in \mathbb{R}^{3\times3}\) é determinada por 4+ correspondências. Após estimar \(H\) com RANSAC, projetamos ROIs retangulares via:
+
+```
+corners = [(x, y), (x+w, y), (x+w, y+h), (x, y+h)]
+transformed = perspectiveTransform(corners, H)
+bbox = [min_x, min_y, max_x-min_x, max_y-min_y]
+```
+
 ### 🤖 **Machine Learning**
 
 #### **Extração de Características (39+ features)**
@@ -276,6 +296,12 @@ cv_score = scores.mean()
 cv_std = scores.std()
 ```
 
+#### Observações sobre robustez e reprodutibilidade
+
+- Escalonamento: `StandardScaler` em todas as features contínuas.
+- Controle de variância: K‑Fold quando há amostras suficientes; em bases pequenas, hold‑out estratificado.
+- Rastreamento: modelos por slot (`.joblib`) com metadados de versão e nomes de features.
+
 ### 📊 **Métricas de Avaliação**
 
 #### **Métricas Clássicas**
@@ -309,6 +335,8 @@ CV_Score = (1/k) · Σ(Accuracy_i)
 - **Modelo de cor e invariância**: trabalhamos em espaços RGB/HSV/Lab conforme a tarefa. Normalização fotométrica (equalização local/opcional) e controle de balanço de branco mitigam variações de iluminação.
 - **Geometria computacional**: ORB + RANSAC estimam transformações; homografia alinha referência↔teste; template matching opera após alinhamento para robustez.
 - **Validação estatística**: thresholds e modelos ML são validados por K‑Fold; reportamos accuracy/precision/recall/F1, podendo traçar ROC/PR e AUC. Para ambiente industrial, recomenda‑se MSA (Gage R&R) aplicado a visão para repetir/replicar medições.
+
+Nota sobre UI: a escala \(s\) definida acima mantém a leitura consistente em monitores com DPI/área útil distintos, aproximando a experiência de 1920×1080 e reduzindo variabilidade humana durante operação.
 
 > Insight chave: visão computacional é, primordialmente, software/algoritmo. Melhor lente/sensor ajuda, mas o que garante repetibilidade e robustez é o pipeline (pré‑processamento, alinhamento, extração de evidência e decisão com validação estatística).
 
