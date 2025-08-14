@@ -615,7 +615,7 @@ class SystemConfigDialog(Toplevel):
         main_frame.pack(fill=BOTH, expand=True)
         
         # Configurações ORB
-        orb_frame = ttk.LabelFrame(main_frame, text="Configurações ORB (Alinhamento de Imagem)")
+        orb_frame = ttk.LabelFrame(main_frame, text="Configurações ORB (Alinhamento de Imagem)", style='Section.TLabelframe')
         orb_frame.pack(fill=X, pady=(0, 10))
         
         ttk.Label(orb_frame, text="Número de Features:").pack(anchor="w", padx=5, pady=2)
@@ -654,7 +654,7 @@ class SystemConfigDialog(Toplevel):
         levels_spin.pack(anchor="w", padx=5, pady=5)
         
         # Configurações de Canvas
-        canvas_frame = ttk.LabelFrame(main_frame, text="Configurações de Visualização")
+        canvas_frame = ttk.LabelFrame(main_frame, text="Configurações de Visualização", style='Section.TLabelframe')
         canvas_frame.pack(fill=X, pady=(0, 10))
         
         ttk.Label(canvas_frame, text="Largura Máxima do Preview:").pack(anchor="w", padx=5, pady=2)
@@ -668,7 +668,7 @@ class SystemConfigDialog(Toplevel):
         h_spin.pack(anchor="w", padx=5, pady=5)
         
         # Configurações Padrão de Detecção
-        detection_frame = ttk.LabelFrame(main_frame, text="Configurações Padrão de Detecção")
+        detection_frame = ttk.LabelFrame(main_frame, text="Configurações Padrão de Detecção", style='Section.TLabelframe')
         detection_frame.pack(fill=X, pady=(0, 10))
         
         ttk.Label(detection_frame, text="Limiar de Correlação Padrão (Clips):").pack(anchor="w", padx=5, pady=2)
@@ -692,7 +692,7 @@ class SystemConfigDialog(Toplevel):
         px_spin.pack(anchor="w", padx=5, pady=5)
         
         # Configurações de Aparência por Local
-        appearance_frame = ttk.LabelFrame(main_frame, text="Configurações de Aparência por Local")
+        appearance_frame = ttk.LabelFrame(main_frame, text="Configurações de Aparência por Local", style='Section.TLabelframe')
         appearance_frame.pack(fill=X, pady=(0, 10))
         
         # Configurações de Fonte para Diferentes Locais
@@ -718,7 +718,7 @@ class SystemConfigDialog(Toplevel):
         button_font_spin.pack(anchor="w", padx=5, pady=5)
         
         # Configurações de HUD e Inspeção
-        hud_frame = ttk.LabelFrame(main_frame, text="Configurações de HUD e Inspeção")
+        hud_frame = ttk.LabelFrame(main_frame, text="Configurações de HUD e Inspeção", style='Section.TLabelframe')
         hud_frame.pack(fill=X, pady=(0, 10))
         
         # Configurações de HUD
@@ -785,7 +785,7 @@ class SystemConfigDialog(Toplevel):
             if color and color[1]:
                 self.bg_color_var.set(color[1])
         
-        ttk.Button(bg_color_frame, text="Escolher", command=choose_bg_color).pack(side=LEFT, padx=5)
+        ttk.Button(bg_color_frame, text="Escolher", command=choose_bg_color, style='Accent.TButton').pack(side=LEFT, padx=5, pady=2)
         
         # Cor do Texto
         text_color_frame = ttk.Frame(colors_frame)
@@ -802,7 +802,7 @@ class SystemConfigDialog(Toplevel):
             if color and color[1]:
                 self.text_color_var.set(color[1])
         
-        ttk.Button(text_color_frame, text="Escolher", command=choose_text_color).pack(side=LEFT, padx=5)
+        ttk.Button(text_color_frame, text="Escolher", command=choose_text_color, style='Accent.TButton').pack(side=LEFT, padx=5, pady=2)
         
         # Cor OK
         ok_color_frame = ttk.Frame(colors_frame)
@@ -819,7 +819,7 @@ class SystemConfigDialog(Toplevel):
             if color and color[1]:
                 self.ok_color_var.set(color[1])
         
-        ttk.Button(ok_color_frame, text="Escolher", command=choose_ok_color).pack(side=LEFT, padx=5)
+        ttk.Button(ok_color_frame, text="Escolher", command=choose_ok_color, style='Success.TButton').pack(side=LEFT, padx=5, pady=2)
         
         # Cor NG
         ng_color_frame = ttk.Frame(colors_frame)
@@ -836,20 +836,20 @@ class SystemConfigDialog(Toplevel):
             if color and color[1]:
                 self.ng_color_var.set(color[1])
         
-        ttk.Button(ng_color_frame, text="Escolher", command=choose_ng_color).pack(side=LEFT, padx=5)
+        ttk.Button(ng_color_frame, text="Escolher", command=choose_ng_color, style='Danger.TButton').pack(side=LEFT, padx=5, pady=2)
         
         # Botões - usando um frame com espaçamento melhor
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=X, pady=(20, 10), padx=10)
         
         # Distribuir os botões uniformemente
-        save_btn = ttk.Button(button_frame, text="Salvar", command=self.save_config)
+        save_btn = ttk.Button(button_frame, text="Salvar", command=self.save_config, style='Success.TButton')
         save_btn.pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
         
-        restore_btn = ttk.Button(button_frame, text="Restaurar Padrões", command=self.restore_defaults)
+        restore_btn = ttk.Button(button_frame, text="Restaurar Padrões", command=self.restore_defaults, style='Accent.TButton')
         restore_btn.pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
         
-        cancel_btn = ttk.Button(button_frame, text="Cancelar", command=self.cancel)
+        cancel_btn = ttk.Button(button_frame, text="Cancelar", command=self.cancel, style='Danger.TButton')
         cancel_btn.pack(side=LEFT, padx=5, pady=5, expand=True, fill=X)
     
     def save_config(self):
@@ -1135,12 +1135,12 @@ class HistoricoFotosWindow(ttk.Frame):
         except Exception:
             pass
         
-        # Painel esquerdo - Controles
+        # Painel esquerdo - Controles (reduzido ~30%)
         left_panel = ttk.Frame(main_frame)
-        # Fixar largura mínima e permitir que o painel direito ocupe o restante
+        # Fixar largura e impedir expansão automática
         left_panel.pack_propagate(False)
         try:
-            left_panel.configure(width=340)
+            left_panel.configure(width=238)  # antes 340
         except Exception:
             pass
         left_panel.pack(side=LEFT, fill=Y, padx=(0, 10))
@@ -1163,11 +1163,11 @@ class HistoricoFotosWindow(ttk.Frame):
         header_label.pack(pady=10, fill=X)
         
         # Botões de controle
-        controls_frame = ttk.LabelFrame(left_panel, text="CONTROLES")
+        controls_frame = ttk.LabelFrame(left_panel, text="CONTROLES", style='Section.TLabelframe')
         controls_frame.pack(fill=X, pady=(0, 10))
         
         # Filtro por programa
-        filter_frame = ttk.LabelFrame(controls_frame, text="FILTRAR POR PROGRAMA")
+        filter_frame = ttk.LabelFrame(controls_frame, text="FILTRAR POR PROGRAMA", style='Section.TLabelframe')
         filter_frame.pack(fill=X, padx=5, pady=5)
         
         # Combobox para seleção de programa
@@ -1178,7 +1178,7 @@ class HistoricoFotosWindow(ttk.Frame):
         self.programa_combobox.bind("<<ComboboxSelected>>", self.aplicar_filtros)
         
         # Filtro por período
-        period_frame = ttk.LabelFrame(controls_frame, text="FILTRAR POR PERÍODO")
+        period_frame = ttk.LabelFrame(controls_frame, text="FILTRAR POR PERÍODO", style='Section.TLabelframe')
         period_frame.pack(fill=X, padx=5, pady=5)
         
         self.periodo_var = ttk.StringVar(value="30")
@@ -1196,7 +1196,7 @@ class HistoricoFotosWindow(ttk.Frame):
         ttk.Label(period_frame, text="dias", font=small_font).pack()
         
         # Modo de exibição (Cards/Tabela)
-        view_frame = ttk.LabelFrame(controls_frame, text="MODO DE EXIBIÇÃO")
+        view_frame = ttk.LabelFrame(controls_frame, text="MODO DE EXIBIÇÃO", style='Section.TLabelframe')
         view_frame.pack(fill=X, padx=5, pady=(5, 5))
         self.view_mode_combo = ttk.Combobox(view_frame, 
                                             textvariable=self.view_mode,
@@ -1206,17 +1206,17 @@ class HistoricoFotosWindow(ttk.Frame):
         self.view_mode_combo.bind("<<ComboboxSelected>>", self.on_view_mode_change)
         
         # Botão para atualizar histórico
-        self.btn_atualizar = ttk.Button(controls_frame, text="ATUALIZAR HISTÓRICO", 
+        self.btn_atualizar = ttk.Button(controls_frame, text="ATUALIZAR HISTÓRICO", style='Accent.TButton', 
                                      command=self.atualizar_historico)
         self.btn_atualizar.pack(fill=X, padx=5, pady=5)
         
         # Botão para limpar histórico
-        self.btn_limpar = ttk.Button(controls_frame, text="LIMPAR HISTÓRICO", 
+        self.btn_limpar = ttk.Button(controls_frame, text="LIMPAR HISTÓRICO", style='Danger.TButton', 
                                    command=self.limpar_historico)
         self.btn_limpar.pack(fill=X, padx=5, pady=5)
 
         # Botão para exportar relatório em Excel
-        self.btn_exportar = ttk.Button(controls_frame, text="EXPORTAR RELATÓRIO (Excel)",
+        self.btn_exportar = ttk.Button(controls_frame, text="EXPORTAR RELATÓRIO (Excel)", style='Accent.TButton',
                                        command=self.exportar_relatorio_excel)
         self.btn_exportar.pack(fill=X, padx=5, pady=5)
         
@@ -1278,7 +1278,7 @@ class HistoricoFotosWindow(ttk.Frame):
         stats_main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
         # Estatísticas gerais
-        general_stats_frame = ttk.LabelFrame(stats_main_frame, text="ESTATÍSTICAS GERAIS")
+        general_stats_frame = ttk.LabelFrame(stats_main_frame, text="ESTATÍSTICAS GERAIS", style='Section.TLabelframe')
         general_stats_frame.pack(fill=X, pady=(0, 10))
         
         self.stats_labels = {}
@@ -1316,7 +1316,7 @@ class HistoricoFotosWindow(ttk.Frame):
             self.stats_labels[key] = value_label
         
         # Resumo por modelo
-        model_summary_frame = ttk.LabelFrame(stats_main_frame, text="RESUMO POR MODELO")
+        model_summary_frame = ttk.LabelFrame(stats_main_frame, text="RESUMO POR MODELO", style='Section.TLabelframe')
         model_summary_frame.pack(fill=BOTH, expand=True, pady=(0, 10))
         
         # Treeview para resumo por modelo
@@ -2455,76 +2455,101 @@ class HistoricoFotosWindow(ttk.Frame):
                 h_scrollbar.config(command=canvas.xview)
                 v_scrollbar.config(command=canvas.yview)
                 
-                # Exibir imagem no canvas
-                canvas.create_image(0, 0, anchor=NW, image=img_tk)
-                canvas.image = img_tk  # Manter referência
-                
-                # Configurar região de rolagem
-                canvas.config(scrollregion=canvas.bbox("all"))
-                
-                # Variáveis para controle de zoom e pan
-                self.zoom_level = 1.0
-                self.original_img = img_rgb
-                self.current_img_tk = img_tk
-                img_pos = {'x': 0, 'y': 0}
-                
-                # Função para aplicar zoom
+                # Exibir imagem no canvas e manter IDs
+                img_item = canvas.create_image(0, 0, anchor=NW, image=img_tk)
+                canvas.image = img_tk  # Manter referência forte
+
+                # Configurar região de rolagem baseada no tamanho da imagem
+                canvas.config(scrollregion=(0, 0, img_tk.width(), img_tk.height()))
+
+                # Estado de zoom/pan local para esta janela de visualização
+                zoom_state = {
+                    'level': 1.0,
+                    'orig_img': img_rgb,
+                    'img_item': img_item,
+                    'img_w0': img_width,
+                    'img_h0': img_height,
+                }
+
+                def resize_to_level(level: float, anchor_old_x: float = None, anchor_old_y: float = None):
+                    # Limita o zoom
+                    level = max(0.2, min(level, 3.0))
+                    old_w = int(zoom_state['img_w0'] * zoom_state['level'])
+                    old_h = int(zoom_state['img_h0'] * zoom_state['level'])
+                    new_w = int(zoom_state['img_w0'] * level)
+                    new_h = int(zoom_state['img_h0'] * level)
+
+                    # Redimensiona imagem
+                    img_resized = cv2.resize(zoom_state['orig_img'], (new_w, new_h))
+                    img_pil2 = Image.fromarray(img_resized)
+                    tk2 = ImageTk.PhotoImage(img_pil2)
+                    canvas.itemconfig(zoom_state['img_item'], image=tk2)
+                    canvas.image = tk2  # Atualiza referência
+
+                    # Atualiza scrollregion para novo tamanho
+                    canvas.config(scrollregion=(0, 0, new_w, new_h))
+
+                    # Mantém o ponto sob o cursor ancorado após o zoom
+                    try:
+                        if anchor_old_x is not None and anchor_old_y is not None and old_w > 0 and old_h > 0:
+                            rat_x = max(0.0, min(1.0, anchor_old_x / float(old_w)))
+                            rat_y = max(0.0, min(1.0, anchor_old_y / float(old_h)))
+                            new_x = rat_x * new_w
+                            new_y = rat_y * new_h
+                            # Ajusta a visão para centralizar próximo ao ponto
+                            vx = max(0.0, min(1.0, (new_x - canvas.winfo_width() / 2) / max(new_w, 1)))
+                            vy = max(0.0, min(1.0, (new_y - canvas.winfo_height() / 2) / max(new_h, 1)))
+                            canvas.xview_moveto(vx)
+                            canvas.yview_moveto(vy)
+                    except Exception:
+                        pass
+
+                    zoom_state['level'] = level
+
+                # Função para aplicar zoom com foco no cursor
                 def apply_zoom(event):
-                    # Determinar direção do scroll
-                    delta = 0
                     try:
                         delta = int(event.delta)
                     except Exception:
-                        pass
-                    # Suavizar zoom (10% por passo)
-                    if delta > 0:
-                        # Zoom in
-                        self.zoom_level *= 1.1
-                    elif delta < 0:
-                        # Zoom out
-                        self.zoom_level /= 1.1
-                    
-                    # Limitar zoom
-                    self.zoom_level = max(0.2, min(self.zoom_level, 3.0))
-                    
-                    # Calcular novas dimensões
-                    new_width = int(img_width * self.zoom_level)
-                    new_height = int(img_height * self.zoom_level)
-                    
-                    # Redimensionar imagem
-                    img_resized = cv2.resize(self.original_img, (new_width, new_height))
-                    img_pil = Image.fromarray(img_resized)
-                    self.current_img_tk = ImageTk.PhotoImage(img_pil)
-                    
-                    # Atualizar canvas
-                    canvas.delete("all")
-                    canvas.create_image(img_pos['x'], img_pos['y'], anchor=NW, image=self.current_img_tk)
-                    canvas.image = self.current_img_tk  # Manter referência
-                    
-                    # Atualizar região de rolagem
-                    canvas.config(scrollregion=canvas.bbox("all"))
+                        delta = 0
 
-                # Pan (arrastar)
-                pan_state = {'drag': False, 'start_x': 0, 'start_y': 0}
+                    # Ponto atual sob o cursor em coordenadas de conteúdo
+                    old_w = int(zoom_state['img_w0'] * zoom_state['level'])
+                    old_h = int(zoom_state['img_h0'] * zoom_state['level'])
+                    anchor_x = canvas.canvasx(event.x)
+                    anchor_y = canvas.canvasy(event.y)
+
+                    # Passo de zoom suave (~10%)
+                    if delta > 0:
+                        new_level = zoom_state['level'] * 1.1
+                    elif delta < 0:
+                        new_level = zoom_state['level'] / 1.1
+                    else:
+                        new_level = zoom_state['level']
+
+                    resize_to_level(new_level, anchor_x, anchor_y)
+
+                # Pan/arrasto usando scan_mark/scan_dragto (suave) com botão esquerdo e direito
                 def start_pan(event):
-                    pan_state['drag'] = True
-                    pan_state['start_x'] = event.x
-                    pan_state['start_y'] = event.y
+                    try:
+                        canvas.scan_mark(event.x, event.y)
+                        canvas.config(cursor="fleur")
+                    except Exception:
+                        pass
+
                 def do_pan(event):
-                    if not pan_state['drag']:
-                        return
-                    dx = event.x - pan_state['start_x']
-                    dy = event.y - pan_state['start_y']
-                    pan_state['start_x'] = event.x
-                    pan_state['start_y'] = event.y
-                    img_pos['x'] += dx
-                    img_pos['y'] += dy
-                    canvas.move("all", dx, dy)
+                    try:
+                        canvas.scan_dragto(event.x, event.y, gain=1)
+                    except Exception:
+                        pass
+
                 def end_pan(event):
-                    pan_state['drag'] = False
-                
-                # Vincular evento de scroll do mouse para zoom
-                # Vincular zoom sem bloquear eventos globais
+                    try:
+                        canvas.config(cursor="")
+                    except Exception:
+                        pass
+
+                # Bindings
                 try:
                     canvas.bind("<MouseWheel>", apply_zoom, add=True)
                 except Exception:
@@ -2532,20 +2557,21 @@ class HistoricoFotosWindow(ttk.Frame):
                 canvas.bind("<ButtonPress-1>", start_pan)
                 canvas.bind("<B1-Motion>", do_pan)
                 canvas.bind("<ButtonRelease-1>", end_pan)
+                canvas.bind("<ButtonPress-3>", start_pan)
+                canvas.bind("<B3-Motion>", do_pan)
+                canvas.bind("<ButtonRelease-3>", end_pan)
+                # Duplo clique para resetar
+                def reset_zoom(event=None):
+                    resize_to_level(1.0, 0, 0)
+                    canvas.xview_moveto(0.0)
+                    canvas.yview_moveto(0.0)
+                canvas.bind("<Double-1>", reset_zoom)
                 
                 # Controles inferiores
                 controls = ttk.Frame(view_window)
                 controls.pack(fill=X, pady=10)
                 ttk.Button(controls, text="Fechar", command=view_window.destroy).pack(side=RIGHT, padx=10)
-                def reset_zoom():
-                    self.zoom_level = 1.0
-                    img_pos['x'] = 0
-                    img_pos['y'] = 0
-                    canvas.delete('all')
-                    canvas.create_image(0, 0, anchor=NW, image=img_tk)
-                    canvas.image = img_tk
-                    canvas.config(scrollregion=canvas.bbox('all'))
-                ttk.Button(controls, text="Redefinir Zoom", command=reset_zoom).pack(side=RIGHT)
+                ttk.Button(controls, text="Redefinir Zoom", command=lambda: resize_to_level(1.0, 0, 0)).pack(side=RIGHT)
                 try:
                     view_window.lift()
                     view_window.focus_force()
@@ -2629,6 +2655,63 @@ class HistoricoFotosWindow(ttk.Frame):
         self.capture_thread.start()
 
 
+def apply_dynamic_scaling(root, target_width: int = 1920, target_height: int = 1080,
+                          min_scale: float = 0.9, max_scale: float = 1.1) -> None:
+    """Aplica escala global de UI proporcional à resolução atual.
+
+    - Usa como referência 1920x1080 (Full HD) para manter proporções em telas menores
+    - Ajusta 'tk scaling' (afeta todos os tamanhos de fonte em pontos)
+    - Ajusta fontes nomeadas padrão do Tk para coerência geral
+    """
+    try:
+        screen_w = max(1, int(root.winfo_screenwidth()))
+        screen_h = max(1, int(root.winfo_screenheight()))
+
+        # Fator baseado na menor razão de largura/altura
+        proportional_scale = min(screen_w / float(target_width), screen_h / float(target_height))
+        # Mantém a escala dentro de limites conservadores para não reduzir demais a legibilidade
+        proportional_scale = max(min_scale, min(proportional_scale, max_scale))
+
+        # Ajuste do 'tk scaling' mantendo o DPI base atual
+        try:
+            current_scaling = float(root.tk.call('tk', 'scaling'))
+        except Exception:
+            current_scaling = 1.0
+        # Não reduz mais do que 10% do scaling atual e nunca abaixo do scaling atual do Tk
+        # (muitos ambientes já vêm com scaling de DPI configurado pelo SO)
+        target_scaling = current_scaling * float(proportional_scale)
+        min_allowed = current_scaling * 0.9
+        new_scaling = max(min_allowed, target_scaling)
+        root.tk.call('tk', 'scaling', new_scaling)
+
+        # Ajusta fontes nomeadas padrão (reflete em diversos widgets ttk)
+        try:
+            import tkinter.font as tkfont
+            named_fonts = [
+                "TkDefaultFont", "TkTextFont", "TkFixedFont", "TkMenuFont",
+                "TkHeadingFont", "TkCaptionFont", "TkSmallCaptionFont",
+                "TkIconFont", "TkTooltipFont"
+            ]
+            for font_name in named_fonts:
+                try:
+                    f = tkfont.nametofont(font_name)
+                    base_size = int(f.cget("size"))
+                    # Redução limitada a 10% e aumento moderado
+                    scaled_size = int(round(base_size * proportional_scale))
+                    min_size = max(6, int(round(base_size * 0.9)))
+                    max_size = int(round(base_size * 1.1))
+                    new_size = max(min_size, min(scaled_size, max_size))
+                    if new_size != base_size:
+                        f.configure(size=new_size)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    except Exception:
+        # Não bloqueia startup em caso de inconsistência de DPI
+        pass
+
+
 def create_main_window():
     """Cria e configura a janela principal da aplicação com funcionalidades avançadas."""
     import ttkbootstrap as ttk
@@ -2641,6 +2724,8 @@ def create_main_window():
         size=(1400, 900),
         resizable=(True, True)
     )
+    # Aplica escala proporcional antes de construir o restante da UI
+    apply_dynamic_scaling(root)
     
     # Configurar para abrir maximizada no Windows
     try:

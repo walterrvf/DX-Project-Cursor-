@@ -317,6 +317,94 @@ def evaluate_model_performance(X, y, model, cv=5):
     return results
 ```
 
+---
+
+## 📏 Análise de Sistema de Medição (MSA) para Visão Computacional
+
+### 🎯 Objetivo
+Avaliar a capacidade do sistema de visão (câmera + óptica + iluminação + software) em medir/decidir de forma repetível e reprodutível. Adotamos o framework Gage R&R adaptado para visão.
+
+### 📐 Planejamento do Estudo (Gage R&R Clássico)
+- **Peças (Part)**: selecione 10 a 12 unidades que cubram a variação do processo (OK limítrofe, NG claros, intermediários se houver medição contínua).
+- **Avaliadores (Appraiser/Operador)**: 2 a 3 operadores ou turnos distintos (ou trocas sistemáticas de setup se não houver operador diretamente envolvido).
+- **Repetições (Replicates)**: 2 a 3 medições por operador/peça.
+- **Ordem**: randomize a sequência para evitar viés temporal.
+
+### 🔎 Variáveis medidas em visão
+- Métrica contínua (recomendado): por exemplo, score de correlação do template, deslocamento (px), área detectada (px²), distância geometria (mm via calibração).
+- Variável categórica (OK/NG): pode ser analisada via MSA por atributos; aqui recomendamos transformar em uma métrica contínua auxiliar (score) para análise R&R.
+
+### 🧮 Cálculos (ANOVA de dois fatores, visão geral)
+- Variância total: \( \sigma^2_{total} = \sigma^2_{EV} + \sigma^2_{AV} + \sigma^2_{PV} \)
+  - EV (Equipment Variation): repetibilidade do sistema de visão (sensor/iluminação/software). Estimada pela variação dentro de peça/operador.
+  - AV (Appraiser Variation): reprodutibilidade entre operadores/turnos/setups.
+  - PV (Part Variation): variação real entre peças.
+- %GRR: \( 100\cdot \frac{\sqrt{\sigma^2_{EV}+\sigma^2_{AV}}}{\sqrt{\sigma^2_{total}}} \)
+- NDC (Number of Distinct Categories): \( NDC = 1.41 \cdot \frac{\sqrt{\sigma^2_{PV}}}{\sqrt{\sigma^2_{EV}+\sigma^2_{AV}}} \)
+
+Critérios comumente usados (referência):
+- %GRR ≤ 10%: aceitável; 10–30%: pode ser aceitável dependendo do risco; > 30%: não aceitável.
+- NDC ≥ 5 (ideal ≥ 10) para medições contínuas.
+
+### 🧪 Procedimento prático no DX
+1. Fixe exposição/ganho/white balance (evitar auto‑exposure em MSA).
+2. Defina 1–3 ROIs por slot com metrificações contínuas (p.ex., score médio por ROI, distância média de borda, largura em mm após calibração).
+3. Capture as repetições por peça/operador/turno (o DX salva histórico com timestamp; use `modelos/historico_fotos`).
+4. Exporte as métricas (CSV) ou consulte do SQLite (`inspection_history`).
+5. Rode ANOVA/GRR (JMP/Minitab/pyMSA); registre %GRR, NDC e ações.
+
+### 🔧 Correções típicas
+- Reduzir EV: estabilizar iluminação, reduzir ganho, alinhar peça via homografia, usar ROI menor e com textura.
+- Reduzir AV: padronizar foco/distância, fixtures mecânicos, treinar operador.
+- Aumentar PV aparente (se necessário): usar métrica mais sensível (ex.: distância em mm ao invés de score bruto).
+
+---
+
+## 📶 SNR por ROI (Medição e Monitoramento)
+
+### Definição operacional
+- SNR linear: \( \mathrm{SNR} = \mu_{ROI} / \sigma_{ROI} \)
+- SNR em dB: \( \mathrm{SNR_{dB}} = 20\,\log_{10}(\mu_{ROI}/\sigma_{ROI}) \)
+  - \(\mu_{ROI}\): média da intensidade (ou métrica de interesse) na ROI
+  - \(\sigma_{ROI}\): desvio‑padrão intra‑ROI (ruído)
+
+### Como medir no DX
+1. Capture N frames da mesma peça sem movimento (N ≥ 30).
+2. Para cada ROI, compute média e desvio‑padrão por pixel (ou agregue por estatística do slot).
+3. Relate SNR em dB. Objetivo: maximizar SNR sem saturar (evitar clipe).
+
+### Interpretação
+- Aumentar \(\mu\) (sem saturar): melhorar iluminação/difusão.
+- Reduzir \(\sigma\): reduzir ganho e flicker, estabilizar câmera e cena, usar INTER_AREA em downsampling.
+
+---
+
+## ✅ Checklist de Validação em Linha
+
+### Aquisição
+- [ ] Exposição fixa e ganho baixo (sem variação por auto‑exposure).
+- [ ] Balanço de branco padronizado; temperatura de cor estável.
+- [ ] Iluminação difusa; ausência de reflexos especulares na ROI.
+- [ ] Montagem mecânica rígida (câmera/peça/iluminação).
+
+### Óptica
+- [ ] Foco fixo na distância de trabalho; profundidade de campo suficiente.
+- [ ] Sem zoom variável; lente limpa e sem poeira.
+
+### Geometria e Software
+- [ ] Alinhamento por homografia ativado onde há variação de pose.
+- [ ] ROIs recortadas para textura relevante; sem fundo desnecessário.
+- [ ] Thresholds/ML validados com K‑Fold; ROC/PR disponível em relatório.
+
+### Dados e Rastreabilidade
+- [ ] Histórico de imagens ativo (`historico_fotos`) com thumbnails e metadados.
+- [ ] Exportação de métricas (CSV/DB) para auditoria/MSA.
+- [ ] Versões fixadas de dependências (`requirements.txt`).
+
+### Critérios de Aceitação (exemplo)
+- %GRR ≤ 10% e NDC ≥ 5 (medições contínuas) OU concordância ≥ 90% em atributos.
+- SNR por ROI ≥ 20 dB (ajustável por caso). Sem saturação (clipping < 1%).
+
 ## 🤖 **Sistema de Otimização de Imagens**
 
 ### 🎯 **Funcionalidades Principais**
@@ -473,6 +561,42 @@ def get_color(category: str, name: str) -> str:
 ### 📄 Estrutura do Projeto Atualizada
 
 ```
+
+## 📦 Empacotamento (PyInstaller) e Execução em Máquinas sem Python
+
+### Estratégia de Caminhos (compatível com EXE)
+- `modulos/paths.get_project_root()` detecta modo congelado (PyInstaller) e retorna a pasta do executável; em dev, retorna a raiz do repositório.
+- `main.py` faz bootstrap: garante `assets/`, `config/` e `modelos/` ao lado do .exe (copia do bundle se necessário) e grava `run.log` em `EXE_DIR` quando `--debug`.
+- `database_manager.py` e `mesh_editor.py` normalizam `template_path` para caminho relativo com separador `/`.
+
+### Comandos de Build
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m ensurepip --upgrade
+.venv\Scripts\python -m pip install --upgrade pip wheel setuptools
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m pip install pyinstaller
+
+# Onefile (produção)
+.venv\Scripts\pyinstaller --name DX-Inspecao --onefile --noconsole ^
+  --paths modulos ^
+  --hidden-import montagem --hidden-import utils ^
+  --add-data "assets;assets" --add-data "config;config" --add-data "modelos;modelos" ^
+  main.py
+
+# Console (debug)
+.venv\Scripts\pyinstaller --name DX-Inspecao-Console --console ^
+  --paths modulos ^
+  --hidden-import montagem --hidden-import utils ^
+  --add-data "assets;assets" --add-data "config;config" --add-data "modelos;modelos" ^
+  main.py
+```
+
+### Troubleshooting do EXE
+- Janela fecha ao abrir: rode a versão console e verifique mensagens de câmera (DSHOW/MSMF) e logs em `run.log`.
+- Câmeras indisponíveis: defina em `config/style_config.json` > `system.camera_backend` para `MSMF` e `frame_pump_fps=0` para não inicializar agressivo.
+- Ícone ausente: crie `assets/dx_project_logo.ico` e refaça o build com `--icon`.
+- “template path deve seguir o padrão”: salve o modelo novamente; agora `template_path` é relativo e com `/`.
 v2-main/
 ├── 📁 assets/                    # Recursos visuais e logos
 │   ├── dx_project_logo.png      # Logo principal do projeto
@@ -1118,6 +1242,27 @@ O Sistema de Visão Computacional DX v2.0 representa um marco significativo na e
 **📅 Data: Janeiro 2025**  
 **🔄 Última Atualização: Documentação Técnica 100% Completa com Todas as Funcionalidades v2.0**  
 **📝 Próxima Revisão: Abril 2025**
+
+---
+
+## Apêndice A — Notas acadêmicas e referências
+
+### A.1. Fundamentação matemática adicional
+
+- Homografia: \(x' \sim Hx\), com \(H = K' [r_1\ r_2\ t] K^{-1}\) para cenas planas; estimada por DLT + RANSAC.
+- LBP simplificado: código binário de 8 vizinhos comparados ao centro; histograma normalizado como vetor de textura.
+- Métrica de correlação normalizada do template matching: ver seção correspondente no README (equação de \(\gamma\)).
+
+### A.2. Estudos e práticas na indústria (visão por câmeras)
+
+Empresas automotivas e de tecnologia aplicam visão baseada em câmeras em larga escala (ex.: montadoras e ADAS). A ênfase está em calibração, consistência do pipeline, telemetria e feedback de campo para adaptação contínua. Este projeto adota o mesmo princípio: prioriza engenharia de dados e robustez do pipeline sobre dependência de hardware proprietário.
+
+### A.3. Reprodutibilidade
+
+- Versões fixadas em `requirements.txt`.
+- Random seeds definidos nos treinos (quando aplicável).
+- Artefatos versionados por slot (`.joblib`) com metadados.
+
 
 ---
 

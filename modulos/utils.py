@@ -220,11 +220,31 @@ def apply_style_config(config):
         
         style.configure('TFrame', background=bg_color)
         style.configure('TLabel', background=bg_color, foreground=text_color)
-        style.configure('TButton', foreground=text_color)
+        style.configure('TButton', foreground=text_color, padding=(10, 6))
+        style.map('TButton', background=[('active', colors.get('button_colors', {}).get('modern_active', '#3B82F6'))])
+        style.configure('Accent.TButton', foreground='#FFFFFF', padding=(12, 8))
+        style.map('Accent.TButton', background=[('!disabled', colors.get('ui_colors', {}).get('primary', '#6366F1')),
+                                                ('active', colors.get('button_colors', {}).get('modern_active', '#818CF8'))])
+        style.configure('Success.TButton', foreground='#FFFFFF', padding=(12, 8))
+        style.map('Success.TButton', background=[('!disabled', colors.get('button_colors', {}).get('success_bg', '#22C55E')),
+                                                 ('active', colors.get('button_colors', {}).get('success_active', '#16A34A'))])
+        style.configure('Danger.TButton', foreground='#FFFFFF', padding=(12, 8))
+        style.map('Danger.TButton', background=[('!disabled', colors.get('button_colors', {}).get('danger_bg', '#EF4444')),
+                                                ('active', colors.get('button_colors', {}).get('danger_active', '#DC2626'))])
+
         style.configure('TNotebook', background=bg_color)
         style.configure('TNotebook.Tab', padding=(14, 8), font=('Segoe UI', 11))
-        style.configure('TLabelframe', background=colors.get('canvas_colors', {}).get('panel_bg', bg_color), foreground=text_color)
-        style.configure('TLabelframe.Label', background=colors.get('canvas_colors', {}).get('panel_bg', bg_color), foreground=text_color, font=('Segoe UI', 11, 'bold'))
+
+        panel_bg = colors.get('canvas_colors', {}).get('panel_bg', bg_color)
+        style.configure('TLabelframe', background=panel_bg, foreground=text_color)
+        style.configure('TLabelframe.Label', background=panel_bg, foreground=text_color, font=('Segoe UI', 11, 'bold'))
+
+        # Seção moderna com borda sutil
+        style.configure('Section.TLabelframe', background=panel_bg, bordercolor='#0F172A', relief='solid')
+        style.configure('Section.TLabelframe.Label', background=panel_bg, foreground=text_color, font=('Segoe UI', 11, 'bold'))
+
+        # Cards utilitários
+        style.configure('Card.TFrame', background=panel_bg, relief='ridge')
         style.configure('Treeview', background=colors.get('canvas_colors', {}).get('panel_bg', '#111827'),
                         fieldbackground=colors.get('canvas_colors', {}).get('panel_bg', '#111827'),
                         foreground=text_color, rowheight=28, bordercolor='#0F172A')

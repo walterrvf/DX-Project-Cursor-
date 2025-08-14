@@ -1,5 +1,5 @@
 import ttkbootstrap as ttk
-from ttkbootstrap.constants import BOTH, LEFT, RIGHT, Y, CENTER, VERTICAL, X, SUCCESS, DANGER, PRIMARY, DISABLED, NORMAL, END
+from ttkbootstrap.constants import BOTH, LEFT, RIGHT, Y, CENTER, VERTICAL, X, SUCCESS, DANGER, PRIMARY, DISABLED, NORMAL, END, BOTTOM
 from tkinter import messagebox, simpledialog
 from datetime import datetime
 from pathlib import Path
@@ -28,15 +28,38 @@ class ModelSelectorDialog:
         
         self.dialog = ttk.Toplevel(parent)
         self.dialog.title("Gerenciar Modelos")
-        self.dialog.geometry("900x650")
+        # Dimensões responsivas com base na tela
+        try:
+            screen_w = self.dialog.winfo_screenwidth()
+            screen_h = self.dialog.winfo_screenheight()
+            margin_w, margin_h = 60, 60
+            # Tamanho alvo base (FullHD): 900x650, escala para telas menores/maiores
+            base_w, base_h = 900, 650
+            scale_w = max(0.75, min(1.1, screen_w / 1920))
+            scale_h = max(0.75, min(1.1, screen_h / 1080))
+            target_w = int(base_w * scale_w)
+            target_h = int(base_h * scale_h)
+            # Garante que não ultrapasse a área visível
+            win_w = max(720, min(target_w, screen_w - margin_w))
+            win_h = max(520, min(target_h, screen_h - margin_h))
+            self.dialog.geometry(f"{win_w}x{win_h}")
+            # Permite redimensionar
+            self.dialog.resizable(True, True)
+        except Exception:
+            self.dialog.geometry("900x650")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
         # Centraliza o diálogo
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (900 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (650 // 2)
-        self.dialog.geometry(f"900x650+{x}+{y}")
+        try:
+            cur_w = self.dialog.winfo_width()
+            cur_h = self.dialog.winfo_height()
+            x = (self.dialog.winfo_screenwidth() // 2) - (cur_w // 2)
+            y = (self.dialog.winfo_screenheight() // 2) - (cur_h // 2)
+            self.dialog.geometry(f"{cur_w}x{cur_h}+{x}+{y}")
+        except Exception:
+            pass
         
         self.setup_ui()
         self.refresh_models()
@@ -52,7 +75,7 @@ class ModelSelectorDialog:
         # Título com fonte maior
         title_label = ttk.Label(main_frame, text="Gerenciar Modelos de Inspeção", 
                                font=get_font('title_font')) 
-        title_label.pack(pady=(0, 20))
+        title_label.pack(pady=(0, 10))
         
         # Frame para lista de modelos
         list_frame = ttk.LabelFrame(main_frame, text="Modelos Disponíveis", padding=10)
@@ -75,7 +98,8 @@ class ModelSelectorDialog:
 
         # Treeview para modelos com altura aumentada
         columns = ('nome', 'slots', 'criado', 'atualizado')
-        self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=12, style='Models.Treeview')
+        # Altura será ajustada dinamicamente pelo tamanho do frame; inicializamos com um valor neutro
+        self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=10, style='Models.Treeview')
         
         # Configurar colunas com larguras otimizadas
         self.tree.heading('nome', text='Nome do Modelo')
@@ -94,6 +118,13 @@ class ModelSelectorDialog:
         
         self.tree.pack(side=LEFT, fill=BOTH, expand=True)
         scrollbar.pack(side=RIGHT, fill=Y)
+
+        # Ajuste dinâmico da altura do Treeview conforme redimensionamento
+        try:
+            # Tenta obter rowheight real
+            self._tree_rowheight = style.lookup('Models.Treeview', 'rowheight') or 30
+        except Exception:
+            self._tree_rowheight = 30
         
         # Bind para seleção
         self.tree.bind('<<TreeviewSelect>>', self.on_model_select)
@@ -101,7 +132,7 @@ class ModelSelectorDialog:
         
         # Frame para botões
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=X, pady=(15, 0))
+        button_frame.pack(side=BOTTOM, fill=X, pady=(8, 0))
         
         # Botões da esquerda (ações de modelo)
         left_buttons = ttk.Frame(button_frame)
@@ -143,13 +174,38 @@ class ModelSelectorDialog:
         
         # Frame para informações do modelo selecionado
         info_frame = ttk.LabelFrame(main_frame, text="Informações do Modelo", padding=15)
-        info_frame.pack(fill=X, pady=(15, 0))
+        info_frame.pack(side=BOTTOM, fill=X, pady=(15, 0))
         
         # Configurar label do info_frame com fonte maior
         info_frame.configure(style='Big.TLabelframe')
         
         self.info_text = ttk.Text(info_frame, height=5, font=get_font('small_font'), state=DISABLED)
         self.info_text.pack(fill=X)
+
+        # Evita que o frame da lista pressione os frames inferiores
+        try:
+            list_frame.pack_propagate(False)
+        except Exception:
+            pass
+
+        # Redimensiona o Treeview para ocupar somente o espaço restante
+        def _resize_tree(event=None):
+            try:
+                main_h = max(400, main_frame.winfo_height())
+                title_h = title_label.winfo_height() or 40
+                buttons_h = button_frame.winfo_height() or 64
+                info_h = info_frame.winfo_height() or 120
+                margins = 40  # paddings internos aproximados
+                reserved = title_h + buttons_h + info_h + margins
+                available_h = max(160, main_h - reserved)
+                rows = max(6, min(24, available_h // int(self._tree_rowheight)))
+                self.tree.configure(height=rows)
+            except Exception:
+                pass
+
+        main_frame.bind('<Configure>', _resize_tree)
+        # Primeiro ajuste após construção
+        self.dialog.after(50, _resize_tree)
     
     def refresh_models(self):
         """Atualiza a lista de modelos."""

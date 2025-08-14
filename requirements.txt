@@ -42,6 +42,10 @@ black==23.9.1
 # - imageio: Não utilizado
 # ===================================
 
+# Opcional (documentação/plots/diagnóstico)
+# pandas==2.1.0
+# matplotlib==3.7.2
+
 # Opcional: Aceleração GPU (descomente se necessário)
 # tensorflow==2.13.0
 # torch==2.0.1
