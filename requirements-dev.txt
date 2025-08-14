@@ -1,0 +1,55 @@
+# ===================================
+# Sistema de Visão Computacional DX
+# Dependências de Desenvolvimento
+# ===================================
+
+# Inclui todas as dependências de produção
+-r requirements.txt
+
+# ===================================
+# Testes e Qualidade de Código
+# ===================================
+
+# Framework de testes
+pytest==7.4.2
+pytest-cov==4.1.0
+
+# Linting e formatação
+flake8==6.1.0
+black==23.9.1
+
+# ===================================
+# Análise de Código (Opcional)
+# ===================================
+
+# Análise estática
+mypy==1.5.1
+pylint==2.17.5
+
+# Cobertura de código
+coverage==7.3.0
+
+# ===================================
+# Documentação (Opcional)
+# ===================================
+
+# Geração de documentação
+sphinx==7.1.2
+sphinx-rtd-theme==1.3.0
+
+# ===================================
+# Notas de Instalação:
+# 
+# 1. Para instalar dependências de desenvolvimento:
+#    pip install -r requirements-dev.txt
+#
+# 2. Para instalar apenas dependências de produção:
+#    pip install -r requirements.txt
+#
+# 3. Para ambiente de desenvolvimento completo:
+#    pip install -r requirements-dev.txt
+#
+# 4. Compatibilidade:
+#    - Python 3.8+
+#    - Windows 10/11, Linux, macOS
+# ===================================
