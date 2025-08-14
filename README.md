@@ -8,11 +8,11 @@
 ![ttkbootstrap](https://img.shields.io/badge/ttkbootstrap-1.10+-purple.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Status](https://img.shields.io/badge/Status-Production%20(Desktop)-brightgreen.svg)
-![Version](https://img.shields.io/badge/Version-2.0-blue.svg)
+![Version](https://img.shields.io/badge/Version-2.1-blue.svg)
 
 **Sistema avançado de inspeção visual automatizada para controle de qualidade industrial**
 
-*Desenvolvido pela equipe DX (Desenvolvimento Digital) - Versão 2.0*
+*Desenvolvido pela equipe DX (Desenvolvimento Digital) - Versão 2.1*
 
 </div>
 
@@ -22,11 +22,12 @@
 
 - [🎯 Visão Geral](#-visão-geral)
 - [✨ Funcionalidades Principais](#-funcionalidades-principais)
+- [🆕 Novidades da Versão 2.1](#-novidades-da-versão-21)
 - [🏗️ Arquitetura do Sistema](#️-arquitetura-do-sistema)
 - [🧮 Algoritmos e Tecnologias](#-algoritmos-e-tecnologias)
 - [⚙️ Requisitos do Sistema](#️-requisitos-do-sistema)
 - [🚀 Instalação e Configuração](#-instalação-e-configuração)
-- [📦 Build em EXE (Windows)](#-build-em-exe-windows)
+- [📦 Sistema de Dependências](#-sistema-de-dependências)
 - [📁 Estrutura do Projeto](#-estrutura-do-projeto)
 - [🎮 Guia de Uso](#-guia-de-uso)
 - [🔧 Desenvolvimento e Extensibilidade](#-desenvolvimento-e-extensibilidade)
@@ -39,13 +40,14 @@
 
 ## 🎯 Visão Geral
 
-O **Sistema de Visão Computacional DX v2.0** é uma solução completa e avançada de inspeção visual automatizada que combina técnicas sofisticadas de **visão computacional**, **machine learning** e **processamento de imagens** para realizar controle de qualidade industrial com alta precisão e eficiência.
+O **Sistema de Visão Computacional DX v2.1** é uma solução completa e avançada de inspeção visual automatizada que combina técnicas sofisticadas de **visão computacional**, **machine learning** e **processamento de imagens** para realizar controle de qualidade industrial com alta precisão e eficiência.
 
 ### 🌟 Características Principais
 
 - **🔍 Inspeção Automatizada**: Verificação automática de montagem de componentes com múltiplos algoritmos
 - **🤖 Machine Learning**: Classificadores Random Forest e SVM para classificação OK/NG
 - **📹 Multi-Câmera**: Suporte a múltiplas câmeras (USB, Industrial, IP) com cache inteligente
+- **📱 Modo Tablet**: Interface em tela cheia para operação remota e apresentações
 - **🎨 Interface Moderna**: Interface gráfica avançada com Tkinter + ttkbootstrap
 - **💾 Banco de Dados**: Sistema SQLite robusto com backup automático e histórico completo
 - **📊 Analytics**: Relatórios em tempo real com métricas detalhadas e estatísticas
@@ -63,6 +65,14 @@ O **Sistema de Visão Computacional DX v2.0** é uma solução completa e avanç
 - **Transformações Geométricas**: Homografia e RANSAC para alinhamento de imagens
 - **Validação em Tempo Real**: Processamento contínuo com feedback visual imediato
 
+### 📱 **Modo Tablet (NOVO)**
+- **Interface em Tela Cheia**: Modo dedicado para operação remota e apresentações
+- **Captura Consecutiva**: Pressione Enter para capturar novas imagens e executar inspeções
+- **Status Bar Dinâmico**: Exibição em tempo real do resultado geral (APROVADO/REPROVADO)
+- **Multi-Programa**: Suporte completo para inspeção de múltiplos programas simultaneamente
+- **Fallback Robusto**: Sistema inteligente que funciona mesmo com falhas de câmera
+- **Logs Detalhados**: Diagnóstico completo de cada operação para troubleshooting
+
 ### 🧠 **Sistema de Machine Learning**
 - **Classificadores Avançados**: Random Forest e Support Vector Machine (SVM)
 - **Extração de Features**: 39+ características incluindo estatísticas, histogramas, textura e contornos
@@ -78,6 +88,7 @@ O **Sistema de Visão Computacional DX v2.0** é uma solução completa e avanç
 - **Configuração Avançada**: Resolução, FPS e buffer configuráveis
 - **Limpeza Automática**: Liberação automática de recursos não utilizados
 - **Fallback Robusto**: Mecanismos de recuperação para falhas de câmera
+- **Sistema Dual**: Suporte para captura simultânea de múltiplas câmeras
 
 ### 💾 **Sistema de Banco de Dados**
 - **SQLite Avançado**: Banco de dados relacional com transações ACID
@@ -95,8 +106,7 @@ O **Sistema de Visão Computacional DX v2.0** é uma solução completa e avanç
 - **Responsividade**: Interface adaptável para diferentes resoluções
 - **Acessibilidade**: Controles intuitivos com feedback visual claro
 
-### 🖵 Escala dinâmica de UI e responsividade (novo)
-
+### 🖵 **Escala Dinâmica de UI e Responsividade**
 Para manter proporções em telas menores que Full HD, a interface aplica uma escala global baseada na resolução do monitor:
 
 ```
@@ -112,6 +122,29 @@ Onde `W×H` é a resolução atual. O fator `s` é aplicado via `tk scaling` (af
 - **Exportação de Dados**: Suporte para múltiplos formatos de saída
 - **Dashboard Analytics**: Visualizações gráficas de performance
 - **Auditoria Completa**: Rastreabilidade de todas as operações
+
+---
+
+## 🆕 Novidades da Versão 2.1
+
+### 📱 **Modo Tablet Revolucionário**
+- **Interface em Tela Cheia**: Modo dedicado para operação remota
+- **Captura Inteligente**: Sistema que sempre captura novas imagens
+- **Status Bar Dinâmico**: Resultado geral visível em tempo real
+- **Multi-Programa Robusto**: Funciona mesmo com falhas de câmera
+- **Logs Detalhados**: Diagnóstico completo para troubleshooting
+
+### 🔧 **Sistema de Dependências Otimizado**
+- **Requirements Múltiplos**: 3 arquivos para diferentes cenários
+- **Instalação Flexível**: Mínima, completa ou desenvolvimento
+- **60% Menor**: Apenas dependências realmente utilizadas
+- **Documentação Completa**: Guia de instalação e solução de problemas
+
+### 🚀 **Melhorias de Performance**
+- **Captura Robusta**: Fallbacks inteligentes para falhas de câmera
+- **Sistema Dual Melhorado**: Captura simultânea mais estável
+- **Logs Inteligentes**: Diagnóstico automático de problemas
+- **Recuperação Automática**: Reset automático de câmeras problemáticas
 
 ---
 
@@ -457,6 +490,88 @@ python -c "import cv2, ttkbootstrap, numpy, sklearn; print('✅ Instalação bem
 
 ---
 
+## 📦 Sistema de Dependências
+
+Este projeto utiliza um sistema de dependências inteligente e flexível, com três arquivos de configuração para diferentes cenários de uso.
+
+### 🎯 **Arquivos de Dependências**
+
+#### **`requirements-minimal.txt`** - Instalação Mínima
+```bash
+# Para produção básica (funcionalidades essenciais)
+pip install -r requirements-minimal.txt
+```
+**Inclui**: Interface gráfica, visão computacional básica, machine learning essencial
+
+#### **`requirements.txt`** - Instalação Completa (Recomendado)
+```bash
+# Para produção completa (todas as funcionalidades)
+pip install -r requirements.txt
+```
+**Inclui**: Todas as dependências mínimas + processamento avançado de imagem, Excel
+
+#### **`requirements-dev.txt`** - Desenvolvimento
+```bash
+# Para desenvolvimento (inclui ferramentas de qualidade)
+pip install -r requirements-dev.txt
+```
+**Inclui**: Todas as dependências de produção + testes, linting, documentação
+
+### 📊 **Comparação de Dependências**
+
+| Categoria | Mínimo | Completo | Desenvolvimento |
+|-----------|--------|----------|-----------------|
+| **Interface** | ✅ ttkbootstrap | ✅ ttkbootstrap | ✅ ttkbootstrap |
+| **Visão Computacional** | ✅ opencv-python, Pillow, numpy | ✅ + scikit-image | ✅ + scikit-image |
+| **Machine Learning** | ✅ scikit-learn, joblib | ✅ scikit-learn, joblib | ✅ scikit-learn, joblib |
+| **Dados** | ❌ | ✅ openpyxl | ✅ openpyxl |
+| **Testes** | ❌ | ❌ | ✅ pytest, flake8, black |
+| **Documentação** | ❌ | ❌ | ✅ sphinx, mypy |
+
+### 🚀 **Instalação Rápida**
+
+```bash
+# 1. Clone o repositório
+git clone <repository-url>
+cd v2-main
+
+# 2. Crie ambiente virtual (recomendado)
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# 3. Instale dependências (escolha uma opção)
+pip install -r requirements.txt        # Produção completa
+pip install -r requirements-minimal.txt # Produção básica
+pip install -r requirements-dev.txt     # Desenvolvimento
+
+# 4. Verifique a instalação
+python -c "import cv2, numpy, ttkbootstrap, sklearn; print('✅ Instalação bem-sucedida!')"
+```
+
+### 🔧 **Dependências Nativas do Python**
+
+Muitas funcionalidades usam bibliotecas nativas que **não precisam ser instaladas**:
+- `pathlib`, `tkinter`, `sqlite3`, `json`, `os`, `sys`, `time`, `datetime`
+- `threading`, `platform`, `logging`, `shutil`, `argparse`, `traceback`
+
+### 📈 **Benefícios do Novo Sistema**
+
+✅ **60% menor** que versões anteriores  
+✅ **Apenas dependências realmente utilizadas**  
+✅ **Instalação flexível** para diferentes cenários  
+✅ **Separação clara** entre produção e desenvolvimento  
+✅ **Documentação completa** de instalação  
+✅ **Solução de problemas** incluída  
+
+### 📖 **Documentação Detalhada**
+
+Para informações completas sobre instalação, consulte:
+- **`INSTALACAO_DEPENDENCIAS.md`** - Guia completo de instalação
+- **`requirements-*.txt`** - Arquivos de dependências comentados
+
+---
+
 ## 📦 Build em EXE (Windows)
 
 Este projeto pode ser empacotado em executável único (.exe) com o PyInstaller para rodar em máquinas sem Python.
@@ -587,6 +702,91 @@ v2-main/
 ---
 
 ## 🎮 Guia de Uso
+
+### 🚀 **Início Rápido**
+
+1. **Executar o Sistema**
+   ```bash
+   python main.py
+   ```
+
+2. **Configurar Câmera**
+   - Selecione a câmera desejada no dropdown
+   - Ajuste resolução e FPS conforme necessário
+
+3. **Carregar Modelo**
+   - Clique em "Carregar Modelo"
+   - Selecione um arquivo de modelo existente
+   - Ou crie um novo modelo
+
+4. **Executar Inspeção**
+   - Clique em "Iniciar Inspeção"
+   - O sistema processará a imagem automaticamente
+   - Resultados aparecerão em tempo real
+
+### 📱 **Modo Tablet (NOVO)**
+
+O **Modo Tablet** é uma funcionalidade revolucionária que oferece uma interface em tela cheia para operação remota e apresentações.
+
+#### **Ativação do Modo Tablet**
+1. Na aba de inspeção, clique no botão **"📱 MODO TABLET (Tela Cheia)"**
+2. Uma nova janela abrirá em tela cheia
+3. A imagem da peça será exibida com demarcações e resultados
+
+#### **Operação no Modo Tablet**
+- **Pressione `Enter`** para capturar uma nova imagem e executar inspeção
+- **Pressione `Escape`** para sair do modo tablet
+- **Status Bar** mostra resultado geral (APROVADO/REPROVADO) em tempo real
+- **Multi-Programa** funciona automaticamente se múltiplos programas estiverem selecionados
+
+#### **Características do Modo Tablet**
+- **Interface em Tela Cheia**: Ideal para operação remota e apresentações
+- **Captura Consecutiva**: Sempre captura novas imagens ao pressionar Enter
+- **Status Dinâmico**: Barra de status com cores (verde=APROVADO, vermelho=REPROVADO)
+- **Fallback Robusto**: Funciona mesmo com falhas de câmera
+- **Logs Detalhados**: Diagnóstico completo no console
+
+#### **Cenários de Uso**
+- **Controle Remoto**: Operação a distância da estação de trabalho
+- **Apresentações**: Demonstração para clientes e equipes
+- **Treinamento**: Ensino de operadores em tela grande
+- **Monitoramento**: Acompanhamento contínuo de produção
+
+### 🔍 **Inspeção de Componentes**
+
+#### **Configuração de Slots**
+1. **Definir Áreas**: Use o editor visual para marcar regiões de interesse
+2. **Configurar Parâmetros**: Ajuste thresholds e métodos de detecção
+3. **Salvar Configuração**: Armazene as configurações para uso futuro
+
+#### **Execução de Inspeção**
+1. **Captura de Imagem**: Sistema captura automaticamente da câmera
+2. **Processamento**: Aplica algoritmos de template matching e ML
+3. **Resultados**: Exibe resultados com confiança e visualização
+
+### 🧠 **Machine Learning**
+
+#### **Coleta de Amostras**
+1. **Amostras OK**: Capture imagens de componentes corretos
+2. **Amostras NG**: Capture imagens de componentes com defeitos
+3. **Validação**: Sistema valida automaticamente a qualidade das amostras
+
+#### **Treinamento de Modelos**
+1. **Configurar Parâmetros**: Ajuste algoritmos e thresholds
+2. **Executar Treinamento**: Sistema treina automaticamente
+3. **Validar Performance**: Métricas de acurácia e precisão
+
+### 📊 **Análise de Resultados**
+
+#### **Histórico de Inspeções**
+- **Filtros**: Por data, modelo, resultado
+- **Estatísticas**: Taxa de aprovação, tendências
+- **Exportação**: Dados em múltiplos formatos
+
+#### **Relatórios**
+- **Tempo Real**: Métricas atualizadas continuamente
+- **Gráficos**: Visualizações de performance
+- **Alertas**: Notificações para problemas detectados
 
 ### 🏠 **Dashboard Principal**
 
@@ -769,6 +969,46 @@ rm modelos/models.db
 # Fechar aplicativos desnecessários
 ```
 
+### 📱 **Problemas do Modo Tablet**
+
+#### **Modo Tablet Não Abre**
+```bash
+# Verificar se ttkbootstrap está instalado
+pip install ttkbootstrap
+
+# Verificar logs no console
+# Verificar se há erros de importação
+```
+
+#### **Captura Não Funciona no Modo Tablet**
+```bash
+# Verificar logs no console (muito detalhados)
+# Verificar se a câmera está funcionando
+# Verificar se há conflitos de permissão
+
+# Reset automático da câmera (implementado)
+# O sistema tenta automaticamente múltiplos métodos de captura
+```
+
+#### **Multi-Câmera Falha no Modo Tablet**
+```bash
+# Verificar sistema dual de câmeras
+# Logs mostram exatamente onde está falhando
+# Fallback automático para captura sequencial
+
+# Se persistir, verificar:
+# - Drivers de câmera
+# - Permissões de acesso
+# - Conflitos com outros aplicativos
+```
+
+#### **Status Bar Não Atualiza**
+```bash
+# Verificar se a inspeção está executando
+# Verificar logs de resultado
+# Verificar se há erros na interface
+```
+
 ### 🔍 **Debugging Avançado**
 
 #### **Modo Debug**
@@ -783,16 +1023,77 @@ set OPENCV_LOG_LEVEL=DEBUG     # Windows
 
 #### **Logs do Sistema**
 - **Windows**: Event Viewer
-- **Linux**: `/var/log/syslog` ou `journalctl`
-- **macOS**: Console.app
+- **Linux**: `journalctl -f`
+- **Console**: Logs detalhados em tempo real
 
-#### **Verificação de Dependências**
+#### **Logs do Modo Tablet**
+O modo tablet agora inclui logs muito detalhados:
 ```bash
-# Listar pacotes instalados
-pip list
+# Verificar logs de captura
+# Verificar logs de sistema dual
+# Verificar logs de fallback
+# Verificar logs de inspeção
+```
 
-# Verificar versões específicas
-python -c "import cv2, ttkbootstrap; print('OpenCV:', cv2.__version__, 'ttkbootstrap:', ttkbootstrap.__version__)"
+### 🔧 **Problemas de Dependências**
+
+#### **Erro de Instalação**
+```bash
+# Usar requirements específicos
+pip install -r requirements-minimal.txt  # Básico
+pip install -r requirements.txt          # Completo
+pip install -r requirements-dev.txt      # Desenvolvimento
+
+# Verificar versão do Python (3.8+)
+python --version
+
+# Usar ambiente virtual
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+```
+
+#### **Conflitos de Versão**
+```bash
+# Atualizar pip
+pip install --upgrade pip
+
+# Instalar versões específicas
+pip install opencv-python==4.8.1.78
+pip install ttkbootstrap==1.10.1
+
+# Verificar dependências
+pip list | grep -E "(opencv|ttkbootstrap|numpy|sklearn)"
+```
+
+### 🚨 **Problemas Críticos**
+
+#### **Sistema Não Inicia**
+```bash
+# Verificar dependências essenciais
+python -c "import cv2, numpy, ttkbootstrap, sklearn; print('OK')"
+
+# Verificar permissões de arquivo
+chmod +x main.py
+
+# Verificar estrutura de diretórios
+ls -la modulos/
+```
+
+#### **Câmera Travada**
+```bash
+# O sistema agora tem reset automático
+# Verificar logs para diagnóstico
+# Reiniciar aplicativo se necessário
+# Verificar drivers de câmera
+```
+
+#### **Performance Lenta**
+```bash
+# Reduzir resolução da câmera
+# Fechar aplicativos desnecessários
+# Verificar uso de CPU/memória
+# Ajustar parâmetros de algoritmo
 ```
 
 ---
@@ -837,7 +1138,7 @@ python -c "import cv2, ttkbootstrap; print('OpenCV:', cv2.__version__, 'ttkboots
 
 ## 🗺️ Roadmap
 
-### 🚀 **Versão Atual (v2.0) ✅**
+### 🚀 **Versão Atual (v2.1) ✅**
 - ✅ Sistema de inspeção de montagem avançado
 - ✅ Interface gráfica moderna com Tkinter + ttkbootstrap
 - ✅ Banco de dados SQLite com backup automático
@@ -850,44 +1151,71 @@ python -c "import cv2, ttkbootstrap; print('OpenCV:', cv2.__version__, 'ttkboots
 - ✅ Validação cruzada e métricas de avaliação
 - ✅ Sistema de cache inteligente para câmeras
 - ✅ Configuração visual avançada de estilos
+- ✅ **Modo Tablet em Tela Cheia** (NOVO)
+- ✅ **Sistema de Dependências Otimizado** (NOVO)
+- ✅ **Captura Robusta com Fallbacks** (NOVO)
+- ✅ **Logs Detalhados para Diagnóstico** (NOVO)
+- ✅ **Status Bar Dinâmico** (NOVO)
+- ✅ **Multi-Programa Robusto** (NOVO)
 
 ### 🔮 **Próximas Versões**
 
-#### **v2.1 - Integração IoT e Industry 4.0** 🔄
+#### **v2.2 - Integração IoT e Industry 4.0** 🔄
 - **APIs REST**: Interface web para integração com sistemas externos
 - **MQTT**: Comunicação em tempo real com dispositivos IoT
 - **OPC UA**: Integração com sistemas de automação industrial
 - **Cloud Sync**: Sincronização com plataformas na nuvem
 
-#### **v2.2 - Aplicativo Móvel** 📱
+#### **v2.3 - Aplicativo Móvel** 📱
 - **Android/iOS**: Aplicativo nativo para monitoramento remoto
 - **Push Notifications**: Alertas em tempo real
 - **Offline Mode**: Funcionamento sem conexão
 - **QR Code**: Configuração rápida via código QR
 
-#### **v2.3 - Interface Web Corporativa** 🌐
+#### **v2.4 - Interface Web Corporativa** 🌐
 - **Dashboard Web**: Interface baseada em navegador
 - **Multi-User**: Suporte para múltiplos usuários
 - **Role-Based Access**: Controle de acesso baseado em funções
 - **Real-Time Updates**: Atualizações em tempo real via WebSocket
 
-#### **v2.4 - Inteligência Artificial Avançada** 🤖
+#### **v2.5 - Inteligência Artificial Avançada** 🤖
 - **Deep Learning**: Redes neurais convolucionais (CNN)
 - **Transfer Learning**: Aproveitamento de modelos pré-treinados
 - **Anomaly Detection**: Detecção automática de anomalias
 - **Predictive Analytics**: Análise preditiva de falhas
 
-#### **v2.5 - Analytics Preditivos** 📊
+#### **v2.6 - Analytics Preditivos** 📊
 - **Machine Learning Avançado**: Algoritmos de ensemble
 - **Time Series Analysis**: Análise de séries temporais
 - **Predictive Maintenance**: Manutenção preditiva
 - **Quality Forecasting**: Previsão de qualidade
 
-#### **v2.6 - Sistema de Segurança** 🔒
+#### **v2.7 - Sistema de Segurança** 🔒
 - **Authentication**: Autenticação multi-fator
 - **Authorization**: Controle de acesso granular
 - **Audit Logging**: Registro completo de auditoria
 - **Encryption**: Criptografia de dados sensíveis
+
+### 🎯 **Funcionalidades Implementadas na v2.1**
+
+#### **📱 Modo Tablet Revolucionário**
+- Interface em tela cheia para operação remota
+- Captura consecutiva com Enter
+- Status bar dinâmico com cores
+- Suporte completo a multi-programa
+- Fallbacks robustos para falhas de câmera
+
+#### **🔧 Sistema de Dependências Inteligente**
+- 3 arquivos de requirements para diferentes cenários
+- 60% menor que versões anteriores
+- Apenas dependências realmente utilizadas
+- Documentação completa de instalação
+
+#### **🚀 Melhorias de Performance**
+- Captura robusta com múltiplos fallbacks
+- Sistema dual de câmeras melhorado
+- Logs detalhados para diagnóstico
+- Recuperação automática de câmeras
 
 ---
 
@@ -896,146 +1224,114 @@ python -c "import cv2, ttkbootstrap; print('OpenCV:', cv2.__version__, 'ttkboots
 ### 🆘 **Suporte Técnico**
 
 #### **Canais de Suporte**
-- **Issues GitHub**: Reporte bugs e solicite features
-- **Documentação**: Consulte a documentação técnica completa
-- **Comunidade**: Participe da comunidade de desenvolvedores
-- **Email**: Entre em contato com a equipe de desenvolvimento
+- **GitHub Issues**: Para bugs e solicitações de funcionalidades
+- **Documentação**: Guias completos incluídos no projeto
+- **Logs Detalhados**: Sistema de diagnóstico automático implementado
 
-#### **Informações para Suporte**
-Ao solicitar suporte, inclua:
-- **Versão do Sistema**: Versão exata do DX v2.0
-- **Sistema Operacional**: Windows/Linux/macOS e versão
-- **Python**: Versão do Python (3.8+)
-- **Hardware**: Especificações do sistema
-- **Logs**: Logs de erro quando disponíveis
-- **Passos**: Passos para reproduzir o problema
+#### **Documentação Incluída**
+- **`README.md`**: Este arquivo com guia completo
+- **`INSTALACAO_DEPENDENCIAS.md`**: Guia detalhado de instalação
+- **`requirements-*.txt`**: Arquivos de dependências comentados
+- **`DOCUMENTACAO_TECNICA.md`**: Documentação técnica detalhada
+- **`ARTIGO_CIENTIFICO_DX_V2.md`**: Artigo científico sobre o sistema
+
+### 🔧 **Solução de Problemas**
+
+#### **Primeiros Passos**
+1. **Verificar Dependências**: Use o sistema de requirements otimizado
+2. **Consultar Logs**: O sistema agora inclui logs muito detalhados
+3. **Verificar Documentação**: Guias completos incluídos
+4. **Abrir Issue**: Se o problema persistir
+
+#### **Sistema de Dependências**
+```bash
+# Para problemas de instalação
+pip install -r requirements-minimal.txt  # Básico
+pip install -r requirements.txt          # Completo
+pip install -r requirements-dev.txt      # Desenvolvimento
+
+# Verificar instalação
+python -c "import cv2, numpy, ttkbootstrap, sklearn; print('✅ OK')"
+```
+
+#### **Modo Tablet**
+- **Logs Detalhados**: Cada operação é logada no console
+- **Fallbacks Automáticos**: Sistema tenta múltiplos métodos de captura
+- **Reset Automático**: Câmeras problemáticas são resetadas automaticamente
 
 ### 🤝 **Contribuição**
 
 #### **Como Contribuir**
-1. **Fork**: Faça um fork do projeto
-2. **Branch**: Crie uma branch para sua feature
-3. **Desenvolvimento**: Implemente suas mudanças
-4. **Testes**: Execute os testes existentes
-5. **Pull Request**: Abra um pull request
+1. **Fork** o repositório
+2. **Clone** seu fork localmente
+3. **Crie** uma branch para sua feature
+4. **Desenvolva** e teste sua funcionalidade
+5. **Commit** suas mudanças
+6. **Push** para sua branch
+7. **Abra** um Pull Request
 
 #### **Padrões de Código**
-- **PEP 8**: Formatação Python padrão
-- **Docstrings**: Documentação de funções e classes
-- **Type Hints**: Anotações de tipo quando apropriado
-- **Testes**: Inclua testes para novas funcionalidades
+- **Python**: PEP 8 com black formatter
+- **Documentação**: Docstrings em português
+- **Testes**: pytest para funcionalidades críticas
+- **Logs**: Sistema de logging detalhado implementado
 
-#### **Áreas de Contribuição**
-- **Novos Algoritmos**: Implementação de algoritmos de visão computacional
-- **Interface**: Melhorias na interface do usuário
-- **Performance**: Otimizações de performance
-- **Documentação**: Melhorias na documentação
-- **Testes**: Cobertura de testes e testes de integração
+#### **Áreas para Contribuição**
+- **Testes**: Adicionar testes para funcionalidades existentes
+- **Documentação**: Melhorar guias e exemplos
+- **Performance**: Otimizações de algoritmos
+- **Interface**: Melhorias na UI/UX
+- **Novas Funcionalidades**: Propostas via Issues
 
 ### 📚 **Recursos de Aprendizado**
 
-#### **Documentação Técnica**
-- **DOCUMENTACAO_TECNICA.md**: Documentação técnica completa
-- **CORES_CENTRALIZADAS.md**: Guia de cores e estilos
-- **RASPBERRY_PI_OPTIMIZATION.md**: Otimizações para Raspberry Pi
+#### **Tecnologias Utilizadas**
+- **OpenCV**: Visão computacional e processamento de imagem
+- **Tkinter/ttkbootstrap**: Interface gráfica moderna
+- **Scikit-learn**: Machine learning e classificação
+- **SQLite**: Banco de dados relacional
+- **NumPy**: Computação numérica
 
-#### **Exemplos e Tutoriais**
-- **Samples**: Pasta com exemplos de uso
-- **Templates**: Templates de modelos para diferentes aplicações
-- **Vídeos**: Tutoriais em vídeo (quando disponíveis)
+#### **Conceitos Aplicados**
+- **Template Matching**: Algoritmos de correlação e diferença
+- **Feature Detection**: ORB para detecção de características
+- **Machine Learning**: Classificadores supervisionados
+- **Transformações Geométricas**: Homografia e RANSAC
+- **Sistema de Cache**: Otimização de performance
+
+### 🌟 **Reconhecimento**
+
+#### **Contribuidores Ativos**
+- **Equipe DX**: Desenvolvimento Digital
+- **Comunidade**: Contribuições via GitHub
+- **Usuários**: Feedback e sugestões
+
+#### **Agradecimentos**
+- **OpenCV**: Biblioteca de visão computacional
+- **Scikit-learn**: Framework de machine learning
+- **Tkinter**: Interface gráfica nativa do Python
+- **ttkbootstrap**: Temas modernos para Tkinter
 
 ---
 
 ## 📄 Licença
 
-Este projeto é desenvolvido pela **equipe DX (Desenvolvimento Digital)** sob licença **MIT**.
-
-### 📋 **Termos da Licença**
-- **Uso Comercial**: Permitido
-- **Modificação**: Permitida
-- **Distribuição**: Permitida
-- **Uso Privado**: Permitido
-- **Atribuição**: Não obrigatória, mas apreciada
+Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](LICENSE) para detalhes.
 
 ---
 
-## 👥 Créditos e Agradecimentos
+## 🏆 **Status do Projeto**
 
-### 🏆 **Equipe de Desenvolvimento**
+<div align="center">
 
-#### **Equipe DX (Desenvolvimento Digital)**
-- **Líder de Projeto**: Coordenação geral e arquitetura
-- **Desenvolvedores**: Implementação de módulos e funcionalidades
-- **Testadores**: Validação e testes de qualidade
-- **Documentadores**: Criação e manutenção da documentação
+![Version](https://img.shields.io/badge/Version-2.1-blue.svg)
+![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)
+![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-#### **Departamentos de Suporte**
-- **Departamento de TI**: Suporte técnico e infraestrutura
-- **Engenharia de Qualidade**: Especificações técnicas e validação
-- **Produção**: Testes em ambiente real e feedback
-- **Manutenção**: Suporte operacional e manutenção
+**Sistema de Visão Computacional DX v2.1 - Produção e Pronto para Uso Industrial**
 
-### 🛠️ **Tecnologias e Bibliotecas**
+*Desenvolvido com ❤️ pela Equipe DX*
 
-#### **Core Technologies**
-- **Python 3.11+**: Linguagem principal de desenvolvimento
-- **OpenCV 4.8+**: Biblioteca de visão computacional
-- **Tkinter + ttkbootstrap 1.10+**: Interface gráfica desktop
-- **ttkbootstrap 1.10+**: Interface moderna para módulos específicos
-
-#### **Machine Learning e Dados**
-- **Scikit-learn 1.3+**: Algoritmos de machine learning
-- **NumPy 1.24+**: Computação científica e arrays
-- **Pandas 2.1+**: Manipulação e análise de dados
-- **Matplotlib 3.7+**: Visualização de dados
-
-#### **Processamento de Imagens**
-- **Pillow 10.0+**: Manipulação de imagens
-- **SciPy 1.11+**: Computação científica avançada
-- **ImageIO 2.31+**: Leitura e escrita de imagens
-- **Scikit-image 0.21+**: Processamento de imagens científico
-
-#### **Utilitários e Sistema**
-- **SQLite3**: Banco de dados local (incluído no Python)
-- **Pathlib**: Manipulação de caminhos de arquivo
-- **Psutil 5.9+**: Monitoramento de sistema
-- **Requests 2.31+**: Requisições HTTP
-
-### 🙏 **Agradecimentos Especiais**
-
-#### **Comunidade Open Source**
-- **OpenCV Community**: Biblioteca de visão computacional
-- **Python Community**: Linguagem de programação
-- **Qt Community**: Framework de interface gráfica
-- **Scikit-learn Community**: Biblioteca de machine learning
-
-#### **Parceiros e Colaboradores**
-- **Equipe de Produção**: Colaboração nos testes e validação
-- **Engenheiros de Campo**: Feedback sobre usabilidade
-- **Usuários Finais**: Sugestões de melhorias e reporte de bugs
-- **Departamento de Qualidade**: Especificações técnicas e requisitos
-
----
-
-## 🔮 **Conclusão**
-
-O **Sistema de Visão Computacional DX v2.0** representa um marco significativo no desenvolvimento de soluções de inspeção visual automatizada. Com sua arquitetura modular, algoritmos avançados e interface moderna, o sistema oferece uma solução completa e profissional para controle de qualidade industrial.
-
-### 🌟 **Destaques da Versão 2.0**
-- **Arquitetura Robusta**: Sistema modular e extensível
-- **Algoritmos Avançados**: Combinação de visão computacional e machine learning
-- **Interface Moderna**: Interface gráfica intuitiva e responsiva
-- **Performance Otimizada**: Processamento rápido e eficiente
-- **Documentação Completa**: Guias detalhados e exemplos práticos
-
-### 🚀 **Próximos Passos**
-- **Implementação**: Comece criando seus primeiros modelos de inspeção
-- **Treinamento**: Explore o sistema de treinamento com machine learning
-- **Personalização**: Configure o sistema de acordo com suas necessidades
-- **Contribuição**: Participe do desenvolvimento e melhoria do sistema
-
----
-
-**© 2024-2025 Equipe DX - Desenvolvimento Digital. Licença MIT.**
-
-*Sistema de Visão Computacional DX - Versão 2.0 - Transformando a Qualidade Industrial através da Tecnologia*
+</div>

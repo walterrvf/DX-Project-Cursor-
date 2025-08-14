@@ -84,6 +84,13 @@ class InspecaoWindow(ttk.Frame):
         self.live_capture = False
         # Garante atributo usado por callbacks diversos
         self.live_view = False
+        # Estado do modo Tablet (tela cheia)
+        self._tablet_open = False
+        self.tablet_window = None
+        self.tablet_canvas = None
+        self._tablet_img_ref = None
+        self._last_composite_np = None
+        self._last_composite_overall_success = None
         # Gerenciador de banco
         try:
             db_path = MODEL_DIR / "models.db"
@@ -553,6 +560,14 @@ class InspecaoWindow(ttk.Frame):
             import time
             from dual_camera_driver import get_all_camera_frames
             
+            print(f"capture_all_cameras_and_run_multi_inspection iniciado com {len(program_ids)} programas")
+            
+            # Verifica se há câmeras disponíveis antes de tentar capturar
+            if hasattr(self, 'available_cameras') and not self.available_cameras:
+                print("AVISO: Nenhuma câmera disponível! Usando método tradicional...")
+                self.run_multi_program_inspection(program_ids)
+                return
+            
             # Dicionário para armazenar imagens capturadas por câmera
             self.captured_camera_images = {}
             
@@ -562,70 +577,106 @@ class InspecaoWindow(ttk.Frame):
             
             # 1) Captura simultânea via dual_camera_driver (se estiver inicializado)
             try:
+                print("Tentando captura via dual_camera_driver...")
                 if hasattr(self, 'dual_manager') and self.dual_manager and getattr(self.dual_manager, 'is_initialized', False):
+                    print("dual_manager disponível, chamando get_all_camera_frames...")
                     frames = get_all_camera_frames()
+                    print(f"get_all_camera_frames retornou: {type(frames)} - {frames}")
                     for cam_idx, frame in frames.items():
                         if frame is not None:
                             self.captured_camera_images[cam_idx] = frame.copy()
+                            print(f"Frame capturado da câmera {cam_idx}: {frame.shape}")
                     captured_count = len(self.captured_camera_images)
                     if captured_count:
                         print(f"Capturadas {captured_count} imagens via sistema dual: {list(self.captured_camera_images.keys())}")
+                    else:
+                        print("Nenhuma imagem capturada via sistema dual")
+                else:
+                    print("dual_manager não disponível ou não inicializado")
             except Exception as e:
                 print(f"Erro ao capturar via sistema dual: {e}")
+                import traceback
+                traceback.print_exc()
             
             # 2) Se não, tenta via frames recentes do pool tradicional
             if captured_count == 0 and hasattr(self, 'camera_frames') and self.camera_frames:
+                print("Tentando via frames recentes do pool...")
                 for cam_idx, frame in list(self.camera_frames.items()):
                     if frame is not None:
                         self.captured_camera_images[cam_idx] = frame.copy()
+                        print(f"Frame do pool da câmera {cam_idx}: {frame.shape}")
                 captured_count = len(self.captured_camera_images)
                 if captured_count:
                     print(f"Capturadas {captured_count} imagens via frames recentes: {list(self.captured_camera_images.keys())}")
+                else:
+                    print("Nenhuma imagem via frames recentes")
+            else:
+                print("camera_frames não disponível ou vazio")
             
             # 3) Se ainda não, captura direta das câmeras ativas
             if captured_count == 0 and hasattr(self, 'active_cameras') and self.active_cameras:
+                print("Tentando captura direta das câmeras ativas...")
                 for cam_idx, cap in list(self.active_cameras.items()):
                     try:
                         if cap and hasattr(cap, 'read'):
                             ret, frame = cap.read()
                             if ret and frame is not None:
                                 self.captured_camera_images[cam_idx] = frame.copy()
-                    except Exception:
+                                print(f"Captura direta da câmera {cam_idx}: {frame.shape}")
+                    except Exception as cap_error:
+                        print(f"Erro na captura direta da câmera {cam_idx}: {cap_error}")
                         pass
                 captured_count = len(self.captured_camera_images)
                 if captured_count:
                     print(f"Capturadas {captured_count} imagens via captura direta: {list(self.captured_camera_images.keys())}")
+                else:
+                    print("Nenhuma imagem via captura direta")
+            else:
+                print("active_cameras não disponível ou vazio")
             
             # 4) Último fallback: camera_manager por índice
             if captured_count == 0 and hasattr(self, 'available_cameras'):
+                print("Tentando via camera_manager...")
                 from camera_manager import capture_image_from_camera
                 for cam_idx in self.available_cameras:
                     try:
+                        print(f"Tentando capturar da câmera {cam_idx} via camera_manager...")
                         img = capture_image_from_camera(cam_idx)
                         if img is not None:
                             self.captured_camera_images[cam_idx] = img
-                    except Exception:
+                            print(f"Imagem via camera_manager da câmera {cam_idx}: {img.shape}")
+                    except Exception as cm_error:
+                        print(f"Erro via camera_manager da câmera {cam_idx}: {cm_error}")
                         pass
                 captured_count = len(self.captured_camera_images)
                 if captured_count:
                     print(f"Capturadas {captured_count} imagens via camera_manager: {list(self.captured_camera_images.keys())}")
+                else:
+                    print("Nenhuma imagem via camera_manager")
+            else:
+                print("available_cameras não disponível")
             
             # Mantém no máximo 2 câmeras
             if captured_count > 2:
                 ordered = sorted(self.captured_camera_images.items(), key=lambda kv: kv[0])
                 self.captured_camera_images = dict(ordered[:2])
                 captured_count = 2
+                print(f"Limitado a 2 câmeras: {list(self.captured_camera_images.keys())}")
             
             if captured_count == 0:
                 print("AVISO: Nenhuma imagem capturada! Usando método tradicional...")
                 self.run_multi_program_inspection(program_ids)
                 return
             
+            print(f"Total de imagens capturadas: {captured_count}")
             # Executa inspeção mapeando cada programa para uma câmera capturada
+            print("Chamando run_multi_program_inspection_with_captured_images...")
             self.run_multi_program_inspection_with_captured_images(program_ids)
             
         except Exception as e:
             print(f"Erro ao capturar de duas câmeras: {e}")
+            import traceback
+            traceback.print_exc()
             self.status_var.set(f"Erro na captura: {str(e)}")
             self.run_multi_program_inspection(program_ids)
 
@@ -1242,6 +1293,11 @@ class InspecaoWindow(ttk.Frame):
                                         style='Inspect.TButton')
         self.btn_dual_inspect.pack(fill=X, padx=10, pady=5)
         
+        # Botão para abrir modo tablet (tela cheia)
+        self.btn_tablet_mode = ttk.Button(inspection_frame, text="📱 MODO TABLET (Tela Cheia)",
+                                        command=self.open_tablet_mode_window, style='Info.TButton')
+        self.btn_tablet_mode.pack(fill=X, padx=10, pady=5)
+
         # Label grande para resultado NG/OK
         self.result_display_label = ttk.Label(inspection_frame, text="--", 
                                             font=("Arial", 36, "bold"), 
@@ -2023,6 +2079,432 @@ class InspecaoWindow(ttk.Frame):
             
         except Exception as e:
             print(f"Erro ao exibir imagem em tela cheia: {e}")
+
+    def open_tablet_mode_window(self):
+        """Abre uma janela em tela cheia para visualização estilo tablet."""
+        try:
+            # Se já estiver aberta, apenas traz para frente e re-renderiza
+            if self._tablet_open and self.tablet_window and self.tablet_canvas:
+                try:
+                    self.tablet_window.deiconify()
+                    self.tablet_window.lift()
+                except Exception:
+                    pass
+                self._render_tablet_view()
+                return
+            
+            self.tablet_window = Toplevel(self.master)
+            self.tablet_window.title("Modo Tablet - Inspeção")
+            try:
+                self.tablet_window.attributes("-fullscreen", True)
+            except Exception:
+                # Fallback: maximiza
+                try:
+                    self.tablet_window.state('zoomed')
+                except Exception:
+                    pass
+            
+            # Cor de fundo escura
+            try:
+                bg = get_color('colors.canvas_colors.canvas_dark_bg')
+            except Exception:
+                bg = "#111111"
+            
+            container = ttk.Frame(self.tablet_window)
+            container.pack(fill=BOTH, expand=True)
+            
+            self.tablet_canvas = Canvas(container, bg=bg, highlightthickness=0)
+            self.tablet_canvas.pack(fill=BOTH, expand=True)
+            
+            # Bindings úteis
+            def _close(event=None):
+                self.close_tablet_mode()
+                return "break"
+            self.tablet_window.bind('<Escape>', _close)
+            self.tablet_window.protocol("WM_DELETE_WINDOW", self.close_tablet_mode)
+            
+            # Enter dispara inspeção e atualiza visão
+            self.tablet_window.bind('<Return>', self.on_enter_key_tablet)
+            
+            # Redesenha ao redimensionar (em caso de fallback sem fullscreen real)
+            self.tablet_canvas.bind('<Configure>', lambda e: self._render_tablet_view())
+            
+            self._tablet_open = True
+            self._render_tablet_view()
+        except Exception as e:
+            print(f"Erro ao abrir modo tablet: {e}")
+
+    def close_tablet_mode(self):
+        """Fecha a janela do modo tablet, se existir."""
+        try:
+            self._tablet_open = False
+            if self.tablet_window is not None:
+                try:
+                    self.tablet_window.destroy()
+                except Exception:
+                    pass
+            self.tablet_window = None
+            self.tablet_canvas = None
+            self._tablet_img_ref = None
+        except Exception as e:
+            print(f"Erro ao fechar modo tablet: {e}")
+
+    def _render_tablet_view(self):
+        """Renderiza a visão atual no canvas do modo tablet."""
+        try:
+            if not self._tablet_open or self.tablet_canvas is None:
+                return
+            cw = self.tablet_canvas.winfo_width() or 0
+            ch = self.tablet_canvas.winfo_height() or 0
+            if cw <= 1 or ch <= 1:
+                return
+            
+            # Limpa canvas
+            try:
+                self.tablet_canvas.delete("all")
+            except Exception:
+                pass
+            
+            # Preferência: se houver imagem composta multi-programa recente, usa ela
+            base_np = None
+            if isinstance(self._last_composite_np, np.ndarray) and self._last_composite_np.size > 0:
+                base_np = self._last_composite_np
+            elif hasattr(self, 'img_test') and isinstance(self.img_test, np.ndarray) and self.img_test.size > 0:
+                base_np = self.img_test
+            
+            if base_np is None:
+                return
+            
+            tk_img, scale = cv2_to_tk(base_np, max_w=cw, max_h=ch)
+            if tk_img is None:
+                return
+            
+            img_h, img_w = base_np.shape[:2]
+            new_w = int(img_w * scale)
+            new_h = int(img_h * scale)
+            x_off = max(0, (cw - new_w) // 2)
+            y_off = max(0, (ch - new_h) // 2)
+            
+            self._tablet_img_ref = tk_img
+            self.tablet_canvas.create_image(x_off, y_off, anchor=NW, image=tk_img)
+            
+            # Adiciona faixa de status no topo se houver resultados de inspeção
+            if hasattr(self, 'inspection_results') and self.inspection_results:
+                try:
+                    # Calcula resultado geral
+                    passed_slots = sum(1 for r in self.inspection_results if r.get('passou', False))
+                    total_slots = len(self.inspection_results)
+                    overall_success = passed_slots == total_slots
+                    
+                    # Carrega configurações de estilo
+                    style_config = load_style_config()
+                    
+                    # Cores baseadas no resultado
+                    if overall_success:
+                        bg_color = get_color('colors.ok_color', style_config)
+                        text_color = get_color('colors.special_colors.white_text')
+                    else:
+                        bg_color = get_color('colors.ng_color', style_config)
+                        text_color = get_color('colors.special_colors.white_text')
+                    
+                    # Cria faixa de status no topo
+                    status_height = max(40, new_h // 15)
+                    self.tablet_canvas.create_rectangle(
+                        x_off, y_off, x_off + new_w, y_off + status_height,
+                        fill=bg_color, outline=bg_color, width=2
+                    )
+                    
+                    # Texto principal do status
+                    status_text = f"RESULTADO GERAL: {'APROVADO' if overall_success else 'REPROVADO'} ({passed_slots}/{total_slots} slots OK)"
+                    status_font = ("Arial", max(16, new_w // 50), "bold")
+                    
+                    self.tablet_canvas.create_text(
+                        x_off + new_w // 2, y_off + status_height // 2,
+                        text=status_text, fill=text_color, font=status_font,
+                        anchor="center"
+                    )
+                    
+                    # Adiciona timestamp no canto direito da faixa
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    timestamp_font = ("Arial", max(12, new_w // 60), "normal")
+                    
+                    self.tablet_canvas.create_text(
+                        x_off + new_w - 20, y_off + status_height // 2,
+                        text=timestamp, fill=text_color, font=timestamp_font,
+                        anchor="center"
+                    )
+                except Exception as e:
+                    print(f"Erro ao criar faixa de status no tablet: {e}")
+            
+            # Se estivermos mostrando a imagem de teste (não composta), desenha overlays dos slots
+            if base_np is self.img_test and hasattr(self, 'inspection_results') and self.inspection_results:
+                try:
+                    style_config = load_style_config()
+                except Exception:
+                    style_config = {"ok_font": ("Arial", 10, "bold"), "ng_font": ("Arial", 10, "bold")}
+                for result in self.inspection_results:
+                    slot = result.get('slot_data', {})
+                    corners = result.get('corners')
+                    if result.get('passou', False):
+                        outline_color = get_color('colors.ok_color', style_config)
+                        fill_color = get_color('colors.ok_color', style_config)
+                        text_color = get_color('colors.special_colors.white_text')
+                        font_str = style_config.get("ok_font", ("Arial", 10, "bold"))
+                    else:
+                        outline_color = get_color('colors.ng_color', style_config)
+                        fill_color = get_color('colors.ng_color', style_config)
+                        text_color = get_color('colors.special_colors.white_text')
+                        font_str = style_config.get("ng_font", ("Arial", 10, "bold"))
+                    
+                    if corners and len(corners) >= 4:
+                        try:
+                            pts = [(int(pt[0] * scale) + x_off, int(pt[1] * scale) + y_off) for pt in corners]
+                            self.tablet_canvas.create_polygon(pts, outline=outline_color, fill="", width=4)
+                            xs = [p[0] for p in pts]
+                            ys = [p[1] for p in pts]
+                            min_x, min_y, max_x, max_y = min(xs), min(ys), max(xs), max(ys)
+                            tbw, tbh = 90, 28
+                            self.tablet_canvas.create_rectangle(min_x, min_y - tbh, min_x + tbw, min_y, fill=fill_color, outline=outline_color, width=2)
+                            status_text = "OK" if result.get('passou', False) else "NG"
+                            self.tablet_canvas.create_text(min_x + tbw/2, min_y - tbh/2, text=f"S{slot.get('id','?')}: {status_text}", fill=text_color, font=font_str, anchor="center")
+                            score_text = f"{result.get('score', 0.0):.2f}"
+                            self.tablet_canvas.create_text(max_x - 5, max_y - 5, text=score_text, fill=outline_color, font=font_str, anchor="se")
+                            continue
+                        except Exception:
+                            pass
+                    # Fallback retangular
+                    try:
+                        x1 = int(slot.get('x', 0) * scale) + x_off
+                        y1 = int(slot.get('y', 0) * scale) + y_off
+                        x2 = int((slot.get('x', 0) + slot.get('w', 0)) * scale) + x_off
+                        y2 = int((slot.get('y', 0) + slot.get('h', 0)) * scale) + y_off
+                        self.tablet_canvas.create_rectangle(x1, y1, x2, y2, outline=outline_color, width=4)
+                        tbw, tbh = 90, 28
+                        self.tablet_canvas.create_rectangle(x1, y1, x1 + tbw, y1 + tbh, fill=fill_color, outline=outline_color, width=2)
+                        status_text = "OK" if result.get('passou', False) else "NG"
+                        self.tablet_canvas.create_text(x1 + tbw/2, y1 + tbh/2, text=f"S{slot.get('id','?')}: {status_text}", fill=text_color, font=font_str, anchor="center")
+                        score_text = f"{result.get('score', 0.0):.2f}"
+                        self.tablet_canvas.create_text(x2 - 5, y2 - 5, text=score_text, fill=outline_color, font=font_str, anchor="se")
+                    except Exception:
+                        pass
+            else:
+                # Se for composto, adiciona uma faixa de status opcional
+                try:
+                    overall = bool(self._last_composite_overall_success)
+                    bg_col = get_color('colors.ok_color') if overall else get_color('colors.ng_color')
+                    text_col = get_color('colors.special_colors.white_text')
+                    status_h = max(30, new_h // 15)
+                    self.tablet_canvas.create_rectangle(x_off, y_off, x_off + new_w, y_off + status_h, fill=bg_col, outline=bg_col)
+                    self.tablet_canvas.create_text(x_off + new_w//2, y_off + status_h//2, text=f"RESULTADO GERAL: {'APROVADO' if overall else 'REPROVADO'}", fill=text_col, font=("Arial", max(14, new_w//40), "bold"))
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Erro ao renderizar modo tablet: {e}")
+
+    def on_enter_key_tablet(self, event=None):
+        """Enter no modo tablet: captura (se em live), roda inspeção e atualiza tela cheia."""
+        try:
+            # Sempre tenta capturar nova imagem quando Enter for pressionado no tablet
+            if hasattr(self, 'live_capture') and self.live_capture and hasattr(self, 'latest_frame') and self.latest_frame is not None:
+                # Se estiver em modo live, usa o frame mais recente
+                self.img_test = self.latest_frame.copy()
+                try:
+                    self.save_to_photo_history(self.img_test)
+                except Exception:
+                    pass
+            else:
+                # Se não estiver em live, tenta capturar da câmera atual
+                try:
+                    # Verifica se a câmera está válida e é um objeto VideoCapture
+                    camera_valid = (hasattr(self, 'camera') and 
+                                  self.camera is not None and 
+                                  hasattr(self.camera, 'read') and 
+                                  hasattr(self.camera, 'isOpened') and
+                                  self.camera.isOpened())
+                    
+                    if camera_valid:
+                        print("Câmera válida encontrada, tentando captura...")
+                        ret, frame = self.camera.read()
+                        if ret and frame is not None:
+                            self.img_test = frame.copy()
+                            try:
+                                self.save_to_photo_history(self.img_test)
+                            except Exception:
+                                pass
+                            print("Imagem capturada com sucesso da câmera")
+                        else:
+                            print("Falha na leitura da câmera, usando fallback...")
+                            # Fallback: tenta usar camera_manager
+                            try:
+                                from camera_manager import capture_image_from_camera
+                                camera_index = getattr(self, 'current_camera_index', 0)
+                                frame = capture_image_from_camera(camera_index)
+                                if frame is not None:
+                                    self.img_test = frame.copy()
+                                    try:
+                                        self.save_to_photo_history(self.img_test)
+                                    except Exception:
+                                        pass
+                                    print("Imagem capturada via camera_manager")
+                            except Exception:
+                                print("Não foi possível capturar nova imagem via camera_manager")
+                                return
+                    else:
+                        print(f"Câmera inválida detectada: {type(self.camera) if hasattr(self, 'camera') else 'None'}")
+                        # Reset da câmera se estiver inválida
+                        if hasattr(self, 'camera') and self.camera is not None:
+                            try:
+                                if hasattr(self.camera, 'release'):
+                                    self.camera.release()
+                            except Exception:
+                                pass
+                            self.camera = None
+                        
+                        # Tenta inicializar câmera se não estiver disponível
+                        try:
+                            print("Tentando inicializar nova câmera...")
+                            from camera_manager import capture_image_from_camera
+                            camera_index = getattr(self, 'current_camera_index', 0)
+                            frame = capture_image_from_camera(camera_index)
+                            if frame is not None:
+                                self.img_test = frame.copy()
+                                try:
+                                    self.save_to_photo_history(self.img_test)
+                                except Exception:
+                                    pass
+                                print("Imagem capturada via camera_manager após reset")
+                            else:
+                                print("Falha na captura via camera_manager após reset")
+                                return
+                        except Exception as init_error:
+                            print(f"Erro ao inicializar câmera: {init_error}")
+                            return
+                except Exception as e:
+                    print(f"Erro ao capturar imagem: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return
+            
+            # Executa inspeção: se houver múltiplos programas selecionados, respeitar fluxo existente
+            if hasattr(self, 'selected_program_ids') and self.selected_program_ids:
+                print(f"Modo tablet: {len(self.selected_program_ids)} programas selecionados")
+                try:
+                    # Verifica se o sistema dual de câmeras está funcionando
+                    dual_system_ok = False
+                    try:
+                        print("Verificando sistema dual de câmeras...")
+                        if hasattr(self, 'dual_manager') and self.dual_manager and getattr(self.dual_manager, 'is_initialized', False):
+                            print("dual_manager encontrado e inicializado")
+                            from dual_camera_driver import get_all_camera_frames
+                            test_frames = get_all_camera_frames()
+                            print(f"Teste dual_camera_driver: {len(test_frames) if test_frames else 0} frames")
+                            if test_frames and len(test_frames) > 0:
+                                dual_system_ok = True
+                                print("Sistema dual OK - usando captura multi-câmera")
+                            else:
+                                print("Sistema dual retornou frames vazios")
+                        else:
+                            print(f"dual_manager status: {hasattr(self, 'dual_manager')} - {getattr(self, 'dual_manager', None)} - {getattr(self.dual_manager, 'is_initialized', False) if hasattr(self, 'dual_manager') and self.dual_manager else 'N/A'}")
+                            
+                            # Tenta inicializar o sistema dual se não estiver
+                            try:
+                                print("Tentando inicializar sistema dual...")
+                                from dual_camera_driver import initialize_dual_cameras, get_dual_camera_manager
+                                dual_manager = get_dual_camera_manager()
+                                if dual_manager and not getattr(dual_manager, 'is_initialized', False):
+                                    initialize_dual_cameras()
+                                    if getattr(dual_manager, 'is_initialized', False):
+                                        print("Sistema dual inicializado com sucesso")
+                                        dual_system_ok = True
+                                    else:
+                                        print("Falha ao inicializar sistema dual")
+                                elif dual_manager and getattr(dual_manager, 'is_initialized', False):
+                                    print("Sistema dual já estava inicializado")
+                                    dual_system_ok = True
+                                else:
+                                    print("Não foi possível obter dual_manager")
+                            except Exception as init_error:
+                                print(f"Erro ao inicializar sistema dual: {init_error}")
+                                
+                    except Exception as dual_error:
+                        print(f"Erro ao verificar sistema dual: {dual_error}")
+                        dual_system_ok = False
+                    
+                    if dual_system_ok:
+                        # Tenta captura multi-câmera primeiro
+                        print("Iniciando captura multi-câmera...")
+                        self.capture_all_cameras_and_run_multi_inspection(self.selected_program_ids)
+                    else:
+                        print("Sistema dual de câmeras não está funcionando, usando fallback")
+                        # Fallback: usa a imagem já capturada para inspeção sequencial
+                        if hasattr(self, 'img_test') and self.img_test is not None:
+                            print(f"Usando imagem capturada para inspeção sequencial: {self.img_test.shape}")
+                            # Para cada programa, carrega o modelo e executa inspeção com a imagem capturada
+                            for i, mid in enumerate(self.selected_program_ids):
+                                try:
+                                    print(f"Processando programa {i+1}/{len(self.selected_program_ids)}: {mid}")
+                                    # Carrega o modelo
+                                    if hasattr(self, 'db_manager') and self.db_manager:
+                                        self.db_manager.load_modelo(mid)
+                                        print(f"Modelo {mid} carregado")
+                                    
+                                    # Executa inspeção com a imagem já capturada
+                                    self.run_inspection()
+                                    print(f"Inspeção do programa {mid} concluída")
+                                    
+                                    # Aguarda um pouco entre programas
+                                    import time
+                                    time.sleep(0.1)
+                                    
+                                except Exception as prog_error:
+                                    print(f"Erro ao processar programa {mid}: {prog_error}")
+                                    continue
+                        else:
+                            print("Nenhuma imagem disponível, tentando captura simples")
+                            # Se não há imagem, tenta captura simples
+                            self.run_inspection()
+                            
+                except Exception as e:
+                    print(f"Falha na captura multi-câmera: {e}")
+                    # Fallback: usa a imagem já capturada para inspeção simples
+                    try:
+                        if hasattr(self, 'img_test') and self.img_test is not None:
+                            print(f"Fallback: usando imagem existente para inspeção sequencial: {self.img_test.shape}")
+                            # Para cada programa, carrega o modelo e executa inspeção com a imagem capturada
+                            for i, mid in enumerate(self.selected_program_ids):
+                                try:
+                                    print(f"Fallback: processando programa {i+1}/{len(self.selected_program_ids)}: {mid}")
+                                    # Carrega o modelo
+                                    if hasattr(self, 'db_manager') and self.db_manager:
+                                        self.db_manager.load_modelo(mid)
+                                        print(f"Modelo {mid} carregado no fallback")
+                                    
+                                    # Executa inspeção com a imagem já capturada
+                                    self.run_inspection()
+                                    print(f"Inspeção fallback do programa {mid} concluída")
+                                    
+                                    # Aguarda um pouco entre programas
+                                    import time
+                                    time.sleep(0.1)
+                                    
+                                except Exception as prog_error:
+                                    print(f"Erro ao processar programa {mid} no fallback: {prog_error}")
+                                    continue
+                        else:
+                            print("Fallback: nenhuma imagem disponível, tentando captura simples")
+                            # Se não há imagem, tenta captura simples
+                            self.run_inspection()
+                    except Exception as fallback_error:
+                        print(f"Erro no fallback: {fallback_error}")
+                        # Último recurso: inspeção simples
+                        self.run_inspection()
+            else:
+                self.run_inspection()
+        except Exception as e:
+            print(f"Erro ao processar Enter no modo tablet: {e}")
+        finally:
+            # Atualiza a visão em tela cheia
+            self._render_tablet_view()
     
     def open_dual_inspection_dialog(self):
         """Abre diálogo para configurar inspeção dual com dois modelos."""
@@ -2332,6 +2814,9 @@ class InspecaoWindow(ttk.Frame):
     def _display_composite_image(self, composite_img, overall_success):
         """Exibe a imagem composta no canvas temporariamente."""
         try:
+            # Armazena última imagem composta para o modo tablet
+            self._last_composite_np = composite_img
+            self._last_composite_overall_success = overall_success
             if not hasattr(self, 'canvas') or composite_img is None:
                 return
             
@@ -2396,6 +2881,13 @@ class InspecaoWindow(ttk.Frame):
                 except Exception:
                     pass
             self._composite_restore_timer = self.master.after(15000, self._restore_original_display)
+            
+            # Atualiza visão do tablet se estiver aberta
+            if getattr(self, '_tablet_open', False):
+                try:
+                    self._render_tablet_view()
+                except Exception:
+                    pass
 
             # Intercepta cliques do mouse na área para evitar updates concorrentes
             try:
